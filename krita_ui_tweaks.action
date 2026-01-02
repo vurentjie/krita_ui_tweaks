@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ActionCollection version="2" name="Scripts">
+    <Actions category="Scripts">
+        <text>Krita UI Tweaks</text>
+        <Action name="krita_ui_tweaks">
+            <icon></icon>
+            <text>Krita UI Tweaks</text>
+            <whatsThis></whatsThis>
+            <toolTip></toolTip>
+            <iconText></iconText>
+            <activationFlags>0</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip></statusTip>
+        </Action>
+        <Action name="krita_ui_tweaks_toggle_dockers">
+            <icon></icon>
+            <text>Toggle docking</text>
+        </Action>
+        <Action name="krita_ui_tweaks_next_tab">
+            <icon></icon>
+            <text>Goto next tab</text>
+        </Action>
+        <Action name="krita_ui_tweaks_prev_tab">
+            <icon></icon>
+            <text>Goto previous tab</text>
+        </Action>
+    </Actions>
+</ActionCollection>

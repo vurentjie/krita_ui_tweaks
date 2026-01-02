@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=krita_ui_tweaks
+X-Python-2-Compatible=false
+X-Krita-Manual=Manual.html
+Name=Krita UI Tweaks
+Comment=Various tweaks for Krita's interface. 
+
