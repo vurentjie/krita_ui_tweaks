@@ -27,7 +27,8 @@ class Tools(Component):
             menu=True,
         )
 
-        self._activeTool: str = "KritaShape/KisToolBrush"
+        self._defaultTool: str = "KritaShape/KisToolBrush"
+        self._activeTool: str = self._defaultTool
         self._toolActions: dict[str, QAction | None] = {
             "view_toggle_reference_images": None,
             "InteractionTool": None,
@@ -116,12 +117,21 @@ class Tools(Component):
 
     def onViewChanged(self):
         super().onViewChanged()
+        action = None
         if getOpt("toggle", "shared_tool"):
             action = self._toolActions[self._activeTool]
-            if action:
-                self._helper.disableToast()
-                action.trigger()
-                self._helper.enableToast()
+        else:
+            view = self._helper.getView()
+            data = self._helper.getViewData(view)
+            if isinstance(data, dict):
+                name = data.get("viewTool", self._defaultTool)
+                action = self._toolActions.get(name)
+
+        if action:
+            self._helper.disableToast()
+            action.trigger()
+            self._helper.enableToast()
+
 
     def onToolAction(self, action: QAction | None):
         if not action:
@@ -143,6 +153,11 @@ class Tools(Component):
 
         self._helper.showToast(f"{msg}")
         self._activeTool = name
+        
+        view = self._helper.getView()
+        data = self._helper.getViewData(view)
+        if isinstance(data, dict):
+            data["viewTool"] = name
 
         if checkableIcons:
             for tb in qwin.findChildren(QToolButton):
@@ -161,7 +176,7 @@ class Tools(Component):
         def updatePrintSize():
             view = self._helper.getView()
             data = self._helper.getViewData(view)
-            if data:
+            if isinstance(data, dict):
                 action = app.action("view_print_size")
                 data["printSize"] = action.isChecked() if action else False
 
@@ -169,7 +184,7 @@ class Tools(Component):
             qwin = self._helper.getQwin()
             view = self._helper.getView()
             data = self._helper.getViewData(view)
-            if not (data and view and qwin):
+            if not (isinstance(data, dict) and view and qwin):
                 return
 
             if data.get("printSizeClick", False):
