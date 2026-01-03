@@ -1957,6 +1957,7 @@ class Split(QObject):
                 )
 
             second.restoreSizes(sizes, orient=second.orientation())
+            second.realignCanvas(nested = True)
 
     def resetLayout(self):
         tabs = self._helper.getTabBar()
