@@ -20,7 +20,13 @@ Screenshot of split panes:
 
 ---
 
-Watch the video preview:
+Screencast of split panes:
+
+[Screencast from 2026-01-03 17-11-38.webm](https://github.com/user-attachments/assets/e934b5df-babb-4527-881e-07c3a9e7eba9)
+
+---
+
+Instructional video:
 
 https://github.com/user-attachments/assets/8da930e0-4f5b-4da1-9fe9-e7bb2000bb1a
 
