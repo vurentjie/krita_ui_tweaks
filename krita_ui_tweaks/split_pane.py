@@ -2079,10 +2079,6 @@ class SplitPane(Component):
         qapp = typing.cast(QApplication, QApplication.instance())
         qapp.aboutToQuit.connect(lambda: self.onQuit())
 
-        self._poll = SimpleNamespace(short=QTimer(), long=QTimer())
-        self._poll.short.timeout.connect(self.shortPoll)
-        self._poll.long.timeout.connect(self.longPoll)
-
         self.attachStyles()
 
         OptionSignals.configSaved.connect(self.onConfigSave)
@@ -2170,12 +2166,12 @@ class SplitPane(Component):
                 for i, _ in enumerate(mdi.subWindowList()):
                     self.syncView(index=i)
 
-                self._poll.short.start(500)
-                self._poll.long.start(5000)
+                self._componentTimers.shortPoll.connect(self.shortPoll)
+                self._componentTimers.longPoll.connect(self.longPoll)
 
         elif self._split:
-            self._poll.short.stop()
-            self._poll.long.stop()
+            self._componentTimers.shortPoll.disconnect(self.shortPoll)
+            self._componentTimers.longPoll.disconnect(self.longPoll)
 
             qwin = helper.getQwin()
             if qwin and mdi:

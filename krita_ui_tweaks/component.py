@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: CC0-1.0
 
 from .pyqt import (
+    pyqtSignal,
     pyqtBoundSignal,
     QMdiArea,
     QEvent,
@@ -39,14 +40,32 @@ class ComponentFilters:
 
 
 @dataclass
-class ComponentTimers:
-    viewMode: QTimer
-
-
-@dataclass
 class ComponentFlags:
     homeScreen: bool | None
     viewMode: QMdiArea.ViewMode | None
+
+
+class ComponentTimers(QObject):
+    shortPoll = pyqtSignal()
+    longPoll = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self._shortPoll = QTimer()
+        self._longPoll = QTimer()
+        self._shortPoll.timeout.connect(self._onShortPoll)
+        self._longPoll.timeout.connect(self._onLongPoll)
+        self._shortPoll.start(100)
+        self._longPoll.start(5000)
+
+    def _onShortPoll(self):
+        self.shortPoll.emit()
+
+    def _onLongPoll(self):
+        self.longPoll.emit()
+
+
+componentTimers = ComponentTimers()
 
 
 class Component:
@@ -62,11 +81,7 @@ class Component:
         self._componentFilters = ComponentFilters(
             windowShow=None,
         )
-        self._componentTimers = ComponentTimers(viewMode=QTimer())
-
-        self._componentTimers.viewMode.timeout.connect(
-            lambda: self._checkViewMode()
-        )
+        self._componentTimers = componentTimers
 
         notifier = self._helper.getNotifier()
 
@@ -101,9 +116,8 @@ class Component:
 
         if win:
             mdi = self._helper.getMdi()
-            if mdi and timers.viewMode:
-                timers.viewMode.stop()
-                timers.viewMode.start(100)
+            if mdi:
+                self._componentTimers.shortPoll.connect(self._checkViewMode)
 
             typing.cast(pyqtBoundSignal, win.activeViewChanged).connect(
                 self.onViewChanged

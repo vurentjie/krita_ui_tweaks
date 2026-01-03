@@ -27,6 +27,7 @@ class Tools(Component):
             menu=True,
         )
 
+        view = self._helper.getView()
         self._defaultTool: str = "KritaShape/KisToolBrush"
         self._activeTool: str = self._defaultTool
         self._toolActions: dict[str, QAction | None] = {
@@ -118,7 +119,9 @@ class Tools(Component):
     def onViewChanged(self):
         super().onViewChanged()
         action = None
-        if getOpt("toggle", "shared_tool"):
+        isSharedTool = getOpt("toggle", "shared_tool")
+
+        if isSharedTool:
             action = self._toolActions[self._activeTool]
         else:
             view = self._helper.getView()
