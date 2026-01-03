@@ -17,6 +17,8 @@ from .pyqt import (
     QPalette,
     QObject,
     QTimer,
+    QStackedWidget,
+    QLineEdit,
 )
 
 from krita import Krita, Window, Document, View, Notifier
@@ -26,6 +28,7 @@ from itertools import count
 from typing import Any, Type, TypeVar
 
 import typing
+import math
 import os
 
 T = TypeVar("T", bound=QObject)
@@ -55,9 +58,7 @@ class Helper:
         return next(self._uid)
 
     def isAlive(self, obj: Any, cls: Type[T]) -> T | None:
-        if isinstance(obj, cls) and not sip.isdeleted(
-            typing.cast(Any, obj)
-        ):
+        if isinstance(obj, cls) and not sip.isdeleted(typing.cast(Any, obj)):
             return obj
         return None
 
@@ -297,3 +298,41 @@ class Helper:
                     if hbar and x is not None:
                         hbar.setValue(x)
 
+    def getZoomLevel(self, raw: bool = False):
+        app = self.getApp()
+        qwin = self.getQwin()
+        canvas = self.getCanvas()
+        doc = self.getDoc()
+
+        if not (app and qwin and canvas and doc):
+            return 1
+
+        action = app.action("view_print_size")
+        isPrintSize = action.isChecked() if action else False
+        zoom = canvas.zoomLevel()
+        res = 72
+        dpi = doc.resolution()
+
+        if isPrintSize:
+            screen = qwin.screen()
+            mm_per_inch = 25.4
+            sw = screen.size().width()
+            spw = screen.physicalSize().width()
+            dpi = sw / spw * mm_per_inch
+
+        val = zoom * res / dpi
+
+        if raw:
+            return val
+
+        # NOTE ceiling and truncating here
+        # keeps the value aligned with what
+        # Krita reports in the user interface
+        # and is the value to use when doing
+        # setZoomLevel(getZoomLevel())
+        return math.ceil(val * 1000) / 1000
+
+    def setZoomLevel(self, z: float):
+        canvas = self.getCanvas()
+        if canvas:
+            canvas.setZoomLevel(z)

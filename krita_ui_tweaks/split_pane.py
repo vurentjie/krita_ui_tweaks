@@ -176,6 +176,51 @@ class SplitTabs(QTabBar):
             if data and data.win != subwin:
                 self._controller.syncView(split=self.split(), view=data.view)
 
+    def exec(
+        self,
+        callback: typing.Callable[[int, ViewData], Any],
+        index: int | None = None,
+        view: View | None = None,
+    ):
+        helper = self._helper
+        win = helper.getWin()
+        qwin = helper.getQwin()
+        title = qwin.windowTitle()
+        tabs = helper.getTabBar()
+        mdi = helper.getMdi()
+        if not (win and qwin and tabs and mdi):
+            return
+
+        if view:
+            index = self.getTabByView(view)
+            if index == -1:
+                return
+
+        updates = qwin.updatesEnabled()
+        qwin.setUpdatesEnabled(False)
+        try:
+            kritaIndex = tabs.currentIndex()
+            currIndex = self.currentIndex()
+
+            index = currIndex if not isinstance(index, int) else index
+            uid = self.getUid(index)
+            data = self._controller.getViewData(uid)
+
+            if uid is not None and data:
+                # XXX stop the window title from flashing
+                winTitle = data.win.windowTitle()
+                data.win.setWindowTitle(title)
+                
+                # XXX make sure actions use the correct subwindow
+                mdi.setActiveSubWindow(data.win)
+                callback(uid, data)
+
+                self.setCurrentIndex(currIndex)
+                tabs.setCurrentIndex(kritaIndex)
+                data.win.setWindowTitle(winTitle)
+        finally:
+            qwin.setUpdatesEnabled(updates)
+
     def onCurrentChange(self):
         self._sync(self.currentIndex())
 
@@ -639,7 +684,6 @@ class SplitTabs(QTabBar):
             if btn == Qt.MouseButton.LeftButton:
                 self._sync(index)
             elif btn == Qt.MouseButton.MiddleButton:
-                self._sync(index)
                 self._dragStart = getEventGlobalPos(event)
                 self._dragIndex = index
                 globalPos = toPoint(getEventGlobalPos(event))
@@ -668,6 +712,10 @@ class SplitTabs(QTabBar):
                 cb = getattr(dropSplit, self._dropAction, None)
                 if cb is not None:
                     cb(tabIndex=self._dragIndex, tabSplit=self.split())
+                    
+            currSplit = self.split()
+            if currSplit:
+                currSplit.realignCanvas()
 
         if self._dragTimer:
             self._dragTimer.stop()
@@ -1744,6 +1792,8 @@ class Split(QObject):
             topSplit = self.topSplit()
             if topSplit:
                 topSplit.resize(force=True)
+            self._first.realignCanvas(nested=True)
+            self._second.realignCanvas(nested=True)
             return ret
 
     def makeSplitBelow(
@@ -1918,6 +1968,43 @@ class Split(QObject):
             if topSplit:
                 topSplit.closeEmpties()
 
+    def realignCanvas(
+        self,
+        index: int | None = None,
+        view: View | None = None,
+        nested: bool = False,
+    ):
+        if self._state == Split.STATE_COLLAPSED:
+            helper = self._helper
+            tabs = self.tabs()
+            if not tabs:
+                return
+
+            def cb(_, data):
+                app = helper.getApp()
+                qwin = helper.getQwin()
+                if app and qwin:
+                    w, h = data.win.width(), data.win.height()
+                    rawZoom = helper.getZoomLevel(True)
+                    data.win.setFixedHeight(h + 1)
+                    data.win.setFixedWidth(w + 1)
+                    rawZoomX = helper.getZoomLevel(True)
+                    fitToView = rawZoom != helper.getZoomLevel(True)
+                    data.win.setFixedHeight(h)
+                    data.win.setFixedWidth(w)
+
+                    if not fitToView:
+                        zoom = helper.getZoomLevel()
+                        app.action("zoom_to_fit").trigger()
+                        helper.setZoomLevel(zoom)
+
+            tabs.exec(cb, index=index, view=view)
+        elif self._state == Split.STATE_SPLIT and nested:
+            if self._first:
+                self._first.realignCanvas(nested=True)
+            if self._second:
+                self._second.realignCanvas(nested=True)
+
     def saveSizes(self) -> list[tuple["Split", int]]:
         if self._state == Split.STATE_SPLIT:
             assert self._first is not None
@@ -1998,7 +2085,6 @@ class SplitPane(Component):
         self.attachStyles()
 
         OptionSignals.configSaved.connect(self.onConfigSave)
-        Krita.instance().dbg = self
 
     def onQuit(self):
         self._quit = True
@@ -2471,7 +2557,7 @@ class SplitPane(Component):
                 data = self.getViewData(uid)
                 defaultSplit = self.defaultSplit()
                 activeWin = mdi.subWindowList()[index]
-                tabs.setCurrentIndex(index)
+                mdi.setActiveSubWindow(activeWin)
                 activeView = helper.getView()
 
                 if not activeView:
@@ -2524,12 +2610,12 @@ class SplitPane(Component):
 
                     toolbar = helper.isAlive(data.toolbar, SplitToolbar)
                     if toolbar:
+                        toolbarSplit = helper.isAlive(toolbar.split(), Split)
                         toolbarTabs = toolbar.tabs()
                         splitTabIndex = -1
                         if addTab:
                             self.setViewData(uid, data)
 
-                            # TODO update tab text with main tab, mainly need to check title + modified state
                             tabText = tabs.tabText(index)
                             if len(tabText) > TAB_TEXT_MAX_LEN:
                                 tabText = f"…{tabText[-TAB_TEXT_MAX_LEN:]}"
@@ -2539,14 +2625,19 @@ class SplitPane(Component):
                             )
                             if splitTabIndex != -1:
                                 toolbarTabs.setUid(splitTabIndex, uid)
-
+                                
+                            QTimer.singleShot(
+                                100,
+                                lambda: toolbarSplit.realignCanvas(
+                                    view=data.view
+                                ),
+                            )
                         else:
                             splitTabIndex = toolbarTabs.getTabByView(data.view)
 
                         if splitTabIndex != -1:
                             toolbarTabs.setCurrentIndex(splitTabIndex)
 
-                        toolbarSplit = helper.isAlive(toolbar.split(), Split)
                         if toolbarSplit:
                             topSplit = toolbarSplit.topSplit()
                             if topSplit:
@@ -2559,27 +2650,6 @@ class SplitPane(Component):
                                 self.setActiveToolbar(toolbar)
                             else:
                                 self.setActiveToolbar(toolbar)
-
-                        if addTab:
-                            # NOTE
-                            # this doesn't trigger when
-                            # Krita starts up with a session
-                            # and restores the previous window state
-                            tw = toolbar.width() * 0.3
-                            th = toolbar.height() * 0.3
-                            x, y = helper.scrollOffset()
-                            helper.scrollTo(
-                                (
-                                    0
-                                    if (x is None or x > 0 or abs(x) > tw)
-                                    else x
-                                ),
-                                (
-                                    0
-                                    if (y is None or y > 0 or abs(y) > th)
-                                    else y
-                                ),
-                            )
 
     def getUid(self, index: int | None) -> int | None:
         if index is not None:
@@ -2608,7 +2678,6 @@ class SplitPane(Component):
         if uid is not None:
             return self._viewData.pop(uid, None)
 
-    # replaces getTabByView
     def getIndexByView(self, view: View | None) -> int:
         mdi = self._helper.getMdi()
         if not mdi:
@@ -2621,7 +2690,6 @@ class SplitPane(Component):
                     return i
         return -1
 
-    # replaces getTabByWindow
     def getIndexByWindow(self, win: QMdiSubWindow | None) -> int:
         mdi = self._helper.getMdi()
         try:
@@ -2632,7 +2700,6 @@ class SplitPane(Component):
         finally:
             return -1
 
-    # replaces get split by view
     def getToolbarByView(self, view: View | None) -> SplitToolbar | None:
         if view is not None:
             data = self._helper.getViewData(view)
@@ -2644,7 +2711,6 @@ class SplitPane(Component):
                 else None
             )
 
-    # replaces get split by window
     def getToolbarByWindow(
         self, win: QMdiSubWindow | None
     ) -> SplitToolbar | None:
