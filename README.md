@@ -22,7 +22,7 @@ Screenshot of split panes:
 
 Screencast of split panes:
 
-[Screencast](https://github.com/user-attachments/assets/e934b5df-babb-4527-881e-07c3a9e7eba9)
+[Screencast.webm](https://github.com/user-attachments/assets/27f8b16b-b0a3-4d52-9b48-8a5ee166c891)
 
 ---
 
