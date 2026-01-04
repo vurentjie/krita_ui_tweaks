@@ -68,6 +68,7 @@ class ViewData:
     toolbar: "SplitToolbar | None"
     watcher: "SubWindowInterceptor | None"
     watcherCallback: typing.Callable[[object, Any], None] | None
+    realignTick: int | None
 
 
 class SubWindowInterceptor(QObject):
@@ -181,24 +182,29 @@ class SplitTabs(QTabBar):
         callback: typing.Callable[[int, ViewData], Any],
         index: int | None = None,
         view: View | None = None,
+        context: dict[str, Any] | None = None,
     ):
         helper = self._helper
         win = helper.getWin()
         qwin = helper.getQwin()
-        title = qwin.windowTitle()
         tabs = helper.getTabBar()
         mdi = helper.getMdi()
         if not (win and qwin and tabs and mdi):
             return
+
+        title = context.get("winTitle", None) if context else None
+        if isinstance(title, str):
+            title = qwin.windowTitle()
 
         if view:
             index = self.getTabByView(view)
             if index == -1:
                 return
 
-        updates = qwin.updatesEnabled()
-        qwin.setUpdatesEnabled(False)
-        try:
+        with self._controller.syncedCall(True) as sync:
+            if not sync:
+                return
+
             kritaIndex = tabs.currentIndex()
             currIndex = self.currentIndex()
 
@@ -207,19 +213,18 @@ class SplitTabs(QTabBar):
             data = self._controller.getViewData(uid)
 
             if uid is not None and data:
-                # XXX stop the window title from flashing
+                # XXX helps a little with window title flashing
                 winTitle = data.win.windowTitle()
-                data.win.setWindowTitle(title)
-                
-                # XXX make sure actions use the correct subwindow
+                data.win.setWindowTitle(typing.cast(str, title))
+
+                # XXX use setActiveSubWindow not setCurrentIndex
+                # to make sure actions use the correct subwindow (in this cycle)
                 mdi.setActiveSubWindow(data.win)
                 callback(uid, data)
 
                 self.setCurrentIndex(currIndex)
                 tabs.setCurrentIndex(kritaIndex)
                 data.win.setWindowTitle(winTitle)
-        finally:
-            qwin.setUpdatesEnabled(updates)
 
     def onCurrentChange(self):
         self._sync(self.currentIndex())
@@ -311,12 +316,16 @@ class SplitTabs(QTabBar):
         for w in wins:
             if self._helper.isAlive(w, QMdiSubWindow):
                 w.close()
-
-    def purgeAllTabs(self):
+                
+    def purgeAllTabs(self, closeSplit: bool = True):
         for i in range(self.count()):
-            self.purgeTab(i)
+            self.purgeTab(i, closeSplit=False)
+        if closeSplit:
+            split = self.split()
+            if split:
+                split.checkShouldClose()
 
-    def purgeTab(self, index: int):
+    def purgeTab(self, index: int, closeSplit: bool = True):
         helper = self._helper
         uid = self.getUid(index)
         data = self._controller.getViewData(uid)
@@ -326,15 +335,10 @@ class SplitTabs(QTabBar):
                 win = helper.isAlive(data.win, QMdiSubWindow)
                 if win:
                     win.close()
-
-        def cb():
-            if helper.isAlive(self, SplitTabs) and self.count() == 0:
-                split = helper.isAlive(self.split(), Split)
-                if split and split.topSplit() != split:
-                    split.close()
-                self._controller.setActiveToolbar()
-
-        QTimer.singleShot(10, cb)
+        if closeSplit:
+            split = self.split()
+            if split:
+                split.checkShouldClose()
 
     def eventFilter(self, obj: QWidget, event: QEvent):
         if event.type() == QEvent.Type.Enter:
@@ -712,7 +716,7 @@ class SplitTabs(QTabBar):
                 cb = getattr(dropSplit, self._dropAction, None)
                 if cb is not None:
                     cb(tabIndex=self._dragIndex, tabSplit=self.split())
-                    
+
             currSplit = self.split()
             if currSplit:
                 currSplit.realignCanvas()
@@ -1221,6 +1225,7 @@ class Split(QObject):
         self._closing: bool = False
         self._forceResizing: bool = False
         self._lastHandleRect: QRect = QRect()
+        self._realignTick = self._helper.uid()
 
         mdi = self._helper.getMdi()
         assert mdi
@@ -1455,6 +1460,18 @@ class Split(QObject):
             if self._second:
                 windows.extend(self._second.getOpenSubWindows())
         return windows
+        
+    def checkShouldClose(self):
+        helper = self._helper
+        def cb():
+            closeSplit = helper.isAlive(self, Split)
+            if closeSplit:
+                tabs = helper.isAlive(closeSplit.tabs(), SplitTabs)
+                if not tabs or tabs.count() == 0:
+                    if closeSplit.topSplit() != closeSplit:
+                        closeSplit.close()
+                    self._controller.setActiveToolbar()
+        QTimer.singleShot(10, cb)
 
     def close(self):
         helper = self._helper
@@ -1475,12 +1492,14 @@ class Split(QObject):
 
         parent = self.parent()
         if isinstance(parent, Split) and self._state == Split.STATE_COLLAPSED:
-            first = parent._first
-            second = parent._second
-            assert first is not None
-            assert second is not None
+            first = parent.first()
+            second = parent.second()
+            if not (first and second):
+                return
             if (
-                first._state == Split.STATE_COLLAPSED
+                first
+                and second
+                and first._state == Split.STATE_COLLAPSED
                 and second._state == Split.STATE_COLLAPSED
             ):
                 keep = second if first == self else first
@@ -1541,7 +1560,7 @@ class Split(QObject):
             self._handle.deleteLater()
             self._handle = None
         if self._toolbar:
-            self._toolbar.tabs().purgeAllTabs()
+            self._toolbar.tabs().purgeAllTabs(closeSplit=False)
             self._toolbar.deleteLater()
             self._toolbar = None
         if self._first:
@@ -1957,7 +1976,7 @@ class Split(QObject):
                 )
 
             second.restoreSizes(sizes, orient=second.orientation())
-            second.realignCanvas(nested = True)
+            second.realignCanvas(nested=True)
 
     def resetLayout(self):
         tabs = self._helper.getTabBar()
@@ -1974,22 +1993,49 @@ class Split(QObject):
         index: int | None = None,
         view: View | None = None,
         nested: bool = False,
+        tick: bool = True,
     ):
+        with self._controller.syncedCall(True) as sync:
+            if not sync:
+                return
+
+            qwin = self._helper.getQwin()
+            context = {"winTitle": qwin.windowTitle()} if qwin else None
+            self._doRealign(
+                index=index,
+                view=view,
+                nested=nested,
+                context=context,
+                tick=tick,
+            )
+
+    def _doRealign(
+        self,
+        index: int | None = None,
+        view: View | None = None,
+        nested: bool = False,
+        context: dict[str, Any] | None = None,
+        tick: bool = True,
+    ):
+
         if self._state == Split.STATE_COLLAPSED:
             helper = self._helper
             tabs = self.tabs()
             if not tabs:
                 return
 
-            def cb(_, data):
+            if tick:
+                self._realignTick = helper.uid()
+
+            def cb(_, data: ViewData):
                 app = helper.getApp()
                 qwin = helper.getQwin()
                 if app and qwin:
                     w, h = data.win.width(), data.win.height()
                     rawZoom = helper.getZoomLevel(True)
+                    data.realignTick = self._realignTick
                     data.win.setFixedHeight(h + 1)
                     data.win.setFixedWidth(w + 1)
-                    rawZoomX = helper.getZoomLevel(True)
                     fitToView = rawZoom != helper.getZoomLevel(True)
                     data.win.setFixedHeight(h)
                     data.win.setFixedWidth(w)
@@ -1999,12 +2045,14 @@ class Split(QObject):
                         app.action("zoom_to_fit").trigger()
                         helper.setZoomLevel(zoom)
 
-            tabs.exec(cb, index=index, view=view)
+            tabs.exec(cb, index=index, view=view, context=context)
         elif self._state == Split.STATE_SPLIT and nested:
             if self._first:
-                self._first.realignCanvas(nested=True)
+                self._first._doRealign(nested=True, context=context, tick=tick)
             if self._second:
-                self._second.realignCanvas(nested=True)
+                self._second._doRealign(
+                    nested=True, context=context, tick=tick
+                )
 
     def saveSizes(self) -> list[tuple["Split", int]]:
         if self._state == Split.STATE_SPLIT:
@@ -2412,17 +2460,7 @@ class SplitPane(Component):
                         splitTabIndex = tabs.getTabByView(data.view)
                         if splitTabIndex != -1:
                             tabs.removeTab(splitTabIndex)
-
-                def cb():
-                    closeSplit = helper.isAlive(split, Split)
-                    if closeSplit:
-                        tabs = helper.isAlive(closeSplit.tabs(), SplitTabs)
-                        if not tabs or tabs.count() == 0:
-                            if closeSplit.topSplit() != closeSplit:
-                                closeSplit.close()
-                            self.setActiveToolbar()
-
-                QTimer.singleShot(10, cb)
+                    split.checkShouldClose()
 
     def topSplit(self) -> "Split | None":
         central = self._helper.getCentral()
@@ -2476,8 +2514,8 @@ class SplitPane(Component):
                 self._activeToolbar = None
 
     @contextmanager
-    def _syncedCall(self):
-        if self._syncing:
+    def syncedCall(self, force: bool = False):
+        if self._syncing and not force:
             yield False
             return
 
@@ -2490,6 +2528,7 @@ class SplitPane(Component):
             yield False
             return
 
+        syncing = self._syncing
         self._syncing = True
         updates = qwin.updatesEnabled()
         qwin.setUpdatesEnabled(False)
@@ -2499,7 +2538,7 @@ class SplitPane(Component):
         finally:
             helper.enableToast()
             qwin.setUpdatesEnabled(updates)
-            self._syncing = False
+            self._syncing = syncing
 
     def syncView(
         self,
@@ -2513,8 +2552,7 @@ class SplitPane(Component):
         if self._syncing or self._quit:
             return
 
-        addTab = False
-        with self._syncedCall() as sync:
+        with self.syncedCall() as sync:
             if not sync:
                 return
 
@@ -2543,7 +2581,8 @@ class SplitPane(Component):
 
             if view is not None:
                 index = self.getIndexByView(view)
-                assert index != -1
+                if index == -1:
+                    return
 
             if index is None:
                 return
@@ -2567,6 +2606,8 @@ class SplitPane(Component):
                     and mdi.viewMode() == QMdiArea.ViewMode.TabbedView
                 ):
 
+                    addTab = False
+                    realign = False
                     if data is None:
                         data = ViewData(
                             view=activeView,
@@ -2578,6 +2619,7 @@ class SplitPane(Component):
                             ),
                             watcher=None,
                             watcherCallback=None,
+                            realignTick=None,
                         )
                         data.watcherCallback = (
                             lambda _, uid=uid: self.onSubWindowDestroyed(uid)
@@ -2608,6 +2650,7 @@ class SplitPane(Component):
                     toolbar = helper.isAlive(data.toolbar, SplitToolbar)
                     if toolbar:
                         toolbarSplit = helper.isAlive(toolbar.split(), Split)
+                        assert toolbarSplit is not None
                         toolbarTabs = toolbar.tabs()
                         splitTabIndex = -1
                         if addTab:
@@ -2622,15 +2665,26 @@ class SplitPane(Component):
                             )
                             if splitTabIndex != -1:
                                 toolbarTabs.setUid(splitTabIndex, uid)
-                                
-                            QTimer.singleShot(
-                                100,
-                                lambda: toolbarSplit.realignCanvas(
-                                    view=data.view
-                                ),
-                            )
+
+                            realign = True
                         else:
                             splitTabIndex = toolbarTabs.getTabByView(data.view)
+                            realign = (
+                                toolbarSplit._realignTick  # pyright: ignore [reportPrivateUsage]
+                                != data.realignTick
+                            )
+
+                        data.realignTick = (
+                            toolbarSplit._realignTick  # pyright: ignore [reportPrivateUsage]
+                        )
+
+                        if realign:
+                            QTimer.singleShot(
+                                10,
+                                lambda: toolbarSplit.realignCanvas(
+                                    view=data.view, tick=False
+                                ),
+                            )
 
                         if splitTabIndex != -1:
                             toolbarTabs.setCurrentIndex(splitTabIndex)
