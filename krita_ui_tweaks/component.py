@@ -46,36 +46,12 @@ class ComponentFlags:
     viewMode: QMdiArea.ViewMode | None
 
 
-class MouseWatcher(QObject):
-    def __init__(self):
-        super().__init__()
-        self._down: dict[Qt.MouseButton, bool] = {}
-
-    def isDown(self) -> bool:
-        return True if self._down else False
-
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        t = event.type()
-        if t == QEvent.Type.MouseButtonPress:
-            self._down[event.button()] = True
-        elif t == QEvent.Type.MouseButtonRelease:
-            btn = event.button()
-            if btn in self._down:
-                del self._down[btn]
-
-        return False
-
-
 class ComponentTimers(QObject):
     shortPoll = pyqtSignal()
     longPoll = pyqtSignal()
 
     def __init__(self):
         super().__init__()
-        app = QApplication.instance()
-        self._mouseWatcher = MouseWatcher()
-        app.installEventFilter(self._mouseWatcher)
-
         self._shortPoll = QTimer()
         self._longPoll = QTimer()
         self._shortPoll.timeout.connect(self._onShortPoll)
@@ -84,12 +60,10 @@ class ComponentTimers(QObject):
         self._longPoll.start(5000)
 
     def _onShortPoll(self):
-        if not self._mouseWatcher.isDown():
-            self.shortPoll.emit()
+        self.shortPoll.emit()
 
     def _onLongPoll(self):
-        if not self._mouseWatcher.isDown():
-            self.longPoll.emit()
+        self.longPoll.emit()
 
 
 componentTimers = ComponentTimers()
