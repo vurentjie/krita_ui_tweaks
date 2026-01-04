@@ -316,7 +316,7 @@ class SplitTabs(QTabBar):
         for w in wins:
             if self._helper.isAlive(w, QMdiSubWindow):
                 w.close()
-                
+
     def purgeAllTabs(self, closeSplit: bool = True):
         for i in range(self.count()):
             self.purgeTab(i, closeSplit=False)
@@ -1223,6 +1223,7 @@ class Split(QObject):
         self._attachResizeCallback: typing.Callable[..., Any] | None = None
         self._resizing: bool = False
         self._closing: bool = False
+        self._checkClosing: bool = False
         self._forceResizing: bool = False
         self._lastHandleRect: QRect = QRect()
         self._realignTick = self._helper.uid()
@@ -1460,18 +1461,24 @@ class Split(QObject):
             if self._second:
                 windows.extend(self._second.getOpenSubWindows())
         return windows
-        
+
     def checkShouldClose(self):
+        if self._checkClosing:
+            return
+        self._checkClosing = True
         helper = self._helper
+
         def cb():
             closeSplit = helper.isAlive(self, Split)
-            if closeSplit:
+            if closeSplit and closeSplit.state() == Split.STATE_COLLAPSED:
                 tabs = helper.isAlive(closeSplit.tabs(), SplitTabs)
                 if not tabs or tabs.count() == 0:
                     if closeSplit.topSplit() != closeSplit:
                         closeSplit.close()
                     self._controller.setActiveToolbar()
-        QTimer.singleShot(10, cb)
+            self._checkClosing = False
+
+        QTimer.singleShot(100, cb)
 
     def close(self):
         helper = self._helper
@@ -1609,7 +1616,7 @@ class Split(QObject):
             first = parent._first
             second = parent._second
             handle = parent._handle
-            if not (first and second and handle):
+            if not handle:
                 return
             px, py, pw, ph = parent.getRect()
             hx, hy, hw, hh = handle.geometry().getRect()
@@ -1629,7 +1636,7 @@ class Split(QObject):
                     )
 
         if self._state == Split.STATE_SPLIT:
-            if not (self._first and self._second and self._handle):
+            if not self._handle:
                 return
             handleRect = self._handle.globalRect()
             if (
@@ -1639,8 +1646,10 @@ class Split(QObject):
             ):
                 self._handle.clamp()
                 self._lastHandleRect = handleRect
-                self._first.resize()
-                self._second.resize()
+                if self._first:
+                    self._first.resize()
+                if self._second:
+                    self._second.resize()
         elif self._state == Split.STATE_COLLAPSED and (
             old_rect != self._rect or self.isForceResizing()
         ):
