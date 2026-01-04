@@ -951,7 +951,7 @@ class SplitToolbar(QWidget):
                 callback=lambda: self._split.resetLayout(),
             ),
             MenuAction(
-                text=i18n("Equalize Sizes"),
+                text=i18n("Reset Sizes"),
                 callback=lambda: typing.cast(
                     Split, self._split.topSplit()
                 ).equalize(),

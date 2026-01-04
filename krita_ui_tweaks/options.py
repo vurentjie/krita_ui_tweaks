@@ -145,7 +145,7 @@ def defaultConfig() -> C:
             "Close Other Tabs": "Close Other Tabs",
             "Close Split Pane": "Close Split Pane",
             "Reset Layout": "Reset Layout",
-            "Equalize Sizes": "Equalize Sizes",
+            "Reset Sizes": "Reset Sizes",
             "Options": "Options",
             "Toggle docking": "Toggle docking",
             "Docking enabled": "Docking enabled",
