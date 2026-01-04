@@ -47,10 +47,8 @@ from .i18n import i18n
 import typing
 import re
 
-# TODO add this to configurable options
 TAB_BAR_HEIGHT = 34
 TAB_TEXT_MAX_LEN = 30
-
 
 @dataclass
 class MenuAction:
@@ -1577,8 +1575,6 @@ class Split(QObject):
             self._second.clear(True)
             self._second = None
         if removeSelf and helper.isAlive(self, Split):
-            # controller = self.controller()
-            # helper = self._helper
             parent = self.parent()
             if parent and isinstance(parent, Split):
                 if self == parent._first:
@@ -1587,10 +1583,6 @@ class Split(QObject):
                     parent._second = None
             self.detachEvents()
             self.deleteLater()
-            # XXX
-            # central = helper.getCentral()
-            # if central.findChild(Split) is None:
-            #     controller.unsyncAllTabs()
 
     def isForceResizing(self):
         if self._forceResizing:
@@ -1753,17 +1745,8 @@ class Split(QObject):
             if kritaTab != -1:
                 self.controller().syncView(index=kritaTab, split=self)
 
-        def cb():
-            if helper.isAlive(tabSplit, Split):
-                tabs = helper.isAlive(tabSplit.tabs(), SplitTabs)
-                if (
-                    not tabs or tabs.count() == 0
-                ) and tabSplit.topSplit() != tabSplit:
-                    tabSplit.close()
+        tabSplit.checkShouldClose()
 
-        QTimer.singleShot(10, cb)
-
-    # TODO pass in new tab or view
     def makeSplit(
         self,
         orient: Qt.Orientation,
@@ -2645,7 +2628,6 @@ class SplitPane(Component):
                         if attachedSplit and split and split != attachedSplit:
                             attachedTabs = attachedSplit.tabs()
                             if attachedTabs:
-                                # FIXME refactor getTabByView
                                 splitTabIndex = attachedTabs.getTabByView(
                                     data.view
                                 )
