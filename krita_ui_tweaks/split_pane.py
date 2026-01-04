@@ -1480,7 +1480,7 @@ class Split(QObject):
 
     def close(self):
         helper = self._helper
-        if self._closing or not helper.isAlive(self, Split):
+        if self._closing or not helper.isAlive(self, Split) or self._state != Split.STATE_COLLAPSED:
             return
 
         self._closing = True
@@ -1496,7 +1496,7 @@ class Split(QObject):
             return
 
         parent = self.parent()
-        if isinstance(parent, Split) and self._state == Split.STATE_COLLAPSED:
+        if isinstance(parent, Split):
             first = parent.first()
             second = parent.second()
             if not (first and second):
