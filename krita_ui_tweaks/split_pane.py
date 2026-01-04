@@ -1609,9 +1609,8 @@ class Split(QObject):
             first = parent._first
             second = parent._second
             handle = parent._handle
-            assert first is not None
-            assert second is not None
-            assert handle is not None
+            if not (first and second and handle):
+                return
             px, py, pw, ph = parent.getRect()
             hx, hy, hw, hh = handle.geometry().getRect()
             if first == self:
@@ -1630,9 +1629,8 @@ class Split(QObject):
                     )
 
         if self._state == Split.STATE_SPLIT:
-            assert self._first is not None
-            assert self._second is not None
-            assert self._handle is not None
+            if not (self._first and self._second and self._handle):
+                return
             handleRect = self._handle.globalRect()
             if (
                 old_rect != self._rect
