@@ -26,6 +26,14 @@ Screencast of split panes:
 
 ---
 
+Instead of holding ctrl while dragging dockers, you can set a shortcut to toggle docking:
+
+Screencast of docking:
+
+[docking.webm](https://github.com/user-attachments/assets/b25dc0c1-afd8-432b-a3e2-71e7053c2989)
+
+---
+
 Instructional video:
 
 https://github.com/user-attachments/assets/8da930e0-4f5b-4da1-9fe9-e7bb2000bb1a
