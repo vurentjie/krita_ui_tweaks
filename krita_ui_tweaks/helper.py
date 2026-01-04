@@ -89,7 +89,7 @@ class Helper:
 
     def getDoc(self):
         view = self.getView()
-        return view and self.isAlive(view.document(), Document)
+        return self.isAlive(view.document(), Document) if view else None
 
     def docsByFile(self) -> dict[str, Document]:
         docs: dict[str, Document] = {}
@@ -118,7 +118,7 @@ class Helper:
 
     def getView(self):
         win = self.getWin()
-        return win and self.isAlive(win.activeView(), View)
+        return self.isAlive(win.activeView(), View) if win else None
 
     def getDocData(
         self, obj: View | Document | None = None
@@ -170,19 +170,19 @@ class Helper:
 
     def getCanvas(self):
         view = self.getView()
-        return view and view.canvas()
+        return view.canvas() if view else None
 
     def getQwin(self):
         win = self.getWin()
-        return win and self.isAlive(win.qwindow(), QMainWindow)
+        return self.isAlive(win.qwindow(), QMainWindow) if win else None
 
     def getCentral(self):
         qwin = self.getQwin()
-        return qwin and self.isAlive(qwin.centralWidget(), QWidget)
+        return self.isAlive(qwin.centralWidget(), QWidget) if qwin else None
 
     def getMdi(self):
         qwin = self.getQwin()
-        return qwin and self.isAlive(qwin.findChild(QMdiArea), QMdiArea)
+        return self.isAlive(qwin.findChild(QMdiArea), QMdiArea) if qwin else None
 
     def getTabBar(self):
         central = self.getCentral()
