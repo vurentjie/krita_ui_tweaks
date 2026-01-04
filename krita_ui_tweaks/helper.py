@@ -47,6 +47,7 @@ class Helper:
         self._qwin: QMainWindow = qwin
         self._toastEnableTimer: QTimer | None = None
         self._docData: dict[QUuid, DocumentData] = {}
+        self._cached: dict[str, Any] = {}
         typing.cast(pyqtBoundSignal, self.getNotifier().viewClosed).connect(
             lambda: QTimer.singleShot(10, self.refreshDocData)
         )
@@ -181,16 +182,24 @@ class Helper:
         return self.isAlive(qwin.centralWidget(), QWidget) if qwin else None
 
     def getMdi(self):
+        cached = self.isAlive(self._cached.get('mdi', None), QMdiArea)
+        if cached:
+            return cached
         qwin = self.getQwin()
-        return self.isAlive(qwin.findChild(QMdiArea), QMdiArea) if qwin else None
+        self._cached['mdi'] = self.isAlive(qwin.findChild(QMdiArea), QMdiArea) if qwin else None
+        return self._cached['mdi']
 
     def getTabBar(self):
+        cached = self.isAlive(self._cached.get('tabs', None), QTabBar)
+        if cached:
+            return cached
         central = self.getCentral()
         if central:
             for c in central.findChildren(QTabBar):
                 obj = c.metaObject()
                 if obj and obj.className() == "QTabBar":
-                    return self.isAlive(c, QTabBar)
+                    self._cached['tabs'] = self.isAlive(c, QTabBar)
+                    return self._cached['tabs']
 
     def refreshWidget(self, widget: QWidget):
         widget.style().unpolish(widget)

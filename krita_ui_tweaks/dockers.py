@@ -23,7 +23,10 @@ class Dockers(Component):
     def __init__(self, window: Window):
         super().__init__(window)
         
-        self._dockingEnabled = False
+        app = self._helper.getApp()
+        assert app is not None
+        
+        self._dockingEnabled = app.readSetting("krita_ui_teaks", "dockingEnabled", "true") == "true"
         self._optEnabled = getOpt("toggle", "toggle_docking")
         
         _ = self._helper.newAction(
@@ -47,6 +50,9 @@ class Dockers(Component):
             if isEnabled:
                 self.updateDockers(enable = self._dockingEnabled, quiet = True)
             else:
+                app = self._helper.getApp()
+                if app:
+                    app.writeSetting("krita_ui_teaks", "dockingEnabled", "true")
                 self.updateDockers(enable = True, quiet = True)
         
         self._optEnabled = isEnabled
@@ -61,9 +67,11 @@ class Dockers(Component):
         if not getOpt("toggle", "toggle_docking"):
             return
         window = self._helper.getWin()
-        if not window:
+        app = self._helper.getApp()
+        if not (window and app):
             return
         self._dockingEnabled = not self._dockingEnabled
+        app.writeSetting("krita_ui_teaks", "dockingEnabled", "true" if self._dockingEnabled else "false")
         self.updateDockers(self._dockingEnabled)
         
     def updateDockers(self, enable: bool = True, quiet: bool = False):
