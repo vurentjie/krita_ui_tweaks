@@ -662,6 +662,17 @@ class SplitTabs(QTabBar):
                     self.showDropPlaceHolder(targetRect)
                 else:
                     self.hideDropPlaceHolder()
+                    
+    def abortTabDrag(self):
+        self._dragIndex = -1
+        self._dropEdge = None
+        self._dropAction = None
+        self._dropSplit = None
+        if self._dragTimer:
+            self._dragTimer.stop()
+            self._dragTimer = None
+        self.hideDragPlaceHolder()
+        self.hideDropPlaceHolder()
 
     def mouseMoveEvent(self, event: QMouseEvent):
         if self._dragIndex != -1:
@@ -670,7 +681,6 @@ class SplitTabs(QTabBar):
                 self._dragTimer = QTimer()
                 self._dragTimer.timeout.connect(self.handleDropZone)
                 self._dragTimer.start(50)
-
         super().mouseMoveEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent):
@@ -686,6 +696,7 @@ class SplitTabs(QTabBar):
             if btn == Qt.MouseButton.LeftButton:
                 self._sync(index)
             elif btn == Qt.MouseButton.MiddleButton:
+                self._controller.winClosed.connect(self.abortTabDrag)
                 self._dragStart = getEventGlobalPos(event)
                 self._dragIndex = index
                 globalPos = toPoint(getEventGlobalPos(event))
@@ -698,10 +709,14 @@ class SplitTabs(QTabBar):
                     parent.showMenu(event, tabIndex=index)
             self.tabPress.emit(event, index)
         super().mousePressEvent(event)
-
+        
     def mouseReleaseEvent(self, event: QMouseEvent):
         helper = self._helper
         dropSplit = helper.isAlive(self._dropSplit, Split)
+        try:
+            self._controller.winClosed.disconnect(self.abortTabDrag)
+        except:
+            pass
         if self._dragIndex != -1 and self._dropAction and dropSplit:
             if self._dropAction == "makeSplitAtEdge":
                 assert self._dropEdge is not None
@@ -2090,6 +2105,8 @@ class Split(QObject):
 
 
 class SplitPane(Component):
+    winClosed = pyqtSignal()
+    
     def __init__(self, window: Window):
         super().__init__(window)
         self._quit: bool = False
@@ -2436,6 +2453,7 @@ class SplitPane(Component):
                 self.syncView(index=activeIndex)
 
     def onSubWindowDestroyed(self, uid: int | None) -> None:
+        self.winClosed.emit()
         helper = self._helper
         if isinstance(uid, int):
             data = self.popViewData(uid)
@@ -2772,4 +2790,3 @@ class SplitPane(Component):
         toolbar = self.getToolbarByWindow(win)
         if toolbar:
             return toolbar.split()
-

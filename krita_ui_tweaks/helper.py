@@ -345,3 +345,4 @@ class Helper:
         canvas = self.getCanvas()
         if canvas:
             canvas.setZoomLevel(z)
+

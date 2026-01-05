@@ -69,8 +69,9 @@ class ComponentTimers(QObject):
 componentTimers = ComponentTimers()
 
 
-class Component:
+class Component(QObject):
     def __init__(self, window: Window):
+        super().__init__()
         self._qwin: QMainWindow | None = window.qwindow()
 
         if not self._qwin:
