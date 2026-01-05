@@ -1,6 +1,8 @@
 # Krita UI Tweaks
 Various tweaks for Krita's interface. 
 
+Krita is a free and open source digital painting program. More info here: [https://krita.org](https://krita.org)
+
 > This is a collection of features from my Krita setup that may be useful to others.
 > I use Krita on Linux.
 > I cannot vouch if these will work on other systems, but most likely they will. 
