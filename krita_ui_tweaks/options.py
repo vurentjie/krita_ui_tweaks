@@ -17,7 +17,9 @@ from .pyqt import (
     QFrame,
 )
 
+from krita import Krita
 from dataclasses import dataclass
+
 from .i18n import i18n, i18n_reset
 
 import os
@@ -58,7 +60,7 @@ class SettingsDialog(QDialog):
         for k in self._config.get("translated", {}).keys():
             self._translated[k] = self._translateLineEdit(k)
 
-        self._toggle: dict[str, list[ToggleItem]] = {
+        self._toggle: dict[str, ToggleItem] = {
             "split_panes": ToggleItem(
                 checkbox=QCheckBox(i18n("Enable split panes")),
                 section=i18n("Split Panes"),
@@ -121,10 +123,10 @@ class SettingsDialog(QDialog):
     def _setupOptionsTab(self):
         tab = QWidget()
         form = QFormLayout(tab)
-        section = None
+        section = ""
         for item in self._toggle.values():
             if item.section != section:
-                if section is not None:
+                if len(section) > 0:
                     line = QFrame()
                     line.setFrameShape(QFrame.Shape.HLine)
                     line.setFrameShadow(QFrame.Shadow.Sunken)
@@ -230,10 +232,10 @@ def getOpt(*args: str):
             break
     return val
     
-def setOpt(*args: str):
+def setOpt(*args: typing.Any):
     listArgs = list(args)
     val = listArgs.pop()
-    key = listArgs.pop()
+    key = str, listArgs.pop()
     
     global _global_config
     if _global_config is None:
@@ -241,17 +243,15 @@ def setOpt(*args: str):
         
     item = _global_config
     numArgs = len(listArgs)
-    print(f"{key} {val}")
     
     for i, a in enumerate(listArgs):
-        print(f"{i}, {a}")
         item = typing.cast(dict[str, str | bool], item).get(a, None)
         if not isinstance(item, dict) and i < numArgs - 1:
             item = None
             break
             
     if item is not None:
-        item[key] = val
+        item[key] = val  # pyright: ignore [reportIndexIssue, reportArgumentType]
         writeConfig(_global_config)
 
 def readConfig():

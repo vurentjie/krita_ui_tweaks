@@ -49,6 +49,7 @@ import typing
 import re
 import json
 import os
+import time
 
 TAB_BAR_HEIGHT = 34
 TAB_TEXT_MAX_LEN = 30
@@ -58,6 +59,9 @@ SPLIT_LAYOUT = tuple[
     typing.Literal["v", "h"],
     "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
     "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
+    int,
+    int,
+    int,
 ]
 
 
@@ -1633,6 +1637,7 @@ class Split(QObject):
         self._resizing = True
         parent = self.parent()
         old_rect = self._rect
+        isFirst = False
         if isinstance(parent, QWidget):
             # this is the origin rect x=0,y=0
             self._rect = parent.rect()
@@ -1645,6 +1650,7 @@ class Split(QObject):
             px, py, pw, ph = parent.getRect()
             hx, hy, hw, hh = handle.geometry().getRect()
             if first == self:
+                isFirst = True
                 if handle.orientation() == Qt.Orientation.Vertical:
                     self._rect = QRect(px, py, max(0, hx - px), ph)
                 else:
@@ -1687,6 +1693,9 @@ class Split(QObject):
                 )
                 self.resizeSubWindow()
             self.resized.emit()
+
+        if isFirst:
+            self._controller.savePreviousLayout()
         self._forceResizing = False
         self._resizing = False
 
@@ -1810,11 +1819,8 @@ class Split(QObject):
         self._state = Split.STATE_SPLIT
 
         if not empty:
-            # edge case tabSplit was passed in but it got split and now is first or second
-            if isSelf:
+            if isSelf or tabSplit is None:
                 tabSplit = self._second if swap else self._first
-            elif tabSplit is None:
-                tabSplit = ret[1]
 
             if tabIndex is None:
                 tabIndex = tabSplit.currentIndex()
@@ -2129,10 +2135,12 @@ class Split(QObject):
         helper = self._helper
         mdi = helper.getMdi()
         app = helper.getApp()
-        if not (mdi and app):
+        qwin = helper.getQwin()
+        topSplit = self.topSplit()
+        if not (qwin and mdi and app and topSplit):
             return
 
-        if self == self.topSplit():
+        if self == topSplit:
             if verify:
                 for doc in app.documents():
                     fname = doc.fileName()
@@ -2198,7 +2206,8 @@ class Split(QObject):
             )
             first = self._first.saveLayout()
             second = self._second.saveLayout()
-            return (orient, first, second)
+            w, h = qwin.width(), qwin.height()
+            return (orient, first, second, self._handle.offset(), w, h)
 
     def restoreLayout(
         self,
@@ -2209,6 +2218,8 @@ class Split(QObject):
             if topSplit:
                 topSplit.restoreLayout(layout)
             return
+
+        assert topSplit is not None
 
         def getUniqueFiles(
             layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
@@ -2236,9 +2247,10 @@ class Split(QObject):
             return
 
         helper = self._helper
+        qwin = helper.getQwin()
         app = helper.getApp()
         mdi = helper.getMdi()
-        if not (app and mdi):
+        if not (app and qwin and mdi):
             return
 
         for doc in app.documents():
@@ -2285,6 +2297,8 @@ class Split(QObject):
             docs=helper.docsByFile(),
             views=helper.viewsByFile(),
             missing=[],
+            width=qwin.width(),
+            height=qwin.height(),
         )
 
         self._restoreSplits(layout, context)
@@ -2292,14 +2306,14 @@ class Split(QObject):
         mdi = helper.getMdi()
         assert mdi is not None
 
-        # for f in context.views:
-        #     for v in context.views[f]:
-        #         if helper.isAlive(v, View):
-        #             index = self._controller.getIndexByView(v)
-        #             if index != -1:
-        #                 activeWin = mdi.subWindowList()[index]
-        #                 if activeWin:
-        #                     activeWin.close()
+        for f in context.views:
+            for v in context.views[f]:
+                if helper.isAlive(v, View):
+                    index = self._controller.getIndexByView(v)
+                    if index != -1:
+                        activeWin = mdi.subWindowList()[index]
+                        if activeWin:
+                            activeWin.close()
 
         self.closeEmpties()
 
@@ -2327,7 +2341,6 @@ class Split(QObject):
         assert isinstance(context, SimpleNamespace)
 
         if layout[0] == "c":
-            print(layout[0], layout[1])
             for f in layout[1]:
                 handled = False
 
@@ -2365,9 +2378,14 @@ class Split(QObject):
             else:
                 first, second = self.makeSplitBelow(empty=True)
 
-            print(layout[0], first, second)
             if first:
                 first._restoreSplits(layout[1], context)
+                if len(layout) > 3 and self._handle:
+                    self._handle.moveTo(
+                        int(layout[3] / layout[4] * context.width)
+                        if layout[0] == "v"
+                        else int(layout[3] / layout[5] * context.height)
+                    )
             if second:
                 second._restoreSplits(layout[2], context)
 
@@ -2386,9 +2404,10 @@ class SplitPane(Component):
         self._optEnabled = getOpt("toggle", "split_panes")
         self._layoutRestored = False
         self._layoutLoading = False
+        self._layoutWriteDebounce: QTimer = QTimer()
+        self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
+        self._layoutWriteTime = time.monotonic()
 
-        Krita.instance().dbgTool = self
-        self._setOpt = setOpt
         app = self._helper.getApp()
         if app:
             if app.readSetting("", "sessionOnStartup", "") != "0":
@@ -2426,6 +2445,15 @@ class SplitPane(Component):
             self._optEnabled = isEnabled
 
     def savePreviousLayout(self):
+        if self._layoutWriteDebounce:
+            now = time.monotonic()
+            if now - self._layoutWriteTime >= 2:
+                self._layoutWriteDebounce.stop()
+                self._debounceSaveLayout()
+            else:
+                self._layoutWriteDebounce.start(500)
+
+    def _debounceSaveLayout(self):
         if not self._layoutRestored:
             return
         app = self._helper.getApp()
@@ -2521,7 +2549,7 @@ class SplitPane(Component):
         mdi = helper.getMdi()
         central = helper.getCentral()
         isEnabled = getOpt("toggle", "split_panes")
-        loadLayout = None
+        loadLayout: "SPLIT_LAYOUT | COLLAPSED_LAYOUT | None" = None
 
         if (
             central
@@ -2537,7 +2565,7 @@ class SplitPane(Component):
                         app.readSetting("krita_ui_tweaks", "restoreLayout", "")
                     )
                     if isinstance(layout, list):
-                        loadLayout = layout
+                        loadLayout = typing.cast(SPLIT_LAYOUT, layout)
                 except:
                     pass
 
@@ -2563,8 +2591,10 @@ class SplitPane(Component):
 
                     def cb():
                         try:
+                            assert self._split is not None
                             topSplit = self._split.topSplit()
-                            topSplit.restoreLayout(layout)
+                            if topSplit:
+                                topSplit.restoreLayout(loadLayout)
                         finally:
                             self._layoutRestored = True
                             self._layoutLoading = False
