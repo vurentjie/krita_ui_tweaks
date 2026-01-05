@@ -12,8 +12,8 @@ _translations: dict[str, str] | None = None
 def i18n_reset():
     global _translations 
     _translations = None
-
-def i18n(val: str) -> str:
+    
+def i18n_translations_get() -> dict[str, str]:
     global _translations
     if _translations is None:
         path = os.path.join(
@@ -28,9 +28,17 @@ def i18n(val: str) -> str:
                 pass
     if not isinstance(_translations, dict):
         _translations = {}
-    translated = _translations.get(val, "")
+    return _translations
+
+
+def i18n(val: str, *args: str) -> str:
+    translations = i18n_translations_get()
+    translated = translations.get(val, "")
     if not translated.strip():
-        translated = Krita.krita_i18n(val)
+        translated = Krita.krita_i18n(val, *args)
+    else:
+        for i,v in enumerate(args):
+            translated.replace(f"%{i}", v)
     return translated
 
 

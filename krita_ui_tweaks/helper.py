@@ -182,15 +182,17 @@ class Helper:
         return self.isAlive(qwin.centralWidget(), QWidget) if qwin else None
 
     def getMdi(self):
-        cached = self.isAlive(self._cached.get('mdi', None), QMdiArea)
+        cached = self.isAlive(self._cached.get("mdi", None), QMdiArea)
         if cached:
             return cached
         qwin = self.getQwin()
-        self._cached['mdi'] = self.isAlive(qwin.findChild(QMdiArea), QMdiArea) if qwin else None
-        return self._cached['mdi']
+        self._cached["mdi"] = (
+            self.isAlive(qwin.findChild(QMdiArea), QMdiArea) if qwin else None
+        )
+        return self._cached["mdi"]
 
     def getTabBar(self):
-        cached = self.isAlive(self._cached.get('tabs', None), QTabBar)
+        cached = self.isAlive(self._cached.get("tabs", None), QTabBar)
         if cached:
             return cached
         central = self.getCentral()
@@ -198,8 +200,8 @@ class Helper:
             for c in central.findChildren(QTabBar):
                 obj = c.metaObject()
                 if obj and obj.className() == "QTabBar":
-                    self._cached['tabs'] = self.isAlive(c, QTabBar)
-                    return self._cached['tabs']
+                    self._cached["tabs"] = self.isAlive(c, QTabBar)
+                    return self._cached["tabs"]
 
     def refreshWidget(self, widget: QWidget):
         widget.style().unpolish(widget)
@@ -243,12 +245,6 @@ class Helper:
             t.timeout.connect(cb)
             t.start(50)
             self._toastEnableTimer = t
-
-    def showMsg(self, title: str = "", msg: str = ""):
-        if len(msg) == 0:
-            _ = QMessageBox.information(None, "", title)
-        else:
-            _ = QMessageBox.information(None, title, msg)
 
     def newAction(
         self,
@@ -345,4 +341,3 @@ class Helper:
         canvas = self.getCanvas()
         if canvas:
             canvas.setZoomLevel(z)
-

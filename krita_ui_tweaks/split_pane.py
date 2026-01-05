@@ -31,6 +31,7 @@ from .pyqt import (
     getEventGlobalPos,
     getEventPos,
     toPoint,
+    QMessageBox,
 )
 
 from krita import Window, View, Document
@@ -46,9 +47,18 @@ from .i18n import i18n
 
 import typing
 import re
+import os
 
 TAB_BAR_HEIGHT = 34
 TAB_TEXT_MAX_LEN = 30
+
+COLLAPSED_LAYOUT = tuple[typing.Literal["c"], list[str]]
+SPLIT_LAYOUT = tuple[
+    typing.Literal["v", "h"],
+    "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
+    "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
+]
+
 
 @dataclass
 class MenuAction:
@@ -662,7 +672,7 @@ class SplitTabs(QTabBar):
                     self.showDropPlaceHolder(targetRect)
                 else:
                     self.hideDropPlaceHolder()
-                    
+
     def abortTabDrag(self):
         self._dragIndex = -1
         self._dropEdge = None
@@ -709,7 +719,7 @@ class SplitTabs(QTabBar):
                     parent.showMenu(event, tabIndex=index)
             self.tabPress.emit(event, index)
         super().mousePressEvent(event)
-        
+
     def mouseReleaseEvent(self, event: QMouseEvent):
         helper = self._helper
         dropSplit = helper.isAlive(self._dropSplit, Split)
@@ -1495,7 +1505,11 @@ class Split(QObject):
 
     def close(self):
         helper = self._helper
-        if self._closing or not helper.isAlive(self, Split) or self._state != Split.STATE_COLLAPSED:
+        if (
+            self._closing
+            or not helper.isAlive(self, Split)
+            or self._state != Split.STATE_COLLAPSED
+        ):
             return
 
         self._closing = True
@@ -1736,7 +1750,6 @@ class Split(QObject):
         tabIndex: int | None = None,
         dupe: bool = False,
     ):
-        helper = self._helper
         tabs = tabSplit.tabs()
 
         if not tabs:
@@ -1770,12 +1783,12 @@ class Split(QObject):
         empty: bool = False,
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
-    ):
+    ) -> tuple["Split | None", "Split | None"]:
         if self._state == Split.STATE_COLLAPSED:
             tabs = self.tabs()
 
             if not tabs:
-                return
+                return (None, None)
 
             isSelf = tabSplit == self
             toolbar = self._toolbar
@@ -1820,17 +1833,21 @@ class Split(QObject):
             self._second.realignCanvas(nested=True)
             return ret
 
+        return (None, None)
+
     def makeSplitBelow(
         self,
         dupe: bool = False,
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
+        empty: bool = False,
     ):
         return self.makeSplit(
             Qt.Orientation.Horizontal,
             dupe=dupe,
             tabIndex=tabIndex,
             tabSplit=tabSplit,
+            empty=empty,
         )
 
     def makeSplitAbove(
@@ -1838,6 +1855,7 @@ class Split(QObject):
         dupe: bool = False,
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
+        empty: bool = False,
     ):
         return self.makeSplit(
             Qt.Orientation.Horizontal,
@@ -1845,6 +1863,7 @@ class Split(QObject):
             dupe=dupe,
             tabIndex=tabIndex,
             tabSplit=tabSplit,
+            empty=empty,
         )
 
     def makeSplitRight(
@@ -1852,12 +1871,14 @@ class Split(QObject):
         dupe: bool = False,
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
+        empty: bool = False,
     ):
         return self.makeSplit(
             Qt.Orientation.Vertical,
             dupe=dupe,
             tabIndex=tabIndex,
             tabSplit=tabSplit,
+            empty=empty,
         )
 
     def makeSplitLeft(
@@ -1865,6 +1886,7 @@ class Split(QObject):
         dupe: bool = False,
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
+        empty: bool = False,
     ):
         return self.makeSplit(
             Qt.Orientation.Vertical,
@@ -1872,6 +1894,7 @@ class Split(QObject):
             dupe=dupe,
             tabIndex=tabIndex,
             tabSplit=tabSplit,
+            empty=empty,
         )
 
     def makeSplitBetween(
@@ -1985,11 +2008,14 @@ class Split(QObject):
 
     def resetLayout(self):
         tabs = self._helper.getTabBar()
-        split = self.defaultSplit(False)
+        topSplit = self.topSplit()
+        if not topSplit:
+            return
+        split = topSplit.firstMostSplit()
         if tabs and split:
             for i in range(tabs.count()):
                 self._controller.syncView(index=i, split=split)
-            topSplit = self.topSplit()
+            topSplit = split.topSplit()
             if topSplit:
                 topSplit.closeEmpties()
 
@@ -2103,10 +2129,249 @@ class Split(QObject):
             if second:
                 second.closeEmpties()
 
+    def saveLayout(self) -> "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None":
+        helper = self._helper
+        mdi = helper.getMdi()
+        app = helper.getApp()
+        if not (mdi and app):
+            return
+
+        if self == self.topSplit():
+            for doc in app.documents():
+                fname = doc.fileName()
+                if not fname or not os.path.exists(fname):
+                    data = helper.getDocData(doc)
+                    if data and data.views[0]:
+                        view = data.views[0][0]
+                        index = self._controller.getIndexByView(view)
+                        activeWin = mdi.subWindowList()[index]
+                        mdi.setActiveSubWindow(activeWin)
+
+                        choice = QMessageBox.question(
+                            None,
+                            "Krita",
+                            i18n("Do you want to save your changes?"),
+                            QMessageBox.StandardButton.Cancel
+                            | QMessageBox.StandardButton.No
+                            | QMessageBox.StandardButton.Yes,
+                            QMessageBox.StandardButton.Yes,
+                        )
+
+                        if choice == QMessageBox.StandardButton.Cancel:
+                            _ = QMessageBox.warning(
+                                None,
+                                "Krita",
+                                i18n("The operation was aborted."),
+                            )
+                            return
+
+                        if choice == QMessageBox.StandardButton.Yes:
+                            app.action("file_save").trigger()
+                            # XXX edge case: save cancelled
+                            fname = doc.fileName()
+                            if not fname or not os.path.exists(fname):
+                                _ = QMessageBox.warning(
+                                    None,
+                                    "Krita",
+                                    i18n("The operation was aborted."),
+                                )
+                                return
+
+        if self._state == Split.STATE_COLLAPSED:
+            tabs = self.tabs()
+            assert tabs is not None
+            files: list[str] = []
+            for i in range(tabs.count()):
+                uid = tabs.getUid(i)
+                data = self._controller.getViewData(uid)
+                if data and data.view:
+                    path = data.view.document().fileName()
+                    if os.path.exists(path):
+                        files.append(path)
+            return ("c", files)
+            
+        elif self._state == Split.STATE_SPLIT:
+            assert self._handle is not None
+            assert self._first is not None
+            assert self._second is not None
+            orient = (
+                "v"
+                if self._handle.orientation() == Qt.Orientation.Vertical
+                else "h"
+            )
+            first = self._first.saveLayout()
+            second = self._second.saveLayout()
+            return (orient, first, second)
+
+    def restoreLayout(
+        self,
+        layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
+    ):
+        topSplit = self.topSplit()
+        if self is not topSplit:
+            if topSplit:
+                topSplit.restoreLayout(layout)
+            return
+
+        def getUniqueFiles(layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT") -> list[str]:
+            if layout[0] == "c":
+                return [f for f in layout[1] if os.path.exists(f)]
+            elif layout[0] in ("v", "h"):
+                assert layout[1] is not None
+                assert layout[2] is not None
+                return list(
+                    set(getUniqueFiles(layout[1]) + getUniqueFiles(layout[2]))
+                )
+            else:
+                return []
+
+        files = getUniqueFiles(layout)
+
+        if len(files) == 0:
+            _ = QMessageBox.warning(
+                None,
+                "Krita",
+                i18n("The operation was aborted.")
+                + i18n("The file could not be opened."),
+            )
+            return
+
+        helper = self._helper
+        app = helper.getApp()
+        mdi = helper.getMdi()
+        if not (app and mdi):
+            return
+
+        for doc in app.documents():
+            fname = doc.fileName()
+            if doc.modified() and fname not in files:
+                data = helper.getDocData(doc)
+                if data and data.views[0]:
+                    view = data.views[0][0]
+                    index = self._controller.getIndexByView(view)
+                    activeWin = mdi.subWindowList()[index]
+                    mdi.setActiveSubWindow(activeWin)
+
+                    choice = QMessageBox.question(
+                        None,
+                        "Krita",
+                        i18n("Do you want to save your changes?"),
+                        QMessageBox.StandardButton.Cancel
+                        | QMessageBox.StandardButton.No
+                        | QMessageBox.StandardButton.Yes,
+                        QMessageBox.StandardButton.Yes,
+                    )
+
+                    if choice == QMessageBox.StandardButton.Cancel:
+                        _ = QMessageBox.warning(
+                            None, "Krita", i18n("The operation was aborted.")
+                        )
+                        return
+
+                    if choice == QMessageBox.StandardButton.Yes:
+                        app.action("file_save").trigger()
+                        # XXX edge case: save cancelled
+                        if doc.modified():
+                            _ = QMessageBox.warning(
+                                None,
+                                "Krita",
+                                i18n("The operation was aborted."),
+                            )
+                            return
+
+        self.resetLayout()
+
+        context = SimpleNamespace(
+            files=files,
+            docs=helper.docsByFile(),
+            views=helper.viewsByFile(),
+            missing=[],
+        )
+
+        self._restoreSplits(layout, context)
+
+        mdi = helper.getMdi()
+        assert mdi is not None
+
+        for f in context.views:
+            for v in context.views[f]:
+                if helper.isAlive(v, View):
+                    index = self._controller.getIndexByView(v)
+                    if index != -1:
+                        activeWin = mdi.subWindowList()[index]
+                        if activeWin:
+                            activeWin.close()
+
+        self.closeEmpties()
+
+        if len(context.missing) > 0:
+            _ = QMessageBox.warning(
+                None,
+                "Krita",
+                i18n("The file could not be opened.")
+                + "\n"
+                + ("\n".join(context.missing)),
+            )
+
+    def _restoreSplits(
+        self,
+        layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
+        context: SimpleNamespace,
+    ):
+        if not layout:
+            return
+            
+        helper = self._helper
+        controller = self._controller
+        app = helper.getApp()
+        assert app is not None
+        assert isinstance(context, SimpleNamespace)
+
+        if layout[0] == "c":
+            for f in layout[1]:
+                handled = False
+
+                if f in context.views:
+                    view = context.views[f].pop()
+                    if len(context.views[f]) == 0:
+                        del context.views[f]
+                    if helper.isAlive(view, View):
+                        handled = True
+                        controller.syncView(view=view, split=self)
+
+                if not handled and f in context.docs:
+                    doc = context.docs[f]
+                    if helper.isAlive(doc, Document):
+                        handled = True
+                        controller.syncView(
+                            addView=True, document=doc, split=self
+                        )
+
+                if not handled:
+                    if os.path.exists(f):
+                        doc = app.openDocument(f)
+                        if doc:
+                            context.docs[f] = doc
+                            controller.syncView(
+                                addView=True, document=doc, split=self
+                            )
+                    else:
+                        context.missing.append(f)
+
+        elif layout[0] in ("v", "h"):
+            if layout[0] == "v":
+                self.makeSplitRight(empty=True)
+            else:
+                self.makeSplitBelow(empty=True)
+            if self._first:
+                self._first._restoreSplits(layout[1], context)
+            if self._second:
+                self._second._restoreSplits(layout[2], context)
+
 
 class SplitPane(Component):
     winClosed = pyqtSignal()
-    
+
     def __init__(self, window: Window):
         super().__init__(window)
         self._quit: bool = False
