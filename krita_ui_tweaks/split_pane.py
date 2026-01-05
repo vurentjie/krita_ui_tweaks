@@ -1262,8 +1262,8 @@ class Split(QObject):
         if self._state == Split.STATE_COLLAPSED:
             if isinstance(toolbar, SplitToolbar):
                 self._toolbar = toolbar
-                self._toolbar.setSplit(self)
-                self._toolbar.setParent(mdi)
+                self._toolbar.setSplit(self) # ty: ignore[possibly-missing-attribute]
+                self._toolbar.setParent(mdi) # ty: ignore[possibly-missing-attribute]
             else:
                 self._toolbar = SplitToolbar(
                     parent=mdi,
@@ -1271,8 +1271,8 @@ class Split(QObject):
                     controller=self._controller,
                 )
 
-            self._toolbar.raise_()
-            self._toolbar.show()
+            self._toolbar.raise_() # ty: ignore[possibly-missing-attribute]
+            self._toolbar.show() # ty: ignore[possibly-missing-attribute]
         else:
             self._handle = SplitHandle(
                 self, helper=self._helper, orient=orient
@@ -2225,8 +2225,10 @@ class Split(QObject):
             layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
         ) -> list[str]:
             if layout[0] == "c":
+                layout = typing.cast(COLLAPSED_LAYOUT, layout)
                 return [f for f in layout[1] if os.path.exists(f)]
             elif layout[0] in ("v", "h"):
+                layout = typing.cast(SPLIT_LAYOUT, layout)
                 assert layout[1] is not None
                 assert layout[2] is not None
                 return list(
@@ -2341,6 +2343,7 @@ class Split(QObject):
         assert isinstance(context, SimpleNamespace)
 
         if layout[0] == "c":
+            layout = typing.cast(COLLAPSED_LAYOUT, layout)
             for f in layout[1]:
                 handled = False
 
@@ -2372,6 +2375,7 @@ class Split(QObject):
                         context.missing.append(f)
 
         elif layout[0] in ("v", "h"):
+            layout = typing.cast(SPLIT_LAYOUT, layout)
             first, second = None, None
             if layout[0] == "v":
                 first, second = self.makeSplitRight(empty=True)
