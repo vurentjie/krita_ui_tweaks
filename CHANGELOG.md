@@ -24,5 +24,5 @@ _Initial release._
 
 ### Fixed:
 
-- _Typo_: fixed a typo in configuration key `krita_ui_teak` should be
+- _Typo_: fixed a typo in configuration key `krita_ui_teaks` should be
   `krita_ui_tweaks`.
