@@ -2,6 +2,7 @@
 
 from .pyqt import (
     pyqtSignal,
+    Qt,
     QScrollArea,
     QLabel,
     QDialog,
@@ -13,8 +14,10 @@ from .pyqt import (
     QLineEdit,
     QDialogButtonBox,
     QObject,
+    QFrame,
 )
 
+from dataclasses import dataclass
 from .i18n import i18n, i18n_reset
 
 import os
@@ -25,6 +28,13 @@ import typing
 C = dict[str, dict[str, str | bool]]
 
 _global_config: C | None = None
+
+
+@dataclass
+class ToggleItem:
+    checkbox: QCheckBox
+    extra: QLabel | None
+    section: str
 
 
 class Signals(QObject):
@@ -48,20 +58,43 @@ class SettingsDialog(QDialog):
         for k in self._config.get("translated", {}).keys():
             self._translated[k] = self._translateLineEdit(k)
 
-        self._toggle: dict[str, QCheckBox] = {
-            "split_panes": QCheckBox(i18n("Enable split panes")),
-            "toolbar_icons": QCheckBox(
-                i18n("Highlight active tool in toolbars")
+        self._toggle: dict[str, list[ToggleItem]] = {
+            "split_panes": ToggleItem(
+                checkbox=QCheckBox(i18n("Enable split panes")),
+                section=i18n("Split Panes"),
+                extra=None,
             ),
-            "shared_tool": QCheckBox(
-                i18n("Do not change the active tool when switching documents")
+            "restore_layout": ToggleItem(
+                checkbox=QCheckBox(
+                    i18n("Restore split pane layout when Krita restarts (experimental)")
+                ),
+                section=i18n("Split Panes"),
+                extra=None
             ),
-            "toggle_docking": QCheckBox(i18n("Toggle docking on and off")),
+            "toolbar_icons": ToggleItem(
+                checkbox=QCheckBox(i18n("Highlight active tool in toolbars")),
+                section=i18n("Tools"),
+                extra=None,
+            ),
+            "shared_tool": ToggleItem(
+                checkbox=QCheckBox(
+                    i18n(
+                        "Do not change the active tool when switching documents"
+                    )
+                ),
+                section=i18n("Tools"),
+                extra=None,
+            ),
+            "toggle_docking": ToggleItem(
+                checkbox=QCheckBox(i18n("Toggle docking on and off")),
+                section=i18n("Dockers"),
+                extra=None,
+            ),
         }
 
         for _, (k, v) in enumerate(self._config.get("toggle", {}).items()):
             if k in self._toggle:
-                self._toggle[k].setChecked(typing.cast(bool, v))
+                self._toggle[k].checkbox.setChecked(typing.cast(bool, v))
 
         self.tabs = QTabWidget()
         self.optionsTab = self._setupOptionsTab()
@@ -88,8 +121,25 @@ class SettingsDialog(QDialog):
     def _setupOptionsTab(self):
         tab = QWidget()
         form = QFormLayout(tab)
-        for v in self._toggle.values():
-            form.addRow(v)
+        section = None
+        for item in self._toggle.values():
+            if item.section != section:
+                if section is not None:
+                    line = QFrame()
+                    line.setFrameShape(QFrame.Shape.HLine)
+                    line.setFrameShadow(QFrame.Shadow.Sunken)
+                    form.addRow(line)
+                section = item.section
+                label = QLabel(section)
+                font = label.font()
+                font.setBold(True)
+                label.setFont(font)
+                form.addRow(label)
+            form.addRow(item.checkbox)
+            if item.extra:
+                item.extra.setTextFormat(Qt.TextFormat.RichText)
+                item.extra.setContentsMargins(20, 0, 0, 0)
+                form.addRow(item.extra)
         return tab
 
     def _setupTranslateTab(self):
@@ -120,8 +170,11 @@ class SettingsDialog(QDialog):
             config["translated"][k] = v.text().strip().replace("&", "&&")
 
         for _, (k, v) in enumerate(self._toggle.items()):
-            config["toggle"][k] = v.isChecked()
-
+            checked = v.checkbox.isChecked() 
+            config["toggle"][k] = checked
+            if k == "restore_layout" and checked:
+                Krita.instance().writeSetting("", "sessionOnStartup", "0")
+        
         writeConfig(config)
         _global_config = config
         i18n_reset()
@@ -155,6 +208,7 @@ def defaultConfig() -> C:
         },
         "toggle": {
             "split_panes": True,
+            "restore_layout": False,
             "toolbar_icons": True,
             "shared_tool": True,
             "toggle_docking": True,
@@ -175,7 +229,30 @@ def getOpt(*args: str):
             val = None
             break
     return val
-
+    
+def setOpt(*args: str):
+    listArgs = list(args)
+    val = listArgs.pop()
+    key = listArgs.pop()
+    
+    global _global_config
+    if _global_config is None:
+        _global_config = readConfig()
+        
+    item = _global_config
+    numArgs = len(listArgs)
+    print(f"{key} {val}")
+    
+    for i, a in enumerate(listArgs):
+        print(f"{i}, {a}")
+        item = typing.cast(dict[str, str | bool], item).get(a, None)
+        if not isinstance(item, dict) and i < numArgs - 1:
+            item = None
+            break
+            
+    if item is not None:
+        item[key] = val
+        writeConfig(_global_config)
 
 def readConfig():
     config = None

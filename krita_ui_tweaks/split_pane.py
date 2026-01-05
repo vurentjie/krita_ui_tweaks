@@ -41,12 +41,13 @@ from typing import Any
 from types import SimpleNamespace
 
 from .component import Component
-from .options import showOptions, getOpt, signals as OptionSignals
+from .options import showOptions, getOpt, setOpt, signals as OptionSignals
 from .helper import Helper
 from .i18n import i18n
 
 import typing
 import re
+import json
 import os
 
 TAB_BAR_HEIGHT = 34
@@ -1505,6 +1506,7 @@ class Split(QObject):
 
     def close(self):
         helper = self._helper
+        controller = self._controller
         if (
             self._closing
             or not helper.isAlive(self, Split)
@@ -1582,6 +1584,7 @@ class Split(QObject):
                     topSplit.resize(force=True)
                 parent.equalize()
 
+        controller.savePreviousLayout()
         self._closing = False
 
     def clear(self, removeSelf: bool = False):
@@ -1784,56 +1787,47 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
     ) -> tuple["Split | None", "Split | None"]:
-        if self._state == Split.STATE_COLLAPSED:
-            tabs = self.tabs()
+        tabs = self.tabs()
+        if not (self._state == Split.STATE_COLLAPSED and (tabs or empty)):
+            return (None, None)
 
-            if not tabs:
-                return (None, None)
+        isSelf = tabSplit == self
+        toolbar = self._toolbar
+        self._toolbar = None
+        self._handle = SplitHandle(self, helper=self._helper, orient=orient)
 
-            isSelf = tabSplit == self
-            toolbar = self._toolbar
-            self._toolbar = None
-            self._handle = SplitHandle(
-                self, helper=self._helper, orient=orient
+        if swap:
+            self._second = Split(
+                self, toolbar=toolbar, controller=self._controller
             )
-            ret = (None, None)
-            if swap:
-                self._second = Split(
-                    self, toolbar=toolbar, controller=self._controller
-                )
-                self._first = Split(self, controller=self._controller)
-                ret = (self._first, self._second)
-            else:
-                self._first = Split(
-                    self, toolbar=toolbar, controller=self._controller
-                )
-                self._second = Split(self, controller=self._controller)
-                ret = (self._second, self._first)
+            self._first = Split(self, controller=self._controller)
+        else:
+            self._first = Split(
+                self, toolbar=toolbar, controller=self._controller
+            )
+            self._second = Split(self, controller=self._controller)
 
-            self._state = Split.STATE_SPLIT
+        self._state = Split.STATE_SPLIT
 
-            if not empty:
-                # edge case tabSplit was passed in but it got split and now is first or second
-                if isSelf:
-                    tabSplit = self._second if swap else self._first
-                elif tabSplit is None:
-                    tabSplit = ret[1]
+        if not empty:
+            # edge case tabSplit was passed in but it got split and now is first or second
+            if isSelf:
+                tabSplit = self._second if swap else self._first
+            elif tabSplit is None:
+                tabSplit = ret[1]
 
-                if tabIndex is None:
-                    tabIndex = tabSplit.currentIndex()
+            if tabIndex is None:
+                tabIndex = tabSplit.currentIndex()
 
-                ret[0].transferTab(
-                    tabSplit=tabSplit, tabIndex=tabIndex, dupe=dupe
-                )
+            target = self._first if swap else self._second
+            target.transferTab(tabSplit=tabSplit, tabIndex=tabIndex, dupe=dupe)
 
-            topSplit = self.topSplit()
-            if topSplit:
-                topSplit.resize(force=True)
-            self._first.realignCanvas(nested=True)
-            self._second.realignCanvas(nested=True)
-            return ret
-
-        return (None, None)
+        topSplit = self.topSplit()
+        if topSplit:
+            topSplit.resize(force=True)
+        self._first.realignCanvas(nested=True)
+        self._second.realignCanvas(nested=True)
+        return (self._first, self._second)
 
     def makeSplitBelow(
         self,
@@ -2129,7 +2123,9 @@ class Split(QObject):
             if second:
                 second.closeEmpties()
 
-    def saveLayout(self) -> "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None":
+    def saveLayout(
+        self, verify: bool = True
+    ) -> "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None":
         helper = self._helper
         mdi = helper.getMdi()
         app = helper.getApp()
@@ -2137,45 +2133,46 @@ class Split(QObject):
             return
 
         if self == self.topSplit():
-            for doc in app.documents():
-                fname = doc.fileName()
-                if not fname or not os.path.exists(fname):
-                    data = helper.getDocData(doc)
-                    if data and data.views[0]:
-                        view = data.views[0][0]
-                        index = self._controller.getIndexByView(view)
-                        activeWin = mdi.subWindowList()[index]
-                        mdi.setActiveSubWindow(activeWin)
+            if verify:
+                for doc in app.documents():
+                    fname = doc.fileName()
+                    if not fname or not os.path.exists(fname):
+                        data = helper.getDocData(doc)
+                        if data and data.views[0]:
+                            view = data.views[0][0]
+                            index = self._controller.getIndexByView(view)
+                            activeWin = mdi.subWindowList()[index]
+                            mdi.setActiveSubWindow(activeWin)
 
-                        choice = QMessageBox.question(
-                            None,
-                            "Krita",
-                            i18n("Do you want to save your changes?"),
-                            QMessageBox.StandardButton.Cancel
-                            | QMessageBox.StandardButton.No
-                            | QMessageBox.StandardButton.Yes,
-                            QMessageBox.StandardButton.Yes,
-                        )
-
-                        if choice == QMessageBox.StandardButton.Cancel:
-                            _ = QMessageBox.warning(
+                            choice = QMessageBox.question(
                                 None,
                                 "Krita",
-                                i18n("The operation was aborted."),
+                                i18n("Do you want to save your changes?"),
+                                QMessageBox.StandardButton.Cancel
+                                | QMessageBox.StandardButton.No
+                                | QMessageBox.StandardButton.Yes,
+                                QMessageBox.StandardButton.Yes,
                             )
-                            return
 
-                        if choice == QMessageBox.StandardButton.Yes:
-                            app.action("file_save").trigger()
-                            # XXX edge case: save cancelled
-                            fname = doc.fileName()
-                            if not fname or not os.path.exists(fname):
+                            if choice == QMessageBox.StandardButton.Cancel:
                                 _ = QMessageBox.warning(
                                     None,
                                     "Krita",
                                     i18n("The operation was aborted."),
                                 )
                                 return
+
+                            if choice == QMessageBox.StandardButton.Yes:
+                                app.action("file_save").trigger()
+                                # XXX edge case: save cancelled
+                                fname = doc.fileName()
+                                if not fname or not os.path.exists(fname):
+                                    _ = QMessageBox.warning(
+                                        None,
+                                        "Krita",
+                                        i18n("The operation was aborted."),
+                                    )
+                                    return
 
         if self._state == Split.STATE_COLLAPSED:
             tabs = self.tabs()
@@ -2189,7 +2186,7 @@ class Split(QObject):
                     if os.path.exists(path):
                         files.append(path)
             return ("c", files)
-            
+
         elif self._state == Split.STATE_SPLIT:
             assert self._handle is not None
             assert self._first is not None
@@ -2213,7 +2210,9 @@ class Split(QObject):
                 topSplit.restoreLayout(layout)
             return
 
-        def getUniqueFiles(layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT") -> list[str]:
+        def getUniqueFiles(
+            layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
+        ) -> list[str]:
             if layout[0] == "c":
                 return [f for f in layout[1] if os.path.exists(f)]
             elif layout[0] in ("v", "h"):
@@ -2293,14 +2292,14 @@ class Split(QObject):
         mdi = helper.getMdi()
         assert mdi is not None
 
-        for f in context.views:
-            for v in context.views[f]:
-                if helper.isAlive(v, View):
-                    index = self._controller.getIndexByView(v)
-                    if index != -1:
-                        activeWin = mdi.subWindowList()[index]
-                        if activeWin:
-                            activeWin.close()
+        # for f in context.views:
+        #     for v in context.views[f]:
+        #         if helper.isAlive(v, View):
+        #             index = self._controller.getIndexByView(v)
+        #             if index != -1:
+        #                 activeWin = mdi.subWindowList()[index]
+        #                 if activeWin:
+        #                     activeWin.close()
 
         self.closeEmpties()
 
@@ -2320,7 +2319,7 @@ class Split(QObject):
     ):
         if not layout:
             return
-            
+
         helper = self._helper
         controller = self._controller
         app = helper.getApp()
@@ -2328,6 +2327,7 @@ class Split(QObject):
         assert isinstance(context, SimpleNamespace)
 
         if layout[0] == "c":
+            print(layout[0], layout[1])
             for f in layout[1]:
                 handled = False
 
@@ -2359,14 +2359,17 @@ class Split(QObject):
                         context.missing.append(f)
 
         elif layout[0] in ("v", "h"):
+            first, second = None, None
             if layout[0] == "v":
-                self.makeSplitRight(empty=True)
+                first, second = self.makeSplitRight(empty=True)
             else:
-                self.makeSplitBelow(empty=True)
-            if self._first:
-                self._first._restoreSplits(layout[1], context)
-            if self._second:
-                self._second._restoreSplits(layout[2], context)
+                first, second = self.makeSplitBelow(empty=True)
+
+            print(layout[0], first, second)
+            if first:
+                first._restoreSplits(layout[1], context)
+            if second:
+                second._restoreSplits(layout[2], context)
 
 
 class SplitPane(Component):
@@ -2381,6 +2384,15 @@ class SplitPane(Component):
         self._activeToolbar: SplitToolbar | None = None
         self._colors: SimpleNamespace | None = None
         self._optEnabled = getOpt("toggle", "split_panes")
+        self._layoutRestored = False
+        self._layoutLoading = False
+
+        Krita.instance().dbgTool = self
+        self._setOpt = setOpt
+        app = self._helper.getApp()
+        if app:
+            if app.readSetting("", "sessionOnStartup", "") != "0":
+                setOpt("toggle", "restore_layout", False)
 
         _ = self._helper.newAction(
             window,
@@ -2413,6 +2425,23 @@ class SplitPane(Component):
             self.handleSplitter()
             self._optEnabled = isEnabled
 
+    def savePreviousLayout(self):
+        if not self._layoutRestored:
+            return
+        app = self._helper.getApp()
+        if not app:
+            return
+        isEnabled = getOpt("toggle", "restore_layout")
+        if isEnabled:
+            topSplit = self.topSplit()
+            if topSplit:
+                layout = topSplit.saveLayout(verify=False)
+                app.writeSetting(
+                    "krita_ui_tweaks", "restoreLayout", json.dumps(layout)
+                )
+        else:
+            app.writeSetting("krita_ui_tweaks", "restoreLayout", "false")
+
     def shortPoll(self):
         if self._quit:
             return
@@ -2420,7 +2449,9 @@ class SplitPane(Component):
         doc = helper.getDoc()
         tabs = helper.getTabBar()
         if doc and tabs:
-            self.updateDocumentTabs(doc)
+            _, f = self.updateDocumentTabs(doc)
+            if f:
+                self.savePreviousLayout()
 
     def longPoll(self):
         if self._quit:
@@ -2429,26 +2460,41 @@ class SplitPane(Component):
         app = helper.getApp()
         tabs = helper.getTabBar()
         if app and tabs:
+            updated = False
             for doc in app.documents():
-                self.updateDocumentTabs(doc)
+                _, f = self.updateDocumentTabs(doc)
+                if f:
+                    updated = True
+            if updated:
+                self.savePreviousLayout()
 
-    def updateDocumentTabs(self, doc: Document):
+    def updateDocumentTabs(self, doc: Document) -> tuple[bool, bool]:
         helper = self._helper
         tabs = helper.getTabBar()
-        if not tabs:
-            return
-
         data = helper.getDocData(doc)
-        if not data:
-            return
-        currTabText = data.doc.get("tabText", None)
+
+        if not (tabs and data):
+            return (False, False)
+
+        updatedTab, updatedFileName = False, False
+
+        savedTabText = data.doc.get("tabText", None)
+        savedFileName = data.doc.get("fileName", None)
+
         view = data.views[0][0]
         index = self.getIndexByView(view)
+
+        fileName = doc.fileName()
         tabText = tabs.tabText(index)
         if len(tabText) > TAB_TEXT_MAX_LEN:
             tabText = f"…{tabText[-TAB_TEXT_MAX_LEN:]}"
 
-        if currTabText != tabText:
+        if savedFileName != fileName:
+            data.doc["fileName"] = fileName
+            updatedFileName = True
+
+        if savedTabText != tabText:
+            updatedTab = True
             data.doc["tabText"] = tabText
             for v in data.views:
                 view = v[0]
@@ -2464,16 +2510,39 @@ class SplitPane(Component):
                             toolbarTabs = toolbar.tabs()
                             splitTabIndex = toolbarTabs.getTabByView(view)
                             toolbarTabs.setTabText(splitTabIndex, tabText)
+        return updatedTab, updatedFileName
 
     def handleSplitter(self):
         helper = self._helper
+        app = helper.getApp()
+        if not app or self._layoutLoading:
+            return
+
         mdi = helper.getMdi()
         central = helper.getCentral()
-
         isEnabled = getOpt("toggle", "split_panes")
+        loadLayout = None
 
         if (
-            not self.isHomeScreenShowing()
+            central
+            and mdi
+            and isEnabled
+            and mdi.viewMode() == QMdiArea.ViewMode.TabbedView
+            and app.readSetting("", "sessionOnStartup", "") == "0"
+            and not self._layoutRestored
+        ):
+            if getOpt("toggle", "restore_layout"):
+                try:
+                    layout = json.loads(
+                        app.readSetting("krita_ui_tweaks", "restoreLayout", "")
+                    )
+                    if isinstance(layout, list):
+                        loadLayout = layout
+                except:
+                    pass
+
+        if (
+            (not self.isHomeScreenShowing() or loadLayout)
             and central
             and mdi
             and mdi.viewMode() == QMdiArea.ViewMode.TabbedView
@@ -2488,6 +2557,19 @@ class SplitPane(Component):
 
                 self._componentTimers.shortPoll.connect(self.shortPoll)
                 self._componentTimers.longPoll.connect(self.longPoll)
+
+                if loadLayout:
+                    self._layoutLoading = True
+
+                    def cb():
+                        try:
+                            topSplit = self._split.topSplit()
+                            topSplit.restoreLayout(layout)
+                        finally:
+                            self._layoutRestored = True
+                            self._layoutLoading = False
+
+                    QTimer.singleShot(100, cb)
 
         elif self._split:
             self._componentTimers.shortPoll.disconnect(self.shortPoll)
@@ -2830,10 +2912,6 @@ class SplitPane(Component):
                 return
 
             helper = self._helper
-            tabs = helper.getTabBar()
-
-            if not tabs:
-                return
 
             mdi = helper.getMdi()
             qwin = helper.getQwin()
@@ -2851,6 +2929,10 @@ class SplitPane(Component):
                 view = win.addView(document)
                 index = mdi.subWindowList().index(mdi.activeSubWindow())
                 view = None
+
+            tabs = helper.getTabBar()
+            if not tabs:
+                return
 
             if view is not None:
                 index = self.getIndexByView(view)
@@ -2939,6 +3021,7 @@ class SplitPane(Component):
                                 toolbarTabs.setUid(splitTabIndex, uid)
 
                             realign = True
+                            self.savePreviousLayout()
                         else:
                             splitTabIndex = toolbarTabs.getTabByView(data.view)
                             realign = (
