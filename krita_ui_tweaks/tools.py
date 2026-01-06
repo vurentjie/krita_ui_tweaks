@@ -105,14 +105,14 @@ class Tools(Component):
             name = action.objectName()
             if name in self._toolActions:
                 self._toolActions[name] = action
-            _ = action.triggered.connect(  # pyright: ignore[reportUnknownMemberType]
-                typing.cast(
-                    PYQT_SLOT,
-                    lambda _, action=action: self.onToolAction(  # pyright: ignore[reportUnknownLambdaType]
-                        action
-                    ),
+                _ = action.triggered.connect(  # pyright: ignore[reportUnknownMemberType]
+                    typing.cast(
+                        PYQT_SLOT,
+                        lambda _, action=action: self.onToolAction(  # pyright: ignore[reportUnknownLambdaType]
+                            action
+                        ),
+                    )
                 )
-            )
             if name == self._activeTool and getOpt("toggle", "shared_tool"):
                 action.trigger()
 
@@ -143,11 +143,6 @@ class Tools(Component):
             return
         name = action.objectName()
         msg = action.text()
-
-        if name not in self._toolActions:
-            if msg and len(msg) > 0:
-                self._helper.showToast(f"{msg}")
-            return
 
         checkableIcons = getOpt("toggle", "toolbar_icons")
 
