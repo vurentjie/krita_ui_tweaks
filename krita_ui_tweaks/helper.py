@@ -203,7 +203,12 @@ class Helper:
                     self._cached["tabs"] = self.isAlive(c, QTabBar)
                     return self._cached["tabs"]
 
-    def refreshWidget(self, parent: QWidget, widget: QWidget | None = None, repaint: bool = False):
+    def refreshWidget(
+        self,
+        parent: QWidget,
+        widget: QWidget | None = None,
+        repaint: bool = False,
+    ):
         if widget is None:
             widget = parent
         parent.style().unpolish(widget)
@@ -224,8 +229,8 @@ class Helper:
         mdi = self.getMdi()
         if mdi and mdi.property("toasts") == "visible":
             mdi.setProperty("toasts", "")
-            self.enableToast(force = True)
-            
+            self.enableToast(force=True)
+
         view = self.getView()
         if view:
             if icon is None:
@@ -245,17 +250,22 @@ class Helper:
             mdi = self.getMdi()
             if mdi:
                 mdi.setProperty("toasts", "")
+                self.refreshWidget(mdi, repaint=True)
                 subwin = mdi.activeSubWindow()
                 if subwin:
                     for c in subwin.findChildren(QWidget):
                         cls = c.metaObject().className()
-                        if "KisFloatingMessage" in cls or "FloatingMessage" in cls:
+                        if (
+                            "KisFloatingMessage" in cls
+                            or "FloatingMessage" in cls
+                        ):
                             c.setVisible(True)
-                            self.refreshWidget(parent=mdi, widget=c, repaint=True)
-                    self.refreshWidget(subwin, repaint = True)
-                self.refreshWidget(mdi, repaint = True)
+                            self.refreshWidget(
+                                parent=mdi, widget=c, repaint=True
+                            )
 
         if not self._toastEnableTimer:
+
             def cb():
                 mdi = self.getMdi()
                 if mdi:
