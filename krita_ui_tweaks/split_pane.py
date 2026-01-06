@@ -52,7 +52,6 @@ import os
 import time
 
 TAB_BAR_HEIGHT = 34
-TAB_TEXT_MAX_LEN = 30
 
 COLLAPSED_LAYOUT = tuple[typing.Literal["c"], list[str]]
 SPLIT_LAYOUT = tuple[
@@ -2442,7 +2441,10 @@ class SplitPane(Component):
         self._layoutWriteDebounce: QTimer = QTimer()
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
-        
+        self._limits = SimpleNamespace(
+            tabMaxChars=getOpt("appearance", "tab_max_chars")
+        )
+
         Krita.instance().dbgTool = self
 
         app = self._helper.getApp()
@@ -2481,9 +2483,17 @@ class SplitPane(Component):
             self.toggleStyles()
             self.handleSplitter()
             self._optEnabled = isEnabled
-            
+
         if getOpt("toggle", "restore_layout"):
             self._debounceSaveLayout()
+
+        curr = self._limits.tabMaxChars
+        self._limits.tabMaxChars = getOpt("appearance", "tab_max_chars")
+        if curr != self._limits.tabMaxChars:
+            app = self._helper.getApp()
+            if app:
+                for doc in app.documents():
+                    _, f = self.updateDocumentTabs(doc)
 
     def savePreviousLayout(self):
         if self._layoutWriteDebounce:
@@ -2550,22 +2560,32 @@ class SplitPane(Component):
 
         savedTabText = data.doc.get("tabText", None)
         savedFileName = data.doc.get("fileName", None)
+        savedTabModified = data.doc.get("tabModified", None)
 
         view = data.views[0][0]
         index = self.getIndexByView(view)
 
         fileName = doc.fileName()
         tabText = tabs.tabText(index)
-        if len(tabText) > TAB_TEXT_MAX_LEN:
-            tabText = f"…{tabText[-TAB_TEXT_MAX_LEN:]}"
+        tabModified = doc.modified()
+
+        if getOpt("appearance", "tab_hide_filesize"):
+            name = os.path.basename(fileName) 
+            mod = " *" if doc.modified() else ""
+            tabText = f"{name}{mod}"
+
+        maxChars = self._limits.tabMaxChars
+        if len(tabText) > maxChars:
+            tabText = f"…{tabText[-maxChars:]}"
 
         if savedFileName != fileName:
             data.doc["fileName"] = fileName
             updatedFileName = True
 
-        if savedTabText != tabText:
+        if savedTabText != tabText or savedTabModified != tabModified:
             updatedTab = True
             data.doc["tabText"] = tabText
+            data.doc["tabModified"] = tabModified
             for v in data.views:
                 view = v[0]
                 index = self.getIndexByView(view)
@@ -3092,8 +3112,15 @@ class SplitPane(Component):
                             self.setViewData(uid, data)
 
                             tabText = tabs.tabText(index)
-                            if len(tabText) > TAB_TEXT_MAX_LEN:
-                                tabText = f"…{tabText[-TAB_TEXT_MAX_LEN:]}"
+                            if getOpt("appearance", "tab_hide_filesize"):
+                                doc = data.view.document()
+                                name = os.path.basename(doc.fileName()) 
+                                mod = " *" if doc.modified() else ""
+                                tabText = f"{name}{mod}"
+                                
+                            maxChars = self._limits.tabMaxChars
+                            if len(tabText) > maxChars:
+                                tabText = f"…{tabText[-maxChars:]}"
 
                             splitTabIndex = toolbarTabs.addTab(
                                 tabs.tabIcon(index), tabText
