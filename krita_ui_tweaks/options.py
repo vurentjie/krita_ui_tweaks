@@ -272,20 +272,11 @@ def setOpt(*args: typing.Any):
         writeConfig(_global_config)
 
 def readConfig():
-    config = None
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "config.json"
-    )
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception:
-            pass
-
+    app = Krita.instance()
     defaults = defaultConfig()
-
-    if isinstance(config, dict):
+    try:
+        config = json.loads(app.readSetting("krita_ui_tweaks", "options", ""))
+        assert isinstance(config, dict)
         config = typing.cast(C, config)
         for section in ("translated", "toggle"):
             if not isinstance(config.get(section, None), dict):
@@ -295,21 +286,14 @@ def readConfig():
                     s = config[section]
                     if s.get(k, None) is None:
                         s[k] = v
-        return config
-    else:
-        return defaults
+    except:
+        config = defaults
+    return config
 
 
 def writeConfig(config: C):
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "config.json"
-    )
-    try:
-        with open(path, "w") as f:
-            json.dump(config, f, indent=2)
-    except Exception:
-        pass
-
+    app = Krita.instance()
+    app.writeSetting("krita_ui_tweaks", "options", json.dumps(config))
 
 def showOptions():
     dlg = SettingsDialog()

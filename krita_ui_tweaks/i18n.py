@@ -2,10 +2,8 @@
 
 from krita import Krita
 
-# from .pyqt import QStandardPaths, QSettings, QByteArray
 import os
 import json
-
 
 _translations: dict[str, str] | None = None
 
@@ -16,16 +14,12 @@ def i18n_reset():
 def i18n_translations_get() -> dict[str, str]:
     global _translations
     if _translations is None:
-        path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "config.json"
-        )
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    j = json.load(f)
-                    _translations = j.get("translated", {})
-            except Exception:
-                pass
+        app = Krita.instance()
+        try:
+            options = json.loads(app.readSetting("krita_ui_tweaks", "options", ""))
+            _translations = options.get("translated", None)
+        except:
+            _translations = {}
     if not isinstance(_translations, dict):
         _translations = {}
     return _translations
