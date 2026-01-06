@@ -243,14 +243,17 @@ class Helper:
     def enableToast(self, force: bool = False):
         if force:
             mdi = self.getMdi()
-            subwin = mdi.activeSubWindow() if mdi else None
-            if subwin:
-                for c in subwin.findChildren(QWidget):
-                    cls = c.metaObject().className()
-                    if "KisFloatingMessage" in cls or "FloatingMessage" in cls:
-                        c.setVisible(True)
-                        self.refreshWidget(parent=mdi, widget=c, repaint=True)
-            self.refreshWidget(mdi, repaint = True)
+            if mdi:
+                mdi.setProperty("toasts", "")
+                subwin = mdi.activeSubWindow()
+                if subwin:
+                    for c in subwin.findChildren(QWidget):
+                        cls = c.metaObject().className()
+                        if "KisFloatingMessage" in cls or "FloatingMessage" in cls:
+                            c.setVisible(True)
+                            self.refreshWidget(parent=mdi, widget=c, repaint=True)
+                    self.refreshWidget(subwin, repaint = True)
+                self.refreshWidget(mdi, repaint = True)
 
         if not self._toastEnableTimer:
             def cb():
