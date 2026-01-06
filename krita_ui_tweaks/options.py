@@ -71,7 +71,11 @@ class SettingsDialog(QDialog):
                     i18n("Restore split pane layout when Krita restarts (experimental)")
                 ),
                 section=i18n("Split Panes"),
-                extra=None
+                extra=QLabel(
+                    i18n(
+                        "<b>Will disable Krita's default session restore mechanism.</b>"
+                    )
+                ),
             ),
             "toolbar_icons": ToggleItem(
                 checkbox=QCheckBox(i18n("Highlight active tool in toolbars")),
@@ -86,6 +90,17 @@ class SettingsDialog(QDialog):
                 ),
                 section=i18n("Tools"),
                 extra=None,
+            ),
+            "hide_floating_message": ToggleItem(
+                checkbox=QCheckBox(
+                    i18n("Permanently hide the floating message that appears at the top-left of the canvas."),
+                ),
+                section=i18n("Tools"),
+                extra=QLabel(
+                    i18n(
+                        "<b>Requires restart.</b>"
+                    )
+                ),
             ),
             "toggle_docking": ToggleItem(
                 checkbox=QCheckBox(i18n("Toggle docking on and off")),
@@ -140,6 +155,7 @@ class SettingsDialog(QDialog):
             form.addRow(item.checkbox)
             if item.extra:
                 item.extra.setTextFormat(Qt.TextFormat.RichText)
+                item.extra.setEnabled(False)
                 item.extra.setContentsMargins(20, 0, 0, 0)
                 form.addRow(item.extra)
         return tab
@@ -213,6 +229,7 @@ def defaultConfig() -> C:
             "restore_layout": False,
             "toolbar_icons": True,
             "shared_tool": True,
+            "hide_floating_message": False,
             "toggle_docking": True,
         },
     }

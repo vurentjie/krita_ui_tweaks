@@ -40,7 +40,7 @@ from contextlib import contextmanager
 from typing import Any
 from types import SimpleNamespace
 
-from .component import Component
+from .component import Component, COMPONENT_GROUP
 from .options import showOptions, getOpt, setOpt, signals as OptionSignals
 from .helper import Helper
 from .i18n import i18n
@@ -144,6 +144,7 @@ class SplitTabs(QTabBar):
 
     def __init__(self, parent: "SplitToolbar", controller: "SplitPane"):
         super().__init__(parent)
+        self.setObjectName("SplitTabs")
         self._wheelAccumulator = 0
 
         self._controller = controller
@@ -833,6 +834,7 @@ class SplitToolbar(QWidget):
         self, parent: QWidget, controller: "SplitPane", split: "Split"
     ):
         super().__init__(parent)
+        self.setObjectName("SplitToolbar")
         self._split: "Split" = split
         self._controller: "SplitPane" = controller
         self._helper: Helper = controller.helper()
@@ -1036,9 +1038,10 @@ class SplitHandle(QWidget):
         split: "Split",
         helper: Helper,
         orient: Qt.Orientation | None = None,
-        pos: int | None = None
+        pos: int | None = None,
     ):
         super().__init__(helper.getMdi())
+        self.setObjectName("SplitHandle")
         self._helper: Helper = helper
         self._split: "Split" = split
         self._lastMousePos: QPoint = QPoint()
@@ -1242,7 +1245,7 @@ class Split(QObject):
         second: "Split | None" = None,
     ):
         super().__init__(parent)
-
+        self.setObjectName("SplitHandle")
         self._controller = controller
         self._helper = controller.helper()
         self._state: int = Split.STATE_COLLAPSED if state is None else state
@@ -1265,8 +1268,12 @@ class Split(QObject):
         if self._state == Split.STATE_COLLAPSED:
             if isinstance(toolbar, SplitToolbar):
                 self._toolbar = toolbar
-                self._toolbar.setSplit(self) # ty: ignore[possibly-missing-attribute]
-                self._toolbar.setParent(mdi) # ty: ignore[possibly-missing-attribute]
+                self._toolbar.setSplit(
+                    self
+                )  # ty: ignore[possibly-missing-attribute]
+                self._toolbar.setParent(
+                    mdi
+                )  # ty: ignore[possibly-missing-attribute]
             else:
                 self._toolbar = SplitToolbar(
                     parent=mdi,
@@ -1274,8 +1281,8 @@ class Split(QObject):
                     controller=self._controller,
                 )
 
-            self._toolbar.raise_() # ty: ignore[possibly-missing-attribute]
-            self._toolbar.show() # ty: ignore[possibly-missing-attribute]
+            self._toolbar.raise_()  # ty: ignore[possibly-missing-attribute]
+            self._toolbar.show()  # ty: ignore[possibly-missing-attribute]
         else:
             self._handle = SplitHandle(
                 self, helper=self._helper, orient=orient
@@ -1592,7 +1599,7 @@ class Split(QObject):
                     topSplit.resize(force=True)
                 parent.equalize()
                 parent.realignCanvas(nested=True)
-                
+
         controller.savePreviousLayout()
         self._closing = False
 
@@ -1712,7 +1719,6 @@ class Split(QObject):
         win = helper.isAlive(self.getActiveTabWindow(), QMdiSubWindow)
         toolbar = helper.isAlive(self._toolbar, SplitToolbar)
         if win and toolbar:
-            helper.disableToast()
             rect = self._rect
             win.setFixedWidth(rect.width())
             win.setFixedHeight(rect.height() - toolbar.height())
@@ -1724,7 +1730,6 @@ class Split(QObject):
             )
             win.raise_()
             win.show()
-            helper.enableToast()
 
     def globalRect(self, withToolBar: bool = True):
         helper = self._helper
@@ -1800,7 +1805,7 @@ class Split(QObject):
         empty: bool = False,
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
-        handlePos: int | None = None
+        handlePos: int | None = None,
     ) -> tuple["Split | None", "Split | None"]:
         tabs = self.tabs()
         if not (self._state == Split.STATE_COLLAPSED and (tabs or empty)):
@@ -1809,7 +1814,9 @@ class Split(QObject):
         isSelf = tabSplit == self
         toolbar = self._toolbar
         self._toolbar = None
-        self._handle = SplitHandle(self, helper=self._helper, orient=orient, pos=handlePos)
+        self._handle = SplitHandle(
+            self, helper=self._helper, orient=orient, pos=handlePos
+        )
 
         if swap:
             self._second = Split(
@@ -1847,7 +1854,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
-        handlePos: int | None = None
+        handlePos: int | None = None,
     ):
         return self.makeSplit(
             Qt.Orientation.Horizontal,
@@ -1855,7 +1862,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
-            handlePos=handlePos
+            handlePos=handlePos,
         )
 
     def makeSplitAbove(
@@ -1864,7 +1871,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
-        handlePos: int | None = None
+        handlePos: int | None = None,
     ):
         return self.makeSplit(
             Qt.Orientation.Horizontal,
@@ -1873,7 +1880,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
-            handlePos=handlePos
+            handlePos=handlePos,
         )
 
     def makeSplitRight(
@@ -1882,7 +1889,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
-        handlePos: int | None = None
+        handlePos: int | None = None,
     ):
         return self.makeSplit(
             Qt.Orientation.Vertical,
@@ -1890,7 +1897,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
-            handlePos=handlePos
+            handlePos=handlePos,
         )
 
     def makeSplitLeft(
@@ -1899,7 +1906,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
-        handlePos: int | None = None
+        handlePos: int | None = None,
     ):
         return self.makeSplit(
             Qt.Orientation.Vertical,
@@ -1908,7 +1915,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
-            handlePos=handlePos
+            handlePos=handlePos,
         )
 
     def makeSplitBetween(
@@ -2392,7 +2399,7 @@ class Split(QObject):
             layout = typing.cast(SPLIT_LAYOUT, layout)
             first, second = None, None
             handlePos = None
-            
+
             if len(layout) > 3:
                 handlePos = (
                     int(layout[3] / layout[4] * context.width)
@@ -2401,9 +2408,13 @@ class Split(QObject):
                 )
 
             if layout[0] == "v":
-                first, second = self.makeSplitRight(empty=True, handlePos=handlePos)
+                first, second = self.makeSplitRight(
+                    empty=True, handlePos=handlePos
+                )
             else:
-                first, second = self.makeSplitBelow(empty=True, handlePos=handlePos)
+                first, second = self.makeSplitBelow(
+                    empty=True, handlePos=handlePos
+                )
 
             if first:
                 first._restoreSplits(layout[1], context)
@@ -2414,8 +2425,11 @@ class Split(QObject):
 class SplitPane(Component):
     winClosed = pyqtSignal()
 
-    def __init__(self, window: Window):
-        super().__init__(window)
+    def __init__(
+        self, window: Window, pluginGroup: COMPONENT_GROUP | None = None
+    ):
+        super().__init__(window, pluginGroup=pluginGroup)
+        self.setObjectName("SplitPane")
         self._quit: bool = False
         self._syncing: bool = False
         self._viewData: dict[int, ViewData] = {}
@@ -2428,11 +2442,14 @@ class SplitPane(Component):
         self._layoutWriteDebounce: QTimer = QTimer()
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
+        
+        Krita.instance().dbgTool = self
 
         app = self._helper.getApp()
         if app:
             if app.readSetting("", "sessionOnStartup", "") != "0":
                 setOpt("toggle", "restore_layout", False)
+                app.writeSetting("krita_ui_tweaks", "restoreLayout", "false")
 
         _ = self._helper.newAction(
             window,
@@ -2464,11 +2481,15 @@ class SplitPane(Component):
             self.toggleStyles()
             self.handleSplitter()
             self._optEnabled = isEnabled
+            
+        if getOpt("toggle", "restore_layout"):
+            self._debounceSaveLayout()
 
     def savePreviousLayout(self):
         if self._layoutWriteDebounce:
             now = time.monotonic()
             if now - self._layoutWriteTime >= 2:
+                self._layoutWriteTime = now
                 self._layoutWriteDebounce.stop()
                 self._debounceSaveLayout()
             else:
@@ -2621,6 +2642,8 @@ class SplitPane(Component):
                             self._layoutLoading = False
 
                     QTimer.singleShot(100, cb)
+                else:
+                    self._layoutRestored = True
 
         elif self._split:
             self._componentTimers.shortPoll.disconnect(self.shortPoll)
@@ -2716,18 +2739,24 @@ class SplitPane(Component):
             )
         )
 
-        style = f"""
-                /* KRITA_UI_TWEAKS_STYLESHEET_BEGIN */
-                QMainWindow::separator {{
-                    background: transparent;
-                }}
-                QMdiArea[toasts="hidden"] KisFloatingMessage {{
+        hideFloatingMessage = ""
+        if getOpt("toggle", "hide_floating_message"):
+            hideFloatingMessage = """
+                QMdiArea KisFloatingMessage {
                     opacity: 0;
                     min-width: 0;
                     max-width: 0;
                     min-height: 0;
                     max-height: 0;
+                }
+            """
+
+        style = f"""
+                /* KRITA_UI_TWEAKS_STYLESHEET_BEGIN */
+                QMainWindow::separator {{
+                    background: transparent;
                 }}
+                {hideFloatingMessage}
                 QMenu[class="splitPaneMenu"] {{
                     padding-top: 10px;
                     padding-bottom: 10px;
@@ -2938,13 +2967,14 @@ class SplitPane(Component):
         self._syncing = True
         updates = qwin.updatesEnabled()
         qwin.setUpdatesEnabled(False)
-        helper.disableToast()
         try:
             yield True
         finally:
-            helper.enableToast()
             qwin.setUpdatesEnabled(updates)
             self._syncing = syncing
+
+    def isSyncing(self):
+        return self._syncing
 
     def syncView(
         self,

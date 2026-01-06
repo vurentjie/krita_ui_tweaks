@@ -226,60 +226,11 @@ class Helper:
     def showToast(
         self, msg: str = "", icon: QIcon | None = None, ts: int = 2000
     ):
-        mdi = self.getMdi()
-        if mdi and mdi.property("toasts") == "visible":
-            mdi.setProperty("toasts", "")
-            self.enableToast(force=True)
-
         view = self.getView()
         if view:
             if icon is None:
                 icon = QIcon()
             view.showFloatingMessage(msg, icon, ts, 1)
-
-    def disableToast(self):
-        mdi = self.getMdi()
-        if self._toastEnableTimer:
-            self._toastEnableTimer.stop()
-            self._toastEnableTimer = None
-        if mdi:
-            mdi.setProperty("toasts", "hidden")
-
-    def enableToast(self, force: bool = False):
-        if force:
-            if self._toastEnableTimer:
-                self._toastEnableTimer.stop()
-                self._toastEnableTimer = None
-            mdi = self.getMdi()
-            if mdi:
-                mdi.setProperty("toasts", "")
-                self.refreshWidget(mdi, repaint=True)
-                subwin = mdi.activeSubWindow()
-                if subwin:
-                    for c in subwin.findChildren(QWidget):
-                        cls = c.metaObject().className()
-                        if (
-                            "KisFloatingMessage" in cls
-                            or "FloatingMessage" in cls
-                        ):
-                            c.setVisible(True)
-                            self.refreshWidget(
-                                parent=mdi, widget=c, repaint=True
-                            )
-            return
-
-        if not self._toastEnableTimer:
-            def cb():
-                mdi = self.getMdi()
-                if mdi:
-                    mdi.setProperty("toasts", "visible")
-                self._toastEnableTimer = None
-
-            t = QTimer()
-            t.setSingleShot(True)
-            t.timeout.connect(cb)
-            t.start(100)
-            self._toastEnableTimer = t
 
     def newAction(
         self,
