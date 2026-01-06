@@ -247,6 +247,9 @@ class Helper:
 
     def enableToast(self, force: bool = False):
         if force:
+            if self._toastEnableTimer:
+                self._toastEnableTimer.stop()
+                self._toastEnableTimer = None
             mdi = self.getMdi()
             if mdi:
                 mdi.setProperty("toasts", "")
@@ -263,9 +266,9 @@ class Helper:
                             self.refreshWidget(
                                 parent=mdi, widget=c, repaint=True
                             )
+            return
 
         if not self._toastEnableTimer:
-
             def cb():
                 mdi = self.getMdi()
                 if mdi:
