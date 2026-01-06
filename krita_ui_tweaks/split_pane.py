@@ -27,11 +27,13 @@ from .pyqt import (
     QRect,
     QTimer,
     QPoint,
+    QSize,
     QIcon,
     getEventGlobalPos,
     getEventPos,
     toPoint,
     QMessageBox,
+    QFileDialog,
 )
 
 from krita import Window, View, Document
@@ -50,8 +52,6 @@ import re
 import json
 import os
 import time
-
-TAB_BAR_HEIGHT = 34
 
 COLLAPSED_LAYOUT = tuple[typing.Literal["c"], list[str]]
 SPLIT_LAYOUT = tuple[
@@ -990,6 +990,15 @@ class SplitToolbar(QWidget):
                 separator=True,
             ),
             MenuAction(
+                text=i18n("Save Layout"),
+                callback=lambda: self._split.saveLayout(),
+            ),
+            MenuAction(
+                text=i18n("Load Layout"),
+                callback=lambda: self._split.loadLayout(),
+                separator=True,
+            ),
+            MenuAction(
                 text=i18n("Options"),
                 callback=showOptions,
             ),
@@ -1695,12 +1704,13 @@ class Split(QObject):
             old_rect != self._rect or self.isForceResizing()
         ):
             if self._toolbar is not None:
-                self._toolbar.setFixedHeight(TAB_BAR_HEIGHT)
+                tabBarHeight = getOpt("appearance", "tab_height")
+                self._toolbar.setFixedHeight(tabBarHeight)
                 self._toolbar.setGeometry(
                     self._rect.x(),
                     self._rect.y(),
                     self._rect.width(),
-                    TAB_BAR_HEIGHT,
+                    tabBarHeight,
                 )
                 self.resizeSubWindow()
             self.resized.emit()
@@ -1740,7 +1750,7 @@ class Split(QObject):
                 self._rect.size(),
             )
             if not withToolBar:
-                rect.setY(rect.y() + TAB_BAR_HEIGHT)
+                rect.setY(rect.y() + getOpt("appearance", "tab_height"))
             return rect
         return QRect()
 
@@ -2149,7 +2159,7 @@ class Split(QObject):
             if second:
                 second.closeEmpties()
 
-    def saveLayout(
+    def getLayout(
         self, verify: bool = True
     ) -> "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None":
         helper = self._helper
@@ -2224,10 +2234,30 @@ class Split(QObject):
                 if self._handle.orientation() == Qt.Orientation.Vertical
                 else "h"
             )
-            first = self._first.saveLayout()
-            second = self._second.saveLayout()
+            first = self._first.getLayout()
+            second = self._second.getLayout()
             w, h = qwin.width(), qwin.height()
             return (orient, first, second, self._handle.offset(), w, h)
+
+    def getLayoutFiles(
+        self,
+        layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
+    ) -> list[str]:
+        if layout[0] == "c":
+            layout = typing.cast(COLLAPSED_LAYOUT, layout)
+            return [f for f in layout[1] if os.path.exists(f)]
+        elif layout[0] in ("v", "h"):
+            layout = typing.cast(SPLIT_LAYOUT, layout)
+            assert layout[1] is not None
+            assert layout[2] is not None
+            return list(
+                set(
+                    self.getLayoutFiles(layout[1])
+                    + self.getLayoutFiles(layout[2])
+                )
+            )
+        else:
+            return []
 
     def restoreLayout(
         self,
@@ -2240,24 +2270,7 @@ class Split(QObject):
             return
 
         assert topSplit is not None
-
-        def getUniqueFiles(
-            layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
-        ) -> list[str]:
-            if layout[0] == "c":
-                layout = typing.cast(COLLAPSED_LAYOUT, layout)
-                return [f for f in layout[1] if os.path.exists(f)]
-            elif layout[0] in ("v", "h"):
-                layout = typing.cast(SPLIT_LAYOUT, layout)
-                assert layout[1] is not None
-                assert layout[2] is not None
-                return list(
-                    set(getUniqueFiles(layout[1]) + getUniqueFiles(layout[2]))
-                )
-            else:
-                return []
-
-        files = getUniqueFiles(layout)
+        files = self.getLayoutFiles(layout)
 
         if len(files) == 0:
             _ = QMessageBox.warning(
@@ -2312,6 +2325,8 @@ class Split(QObject):
                             )
                             return
 
+        updates = qwin.updatesEnabled()
+        qwin.setUpdatesEnabled(False)
         self.resetLayout()
 
         context = SimpleNamespace(
@@ -2338,6 +2353,8 @@ class Split(QObject):
                             activeWin.close()
 
         self.closeEmpties()
+        
+        qwin.setUpdatesEnabled(updates)
 
         if len(context.missing) > 0:
             _ = QMessageBox.warning(
@@ -2420,6 +2437,56 @@ class Split(QObject):
             if second:
                 second._restoreSplits(layout[2], context)
 
+    def saveLayout(self):
+        path, _ = QFileDialog.getSaveFileName(
+            None,
+            "Save JSON",
+            "",
+            "JSON files (*.json);;All files (*)"
+        )
+        if not path:
+            return
+            
+        if not path.lower().endswith(".json"):
+            path += ".json"
+            
+        try:
+            topSplit = self.topSplit()
+            layout = topSplit.getLayout()
+            files = self.getLayoutFiles(layout)
+            if len(files) > 0:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(layout, f, indent=2, ensure_ascii=False)
+        except:
+            _ = QMessageBox.warning(
+                None,
+                "Krita",
+                i18n("The operation was aborted."),
+            )
+
+    def loadLayout(self):
+        path, _ = QFileDialog.getOpenFileName(
+            None,
+            "Open JSON",
+            "",
+            "JSON files (*.json);;All files (*)"
+        )
+        if path:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    layout = json.load(f)
+                    files = self.getLayoutFiles(layout)
+                    if len(files) > 0:
+                        self.restoreLayout(layout)
+            except:
+                _ = QMessageBox.warning(
+                    None,
+                    "Krita",
+                    i18n("The operation was aborted.")
+                    + i18n("The file could not be opened."),
+                )
+
+            
 
 class SplitPane(Component):
     winClosed = pyqtSignal()
@@ -2441,9 +2508,11 @@ class SplitPane(Component):
         self._layoutWriteDebounce: QTimer = QTimer()
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
-        self._limits = SimpleNamespace(
-            tabMaxChars=getOpt("appearance", "tab_max_chars")
-        )
+        self._overrides = {}
+
+        appearance = getOpt("appearance")
+        for k in appearance.keys():
+            self._overrides[k] = appearance[k]
 
         Krita.instance().dbgTool = self
 
@@ -2487,13 +2556,27 @@ class SplitPane(Component):
         if getOpt("toggle", "restore_layout"):
             self._debounceSaveLayout()
 
-        curr = self._limits.tabMaxChars
-        self._limits.tabMaxChars = getOpt("appearance", "tab_max_chars")
-        if curr != self._limits.tabMaxChars:
+        styleKeys = ("tab_font_size", "tab_font_bold", "tab_height")
+        textKeys = ("tab_max_chars", "tab_ellipsis")
+
+        def updated(key):
+            return self._overrides.get(key, None) != getOpt("appearance", key)
+
+        if any(updated(k) for k in styleKeys):
+            self.attachStyles()
+            topSplit = self.topSplit()
+            if topSplit:
+                topSplit.resize(force=True)
+
+        if any(updated(k) for k in textKeys):
             app = self._helper.getApp()
             if app:
                 for doc in app.documents():
                     _, f = self.updateDocumentTabs(doc)
+
+        appearance = getOpt("appearance")
+        for k in appearance.keys():
+            self._overrides[k] = appearance[k]
 
     def savePreviousLayout(self):
         if self._layoutWriteDebounce:
@@ -2515,10 +2598,17 @@ class SplitPane(Component):
         if isEnabled:
             topSplit = self.topSplit()
             if topSplit:
-                layout = topSplit.saveLayout(verify=False)
-                app.writeSetting(
-                    "krita_ui_tweaks", "restoreLayout", json.dumps(layout)
-                )
+                layout = topSplit.getLayout(verify=False)
+                try:
+                    files = topSplit.getLayoutFiles(layout)
+                    if len(files) > 0:
+                        app.writeSetting(
+                            "krita_ui_tweaks",
+                            "restoreLayout",
+                            json.dumps(layout),
+                        )
+                except:
+                    pass
         else:
             app.writeSetting("krita_ui_tweaks", "restoreLayout", "false")
 
@@ -2566,17 +2656,8 @@ class SplitPane(Component):
         index = self.getIndexByView(view)
 
         fileName = doc.fileName()
-        tabText = tabs.tabText(index)
         tabModified = doc.modified()
-
-        if getOpt("appearance", "tab_hide_filesize"):
-            name = os.path.basename(fileName) 
-            mod = " *" if doc.modified() else ""
-            tabText = f"{name}{mod}"
-
-        maxChars = self._limits.tabMaxChars
-        if len(tabText) > maxChars:
-            tabText = f"…{tabText[-maxChars:]}"
+        tabText = self.formatTabText(index, doc)
 
         if savedFileName != fileName:
             data.doc["fileName"] = fileName
@@ -2771,6 +2852,11 @@ class SplitPane(Component):
                 }
             """
 
+        tabBarHeight = getOpt("appearance", "tab_height")
+        tabFontSize = getOpt("appearance", "tab_font_size")
+        tabFontBold = (
+            "bold" if getOpt("appearance", "tab_font_bold") else "normal"
+        )
         style = f"""
                 /* KRITA_UI_TWEAKS_STYLESHEET_BEGIN */
                 QMainWindow::separator {{
@@ -2793,14 +2879,14 @@ class SplitPane(Component):
                 SplitToolbar QPushButton[class="menuButton"] {{
                     background: {colors.bar};
                     border: none;
-                    min-height: {TAB_BAR_HEIGHT}px;   
-                    max-height: {TAB_BAR_HEIGHT}px;
+                    min-height: {tabBarHeight}px;   
+                    max-height: {tabBarHeight}px;
                 }}
                 QMdiArea SplitTabs {{
                     qproperty-drawBase: 0;
                     background: {colors.bar};      
-                    min-height: {TAB_BAR_HEIGHT}px;   
-                    max-height: {TAB_BAR_HEIGHT}px;
+                    min-height: {tabBarHeight}px;   
+                    max-height: {tabBarHeight}px;
                     border: 0;
                     margin: 0;
                     padding: 0;
@@ -2813,9 +2899,11 @@ class SplitPane(Component):
                 QMdiArea SplitTabs::tab {{
                     min-width: 1px; 
                     max-width: 400px; 
-                    height: 34px;     
-                    min-height: {TAB_BAR_HEIGHT}px;   
-                    max-height: {TAB_BAR_HEIGHT}px;
+                    font-size: {tabFontSize}px;
+                    font-weight: {tabFontBold};
+                    height: {tabBarHeight}px;     
+                    min-height: {tabBarHeight}px;   
+                    max-height: {tabBarHeight}px;
                     background: {colors.tab};
                     border-radius: 0;
                     border: 1px solid {colors.tab};
@@ -2945,6 +3033,23 @@ class SplitPane(Component):
             tabs = split.tabs()
             if tabs:
                 tabs.prevTab()
+
+    def formatTabText(self, index: int, doc: Document) -> str:
+        tabs = self._helper.getTabBar()
+        if not tabs:
+            return ""
+
+        tabText = tabs.tabText(index)
+        if getOpt("appearance", "tab_hide_filesize"):
+            name = os.path.basename(doc.fileName())
+            mod = " *" if doc.modified() else ""
+            tabText = f"{name}{mod}"
+
+        maxChars = self._overrides.get("tab_max_chars", 50)
+        if len(tabText) > maxChars:
+            ellipsis = "…" if getOpt("appearance", "tab_ellipsis") else ""
+            tabText = f"{ellipsis}{tabText[-maxChars:]}"
+        return tabText
 
     def setActiveToolbar(self, curr: SplitToolbar | None = None):
         top = self.topSplit()
@@ -3111,16 +3216,9 @@ class SplitPane(Component):
                         if addTab:
                             self.setViewData(uid, data)
 
-                            tabText = tabs.tabText(index)
-                            if getOpt("appearance", "tab_hide_filesize"):
-                                doc = data.view.document()
-                                name = os.path.basename(doc.fileName()) 
-                                mod = " *" if doc.modified() else ""
-                                tabText = f"{name}{mod}"
-                                
-                            maxChars = self._limits.tabMaxChars
-                            if len(tabText) > maxChars:
-                                tabText = f"…{tabText[-maxChars:]}"
+                            tabText = self.formatTabText(
+                                index, data.view.document()
+                            )
 
                             splitTabIndex = toolbarTabs.addTab(
                                 tabs.tabIcon(index), tabText

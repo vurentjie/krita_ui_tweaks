@@ -94,8 +94,34 @@ class SettingsDialog(QDialog):
                 section=i18n("Tabs"),
                 extra=None,
             ),
+            "tab_height": NumberItem(
+                input=QSpinBox(),
+                label=QLabel(i18n("Tab height")),
+                clamp=(20, 50),
+                section=i18n("Tabs"),
+                extra=None,
+            ),
+            "tab_font_size": NumberItem(
+                input=QSpinBox(),
+                label=QLabel(i18n("Tab font size")),
+                clamp=(8, 20),
+                section=i18n("Tabs"),
+                extra=None,
+            ),
+            "tab_font_bold": ToggleItem(
+                input=QCheckBox(i18n("Tab font bold")),
+                section=i18n("Tabs"),
+                extra=None,
+            ),
             "tab_hide_filesize": ToggleItem(
                 input=QCheckBox(i18n("Hide the file size")),
+                section=i18n("Tabs"),
+                extra=None,
+            ),
+            "tab_ellipsis": ToggleItem(
+                input=QCheckBox(
+                    i18n("Show ellipsis (…) when tab text is truncated")
+                ),
                 section=i18n("Tabs"),
                 extra=None,
             ),
@@ -253,15 +279,19 @@ class SettingsDialog(QDialog):
 
     def _setupAppearanceTab(self):
         return self._renderTabForm("appearance", self._appearance)
-        
+
     def _setupAboutTab(self):
         tab = QWidget()
         form = QFormLayout(tab)
-        label = QLabel("<br>".join([
-            f"<b>Krita UI Tweaks {VERSION}</b>",
-            f"Repository and more info here:",
-            f"<a href='https://github.com/vurentjie/krita_ui_tweaks/README.md'>https://github.com/vurentjie/krita_ui_tweaks/README.md</a>"
-        ]))
+        label = QLabel(
+            "<br>".join(
+                [
+                    f"<b>Krita UI Tweaks {VERSION}</b>",
+                    f"Repository and more info here:",
+                    f"<a href='https://github.com/vurentjie/krita_ui_tweaks/README.md'>https://github.com/vurentjie/krita_ui_tweaks/README.md</a>",
+                ]
+            )
+        )
         label.setTextFormat(Qt.TextFormat.RichText)
         label.setWordWrap(True)
         form.addRow(label)
@@ -297,7 +327,11 @@ def defaultConfig() -> C:
     config: C = {
         "appearance": {
             "tab_max_chars": 30,
+            "tab_height": 30,
+            "tab_font_size": 12,
+            "tab_font_bold": True,
             "tab_hide_filesize": False,
+            "tab_ellipsis": True,
         },
         "translated": {
             "Duplicate Tab": "Duplicate Tab",
