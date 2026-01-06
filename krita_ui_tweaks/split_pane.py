@@ -1036,6 +1036,7 @@ class SplitHandle(QWidget):
         split: "Split",
         helper: Helper,
         orient: Qt.Orientation | None = None,
+        pos: int | None = None
     ):
         super().__init__(helper.getMdi())
         self._helper: Helper = helper
@@ -1056,6 +1057,8 @@ class SplitHandle(QWidget):
         )
 
         self.reset()
+        if isinstance(pos, int):
+            self.moveTo(pos)
         self.clamp()
         self.raise_()
         self.show()
@@ -1795,6 +1798,7 @@ class Split(QObject):
         empty: bool = False,
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
+        handlePos: int | None = None
     ) -> tuple["Split | None", "Split | None"]:
         tabs = self.tabs()
         if not (self._state == Split.STATE_COLLAPSED and (tabs or empty)):
@@ -1803,7 +1807,7 @@ class Split(QObject):
         isSelf = tabSplit == self
         toolbar = self._toolbar
         self._toolbar = None
-        self._handle = SplitHandle(self, helper=self._helper, orient=orient)
+        self._handle = SplitHandle(self, helper=self._helper, orient=orient, pos=handlePos)
 
         if swap:
             self._second = Split(
@@ -1841,6 +1845,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
+        handlePos: int | None = None
     ):
         return self.makeSplit(
             Qt.Orientation.Horizontal,
@@ -1848,6 +1853,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
+            handlePos=handlePos
         )
 
     def makeSplitAbove(
@@ -1856,6 +1862,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
+        handlePos: int | None = None
     ):
         return self.makeSplit(
             Qt.Orientation.Horizontal,
@@ -1864,6 +1871,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
+            handlePos=handlePos
         )
 
     def makeSplitRight(
@@ -1872,6 +1880,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
+        handlePos: int | None = None
     ):
         return self.makeSplit(
             Qt.Orientation.Vertical,
@@ -1879,6 +1888,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
+            handlePos=handlePos
         )
 
     def makeSplitLeft(
@@ -1887,6 +1897,7 @@ class Split(QObject):
         tabIndex: int | None = None,
         tabSplit: "Split | None" = None,
         empty: bool = False,
+        handlePos: int | None = None
     ):
         return self.makeSplit(
             Qt.Orientation.Vertical,
@@ -1895,6 +1906,7 @@ class Split(QObject):
             tabIndex=tabIndex,
             tabSplit=tabSplit,
             empty=empty,
+            handlePos=handlePos
         )
 
     def makeSplitBetween(
@@ -2377,19 +2389,22 @@ class Split(QObject):
         elif layout[0] in ("v", "h"):
             layout = typing.cast(SPLIT_LAYOUT, layout)
             first, second = None, None
+            handlePos = None
+            
+            if len(layout) > 3:
+                handlePos = (
+                    int(layout[3] / layout[4] * context.width)
+                    if layout[0] == "v"
+                    else int(layout[3] / layout[5] * context.height)
+                )
+
             if layout[0] == "v":
-                first, second = self.makeSplitRight(empty=True)
+                first, second = self.makeSplitRight(empty=True, handlePos=handlePos)
             else:
-                first, second = self.makeSplitBelow(empty=True)
+                first, second = self.makeSplitBelow(empty=True, handlePos=handlePos)
 
             if first:
                 first._restoreSplits(layout[1], context)
-                if len(layout) > 3 and self._handle:
-                    self._handle.moveTo(
-                        int(layout[3] / layout[4] * context.width)
-                        if layout[0] == "v"
-                        else int(layout[3] / layout[5] * context.height)
-                    )
             if second:
                 second._restoreSplits(layout[2], context)
 
