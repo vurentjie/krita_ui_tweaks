@@ -1565,6 +1565,7 @@ class Split(QObject):
                 topSplit = parent.topSplit()
                 if topSplit:
                     topSplit.resize(force=True)
+                parent.realignCanvas(nested=True)
             else:
                 keep = second if first == self else first
                 keep_orient = keep.orientation()
@@ -1590,7 +1591,8 @@ class Split(QObject):
                 if topSplit:
                     topSplit.resize(force=True)
                 parent.equalize()
-
+                parent.realignCanvas(nested=True)
+                
         controller.savePreviousLayout()
         self._closing = False
 
