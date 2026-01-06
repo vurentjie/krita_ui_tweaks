@@ -203,10 +203,14 @@ class Helper:
                     self._cached["tabs"] = self.isAlive(c, QTabBar)
                     return self._cached["tabs"]
 
-    def refreshWidget(self, widget: QWidget):
-        widget.style().unpolish(widget)
-        widget.style().polish(widget)
+    def refreshWidget(self, parent: QWidget, widget: QWidget | None = None, repaint: bool = False):
+        if widget is None:
+            widget = parent
+        parent.style().unpolish(widget)
+        parent.style().polish(widget)
         widget.update()
+        if repaint:
+            widget.repaint()
 
     def paletteColor(self, key: str) -> QColor:
         role = getattr(QPalette.ColorRole, key, None)
@@ -217,6 +221,11 @@ class Helper:
     def showToast(
         self, msg: str = "", icon: QIcon | None = None, ts: int = 2000
     ):
+        mdi = self.getMdi()
+        if mdi and mdi.property("toasts") == "visible":
+            mdi.setProperty("toasts", "")
+            self.enableToast(force = True)
+            
         view = self.getView()
         if view:
             if icon is None:
@@ -231,9 +240,19 @@ class Helper:
         if mdi:
             mdi.setProperty("toasts", "hidden")
 
-    def enableToast(self):
-        if not self._toastEnableTimer:
+    def enableToast(self, force: bool = False):
+        if force:
+            mdi = self.getMdi()
+            subwin = mdi.activeSubWindow() if mdi else None
+            if subwin:
+                for c in subwin.findChildren(QWidget):
+                    cls = c.metaObject().className()
+                    if "KisFloatingMessage" in cls or "FloatingMessage" in cls:
+                        c.setVisible(True)
+                        self.refreshWidget(parent=mdi, widget=c, repaint=True)
+            self.refreshWidget(mdi, repaint = True)
 
+        if not self._toastEnableTimer:
             def cb():
                 mdi = self.getMdi()
                 if mdi:
@@ -243,7 +262,7 @@ class Helper:
             t = QTimer()
             t.setSingleShot(True)
             t.timeout.connect(cb)
-            t.start(50)
+            t.start(100)
             self._toastEnableTimer = t
 
     def newAction(
