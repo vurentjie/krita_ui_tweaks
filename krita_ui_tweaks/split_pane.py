@@ -1614,7 +1614,7 @@ class Split(QObject):
                 windows.extend(self._second.getOpenSubWindows())
         return windows
 
-    def checkShouldClose(self):
+    def checkShouldClose(self, ts: int = 100):
         if self._checkClosing:
             return
         self._checkClosing = True
@@ -1630,7 +1630,10 @@ class Split(QObject):
                     self._controller.setActiveToolbar()
             self._checkClosing = False
 
-        QTimer.singleShot(100, cb)
+        if ts < 0:
+            cb()
+        else:
+            QTimer.singleShot(ts, cb)
 
     def close(self):
         helper = self._helper
@@ -1914,6 +1917,7 @@ class Split(QObject):
             if kritaTab != -1:
                 self.controller().syncView(index=kritaTab, split=self)
 
+        tabSplit.checkShouldClose(-1)
         tabSplit.checkShouldClose()
 
     def makeSplit(
@@ -1963,8 +1967,10 @@ class Split(QObject):
         topSplit = self.topSplit()
         if topSplit:
             topSplit.resize(force=True)
-        self._first.realignCanvas(nested=True)
-        self._second.realignCanvas(nested=True)
+        if self._first:
+            self._first.realignCanvas(nested=True)
+        if self._second:
+            self._second.realignCanvas(nested=True)
         return (self._first, self._second)
 
     def makeSplitBelow(
