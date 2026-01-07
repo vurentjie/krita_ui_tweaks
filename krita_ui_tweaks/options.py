@@ -385,7 +385,7 @@ def getOpt(*args: str):
 def setOpt(*args: typing.Any):
     listArgs = list(args)
     val = listArgs.pop()
-    key = str, listArgs.pop()
+    key = listArgs.pop()
 
     global _global_config
     if _global_config is None:

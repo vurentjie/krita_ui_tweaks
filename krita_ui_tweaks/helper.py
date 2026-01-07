@@ -205,23 +205,27 @@ class Helper:
 
     def refreshWidget(
         self,
-        parent: QWidget,
         widget: QWidget | None = None,
-        repaint: bool = False,
     ):
-        if widget is None:
-            widget = parent
-        parent.style().unpolish(widget)
-        parent.style().polish(widget)
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
         widget.update()
-        if repaint:
-            widget.repaint()
 
     def paletteColor(self, key: str) -> QColor:
         role = getattr(QPalette.ColorRole, key, None)
         if role:
             return QApplication.palette().color(role)
         return QColor(0, 0, 0, 0)
+
+    def settingColor(self, *args: str) -> QColor:
+        try:
+            app = self.getApp()
+            if app:
+                color = app.readSetting(*args)
+                r, g, b = map(int, color.split(","))
+                return QColor(r, g, b)
+        except:
+            return QColor(0, 0, 0, 0)
 
     def showToast(
         self, msg: str = "", icon: QIcon | None = None, ts: int = 2000

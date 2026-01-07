@@ -80,6 +80,7 @@ DRAG_DEADZONE = 10
 DRAG_VERTICAL_THRESHOLD = 40
 DRAG_ANGLE_THRESHOLD = 45
 
+
 @dataclass
 class MenuAction:
     text: str
@@ -128,6 +129,10 @@ class TabDragRect(QWidget):
 
     def setText(self, text: str | None):
         self._text = text
+        self.update()
+        
+    def setColor(self, color: QColor):
+        self._color = color
         self.update()
 
     def paintEvent(self, _: QPaintEvent):
@@ -187,7 +192,9 @@ class SplitTabs(QTabBar):
 
         self._leftDragStart: QPoint | None = None
         self._leftDragIndex: int = -1
-        self._leftDragMode: typing.Literal["detecting", "horizontal", "vertical"] | None = None
+        self._leftDragMode: (
+            typing.Literal["detecting", "horizontal", "vertical"] | None
+        ) = None
 
         self.setExpanding(False)
         self.setMouseTracking(True)
@@ -721,18 +728,18 @@ class SplitTabs(QTabBar):
                 self._dragTimer.timeout.connect(self.handleDropZone)
                 self._dragTimer.start(50)
             blockDefaultReorder = True
-        
+
         if self._leftDragStart is not None and self._leftDragMode is not None:
             currentPos = toPoint(getEventGlobalPos(event))
             dx = currentPos.x() - self._leftDragStart.x()
             dy = currentPos.y() - self._leftDragStart.y()
             distance = math.sqrt(dx * dx + dy * dy)
-            
+
             if self._leftDragMode == "detecting":
                 if distance >= DRAG_DEADZONE:
                     angle_rad = math.atan2(abs(dx), abs(dy))
                     angle_deg = math.degrees(angle_rad)
-                    
+
                     if angle_deg < DRAG_ANGLE_THRESHOLD:
                         self._leftDragMode = "vertical"
                         blockDefaultReorder = True
@@ -741,11 +748,14 @@ class SplitTabs(QTabBar):
                         self._leftDragStart = None
                         self._leftDragIndex = -1
                         self._leftDragMode = None
-            
+
             elif self._leftDragMode == "vertical":
                 blockDefaultReorder = True
                 vertical_distance = abs(dy)
-                if vertical_distance >= DRAG_VERTICAL_THRESHOLD and self._dragIndex == -1:
+                if (
+                    vertical_distance >= DRAG_VERTICAL_THRESHOLD
+                    and self._dragIndex == -1
+                ):
                     qwin = self._helper.getQwin()
                     if qwin:
                         self._controller.winClosed.connect(self.abortTabDrag)
@@ -758,7 +768,7 @@ class SplitTabs(QTabBar):
                         self._leftDragStart = None
                         self._leftDragIndex = -1
                         self._leftDragMode = None
-        
+
         if not blockDefaultReorder:
             super().mouseMoveEvent(event)
 
@@ -829,7 +839,7 @@ class SplitTabs(QTabBar):
         self.hideDragPlaceHolder()
         self.hideDropPlaceHolder()
         self.unsetCursor()
-        
+
         self._leftDragStart = None
         self._leftDragIndex = -1
         self._leftDragMode = None
@@ -958,7 +968,7 @@ class SplitToolbar(QWidget):
         hasTabIndex = tabIndex is not None
         hasTabs = self._tabs.count() > 1
         hasSplits = topSplit.state() == Split.STATE_SPLIT
-        
+
         layoutPath = self._controller.getLayoutPath()
         layoutName = os.path.basename(layoutPath) if layoutPath else None
         if layoutName and layoutName.endswith(".json"):
@@ -1350,6 +1360,10 @@ class Split(QObject):
         self._forceResizing: bool = False
         self._lastHandleRect: QRect = QRect()
         self._realignTick = self._helper.uid()
+        self._backing = None 
+
+        if isinstance(parent, QWidget):
+            self.showCanvasBacking()
 
         mdi = self._helper.getMdi()
         assert mdi
@@ -1383,24 +1397,33 @@ class Split(QObject):
 
         self.attachEvents()
         self.destroyed.connect(self.clear)
-        self._overlay = None
 
     def state(self) -> int:
         return self._state
 
-    def showOverlay(self):
-        if not self._overlay:
-            qwin = self._helper.getQwin()
+    def showCanvasBacking(self):
+        if not self._backing:
+            # qwin = self._helper.getQwin()
             rect = self.globalRect()
-            if qwin:
-                self._overlay = TabDragRect(qwin)
-                self._overlay.show()
-                self._overlay.setGeometry(rect)
+            app = self._helper.getApp() 
+            mdi = self._helper.getMdi()
+            sw = mdi.activeSubWindow() if mdi else None
+            if app and sw:
+                color = self._helper.settingColor("", "canvasBorderColor", "")
+                self._backing = TabDragRect(sw.parent(), color = color)
+                self._backing.show()
+                self._backing.setGeometry(rect)
+                
+    def updateCanvasBacking(self):
+        app = self._helper.getApp() 
+        if app and self._backing:
+            color = self._helper.settingColor("", "canvasBorderColor", "")
+            self._backing.setColor(color)
 
     def hideOverlay(self):
-        if self._overlay:
-            self._overlay.deleteLater()
-            self._overlay = None
+        if self._backing:
+            self._backing.deleteLater()
+            self._backing = None
 
     def topSplit(self) -> "Split | None":
         return self._controller.topSplit()
@@ -1712,6 +1735,7 @@ class Split(QObject):
             self._second.clear(True)
             self._second = None
         if removeSelf and helper.isAlive(self, Split):
+            self.hideOverlay()
             parent = self.parent()
             if parent and isinstance(parent, Split):
                 if self == parent._first:
@@ -1742,6 +1766,9 @@ class Split(QObject):
         if isinstance(parent, QWidget):
             # this is the origin rect x=0,y=0
             self._rect = parent.rect()
+            self.showCanvasBacking()
+            if self._backing:
+                self._backing.setGeometry(self._rect)
         elif isinstance(parent, Split):
             first = parent._first
             second = parent._second
@@ -2374,7 +2401,7 @@ class Split(QObject):
         mdi = helper.getMdi()
         if not (app and qwin and mdi):
             return
-            
+
         if not isinstance(layout, dict):
             return
 
@@ -2416,8 +2443,19 @@ class Split(QObject):
             return
 
         updates = qwin.updatesEnabled()
+
         # qwin.setUpdatesEnabled(False)
         self.resetLayout()
+        firstMost = self.firstMostSplit()
+
+        # if len(app.documents()) == 0:
+        #     f = files[0]
+        #     if os.path.exists(f):
+        #         doc = app.openDocument(f)
+        #         if doc:
+        #             self._controller.syncView(addView=True, document=doc, split=self)
+        #     QTimer.singleShot(5000, lambda: self.restoreLayout(layout))
+        #     return
 
         w, h = qwin.width(), qwin.height()
 
@@ -2563,7 +2601,7 @@ class Split(QObject):
             if second:
                 second._restoreSplits(layout.get("second", {}), context)
 
-    def saveLayout(self, path: str|None = None):
+    def saveLayout(self, path: str | None = None):
         topSplit = self.topSplit()
         layout = topSplit.getLayout(verify=True)
 
@@ -2578,7 +2616,7 @@ class Split(QObject):
             path, _ = QFileDialog.getSaveFileName(
                 None, "Save JSON", "", "JSON files (*.json);;All files (*)"
             )
-            
+
         if not path:
             return
 
@@ -2638,6 +2676,7 @@ class SplitPane(Component):
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
         self._activeLayoutPath: str | None = None
+        self._canvasColor: str|None = None
         self._overrides = {}
 
         appearance = getOpt("appearance")
@@ -2646,8 +2685,9 @@ class SplitPane(Component):
 
         Krita.instance().dbgTool = self
 
-        app = self._helper.getApp()
+        app = self._helper.getApp() 
         if app:
+            self._canvasColor = app.readSetting("", "canvasBorderColor", "")
             if app.readSetting("", "sessionOnStartup", "") != "0":
                 setOpt("toggle", "restore_layout", False)
                 app.writeSetting("krita_ui_tweaks", "restoreLayout", "false")
@@ -2665,21 +2705,21 @@ class SplitPane(Component):
             i18n("Goto previous tab"),
             self.prevTab,
         )
-        
+
         _ = self._helper.newAction(
             window,
             "krita_ui_tweaks_save_layout_as",
             i18n("Save Layout As…"),
             self.saveLayout,
         )
-        
+
         _ = self._helper.newAction(
             window,
             "krita_ui_tweaks_save_layout",
             i18n("Save Current Layout"),
             self.saveCurrentLayout,
         )
-        
+
         _ = self._helper.newAction(
             window,
             "krita_ui_tweaks_load_layout",
@@ -2696,28 +2736,28 @@ class SplitPane(Component):
 
     def onQuit(self):
         self._quit = True
-        
-    def setLayoutPath(self, path: str|None):
+
+    def setLayoutPath(self, path: str | None):
         self._activeLayoutPath = path
-        
+
     def getLayoutPath(self):
         return self._activeLayoutPath
-        
+
     def saveLayout(self):
         topSplit = self.topSplit()
         if topSplit:
             topSplit.saveLayout()
-            
+
     def saveCurrentLayout(self):
         topSplit = self.topSplit()
         if topSplit:
             topSplit.saveLayout(self._activeLayoutPath)
-            
+
     def loadLayout(self):
         topSplit = self.topSplit()
         if topSplit:
             topSplit.loadLayout()
-        
+
     def onConfigSave(self):
         isEnabled = getOpt("toggle", "split_panes")
         if isEnabled != self._optEnabled:
@@ -2802,6 +2842,13 @@ class SplitPane(Component):
         app = helper.getApp()
         tabs = helper.getTabBar()
         if app and tabs:
+            canvasColor = app.readSetting("", "canvasBorderColor", "")
+            if canvasColor != self._canvasColor:
+                self._canvasColor = canvasColor
+                topSplit = self.topSplit()
+                if topSplit:
+                    topSplit.updateCanvasBacking()
+
             updated = False
             for doc in app.documents():
                 _, f = self.updateDocumentTabs(doc)
