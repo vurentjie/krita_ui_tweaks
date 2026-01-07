@@ -3269,6 +3269,8 @@ class SplitPane(Component):
         tabText = tabs.tabText(index)
         if getOpt("tab_behaviour", "tab_hide_filesize"):
             name = os.path.basename(doc.fileName())
+            if not name.strip():
+                name = i18n("[Not saved]")
             mod = " *" if doc.modified() else ""
             tabText = f"{name}{mod}"
 
