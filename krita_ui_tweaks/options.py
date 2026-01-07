@@ -167,7 +167,7 @@ class SettingsDialog(QDialog):
             "restore_layout": ToggleItem(
                 input=QCheckBox(
                     i18n(
-                        "Restore split pane layout when Krita restarts (experimental)"
+                        "Restore split pane layout when Krita restarts"
                     )
                 ),
                 section=sections.splitPanes,
@@ -322,7 +322,7 @@ class SettingsDialog(QDialog):
                 [
                     f"<b>Krita UI Tweaks {VERSION}</b>",
                     f"Repository and more info here:",
-                    f"<a href='https://github.com/vurentjie/krita_ui_tweaks/README.md'>https://github.com/vurentjie/krita_ui_tweaks/README.md</a>",
+                    f"<a href='https://github.com/vurentjie/krita_ui_tweaks'>https://github.com/vurentjie/krita_ui_tweaks</a>",
                 ]
             )
         )
