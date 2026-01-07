@@ -3,6 +3,7 @@
 from .pyqt import (
     QWIDGETSIZE_MAX,
     pyqtSignal,
+    pyqtBoundSignal,
     QApplication,
     QResizeEvent,
     QPaintEvent,
@@ -783,17 +784,19 @@ class SplitTabs(QTabBar):
         if index >= 0:
             if btn == Qt.MouseButton.LeftButton:
                 self._sync(index)
-                self._leftDragStart = toPoint(getEventGlobalPos(event))
-                self._leftDragIndex = index
-                self._leftDragMode = "detecting"
+                if getOpt("tab_behaviour", "tab_drag_left_btn"):
+                    self._leftDragStart = toPoint(getEventGlobalPos(event))
+                    self._leftDragIndex = index
+                    self._leftDragMode = "detecting"
             elif btn == Qt.MouseButton.MiddleButton:
                 self._controller.winClosed.connect(self.abortTabDrag)
-                self._dragStart = getEventGlobalPos(event)
-                self._dragIndex = index
-                globalPos = toPoint(getEventGlobalPos(event))
-                pos = qwin.mapFromGlobal(globalPos)
-                self.showDragPlaceHolder(pos)
-                self.setCursor(Qt.CursorShape.SizeAllCursor)
+                if getOpt("tab_behaviour", "tab_drag_middle_btn"):
+                    self._dragStart = getEventGlobalPos(event)
+                    self._dragIndex = index
+                    globalPos = toPoint(getEventGlobalPos(event))
+                    pos = qwin.mapFromGlobal(globalPos)
+                    self.showDragPlaceHolder(pos)
+                    self.setCursor(Qt.CursorShape.SizeAllCursor)
             elif btn == Qt.MouseButton.RightButton:
                 parent = self._helper.isAlive(self.parent(), SplitToolbar)
                 if parent:
@@ -2730,10 +2733,17 @@ class SplitPane(Component):
 
         qapp = typing.cast(QApplication, QApplication.instance())
         qapp.aboutToQuit.connect(lambda: self.onQuit())
+        
 
         self.attachStyles()
 
         OptionSignals.configSaved.connect(self.onConfigSave)
+        
+        notifier = self._helper.getNotifier()
+        if notifier:
+            typing.cast(pyqtBoundSignal, notifier.imageSaved).connect(
+                self._debounceSaveLayout
+            )
 
     def onQuit(self):
         self._quit = True
@@ -2816,12 +2826,11 @@ class SplitPane(Component):
                 layout = topSplit.getLayout(verify=False)
                 try:
                     files, _ = topSplit.getLayoutFiles(layout)
-                    if len(files) > 0:
-                        app.writeSetting(
-                            "krita_ui_tweaks",
-                            "restoreLayout",
-                            json.dumps(layout),
-                        )
+                    app.writeSetting(
+                        "krita_ui_tweaks",
+                        "restoreLayout",
+                        json.dumps(layout) if len(files) > 0 else ""
+                    )
                 except:
                     pass
         else:
@@ -2880,7 +2889,7 @@ class SplitPane(Component):
         fileName = doc.fileName()
         tabModified = doc.modified()
         tabText = self.formatTabText(index, doc)
-        if not os.path.exists(fileName):
+        if fileName and not os.path.exists(fileName):
             doc.setModified(True)
 
         if savedFileName != fileName:
