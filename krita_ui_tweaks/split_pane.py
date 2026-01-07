@@ -46,9 +46,14 @@ from .i18n import i18n
 
 import typing
 import re
+import math
 
 TAB_BAR_HEIGHT = 34
 TAB_TEXT_MAX_LEN = 30
+
+DRAG_DEADZONE = 10
+DRAG_VERTICAL_THRESHOLD = 40
+DRAG_ANGLE_THRESHOLD = 45
 
 @dataclass
 class MenuAction:
@@ -153,6 +158,10 @@ class SplitTabs(QTabBar):
         ) = None
         self._dropSplit: Split | None = None
         self._dropEdge: Qt.AnchorPoint | None = None
+
+        self._leftDragStart: QPoint | None = None
+        self._leftDragIndex: int = -1
+        self._leftDragMode: typing.Literal["detecting", "horizontal", "vertical"] | None = None
 
         self.setExpanding(False)
         self.setMouseTracking(True)
@@ -668,6 +677,9 @@ class SplitTabs(QTabBar):
         self._dropEdge = None
         self._dropAction = None
         self._dropSplit = None
+        self._leftDragStart = None
+        self._leftDragIndex = -1
+        self._leftDragMode = None
         if self._dragTimer:
             self._dragTimer.stop()
             self._dragTimer = None
@@ -675,13 +687,54 @@ class SplitTabs(QTabBar):
         self.hideDropPlaceHolder()
 
     def mouseMoveEvent(self, event: QMouseEvent):
+        blockDefaultReorder = False
         if self._dragIndex != -1:
             self._dragPos = toPoint(getEventGlobalPos(event))
             if self._dragTimer is None:
                 self._dragTimer = QTimer()
                 self._dragTimer.timeout.connect(self.handleDropZone)
                 self._dragTimer.start(50)
-        super().mouseMoveEvent(event)
+            blockDefaultReorder = True
+        
+        if self._leftDragStart is not None and self._leftDragMode is not None:
+            currentPos = toPoint(getEventGlobalPos(event))
+            dx = currentPos.x() - self._leftDragStart.x()
+            dy = currentPos.y() - self._leftDragStart.y()
+            distance = math.sqrt(dx * dx + dy * dy)
+            
+            if self._leftDragMode == "detecting":
+                if distance >= DRAG_DEADZONE:
+                    angle_rad = math.atan2(abs(dx), abs(dy))
+                    angle_deg = math.degrees(angle_rad)
+                    
+                    if angle_deg < DRAG_ANGLE_THRESHOLD:
+                        self._leftDragMode = "vertical"
+                        blockDefaultReorder = True
+                    else:
+                        self._leftDragMode = "horizontal"
+                        self._leftDragStart = None
+                        self._leftDragIndex = -1
+                        self._leftDragMode = None
+            
+            elif self._leftDragMode == "vertical":
+                blockDefaultReorder = True
+                vertical_distance = abs(dy)
+                if vertical_distance >= DRAG_VERTICAL_THRESHOLD and self._dragIndex == -1:
+                    qwin = self._helper.getQwin()
+                    if qwin:
+                        self._controller.winClosed.connect(self.abortTabDrag)
+                        self._dragStart = self._leftDragStart
+                        self._dragIndex = self._leftDragIndex
+                        globalPos = currentPos
+                        pos = qwin.mapFromGlobal(globalPos)
+                        self.showDragPlaceHolder(pos)
+                        self.setCursor(Qt.CursorShape.SizeAllCursor)
+                        self._leftDragStart = None
+                        self._leftDragIndex = -1
+                        self._leftDragMode = None
+        
+        if not blockDefaultReorder:
+            super().mouseMoveEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent):
         qwin = self._helper.getQwin()
@@ -695,6 +748,9 @@ class SplitTabs(QTabBar):
         if index >= 0:
             if btn == Qt.MouseButton.LeftButton:
                 self._sync(index)
+                self._leftDragStart = toPoint(getEventGlobalPos(event))
+                self._leftDragIndex = index
+                self._leftDragMode = "detecting"
             elif btn == Qt.MouseButton.MiddleButton:
                 self._controller.winClosed.connect(self.abortTabDrag)
                 self._dragStart = getEventGlobalPos(event)
@@ -747,6 +803,10 @@ class SplitTabs(QTabBar):
         self.hideDragPlaceHolder()
         self.hideDropPlaceHolder()
         self.unsetCursor()
+        
+        self._leftDragStart = None
+        self._leftDragIndex = -1
+        self._leftDragMode = None
 
         i = self.tabAt(toPoint(getEventPos(event)))
         if i >= 0:
