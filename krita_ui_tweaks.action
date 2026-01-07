@@ -26,5 +26,17 @@
             <icon></icon>
             <text>Goto previous tab</text>
         </Action>
+        <Action name="krita_ui_tweaks_save_layout_as">
+            <icon></icon>
+            <text>Save Split Layout As…</text>
+        </Action>
+        <Action name="krita_ui_tweaks_save_layout">
+            <icon></icon>
+            <text>Save Layout</text>
+        </Action>
+        <Action name="krita_ui_tweaks_load_layout">
+            <icon></icon>
+            <text>Load Layout</text>
+        </Action>
     </Actions>
 </ActionCollection>
