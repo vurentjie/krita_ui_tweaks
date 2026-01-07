@@ -5,12 +5,15 @@ from .pyqt import QObject
 from .tools import Tools
 from .split_pane import SplitPane
 from .dockers import Dockers
-from .component import Component
+from .component import Component, COMPONENT_GROUP
+
+from dataclasses import dataclass
+
 
 class Plugin(Extension):
     def __init__(self, parent: QObject):
         super().__init__(parent)
-        self._components: list[Component] = []
+        self._components: list[COMPONENT_GROUP] = []
 
     def setup(self):
         pass
@@ -19,6 +22,9 @@ class Plugin(Extension):
         if not window:
             return
 
-        self._components.append(Tools(window))
-        self._components.append(SplitPane(window))
-        self._components.append(Dockers(window))
+        group = {}
+        group["tools"] = Tools(window, pluginGroup=group)
+        group["splitPane"] = SplitPane(window, pluginGroup=group)
+        group["dockers"] = Dockers(window, pluginGroup=group)
+
+        self._components.append(group)

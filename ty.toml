@@ -1,0 +1,5 @@
+[src]
+include = ["krita_ui_tweaks"]
+
+[environment]
+extra-paths = ["./typings/krita", "./typings/PyQt5"]
