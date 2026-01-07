@@ -17,7 +17,7 @@ _Initial release._
 
 ### Added:
 
-- _Left Button Dragging_: can now drag to split with the left button [https://github.com/vurentjie/krita_ui_tweaks/pull/1/commits/3b76b1785f36295d290e9d73d0444af63e7ddf53](0b5a362) [https://github.com/vurentjie/krita_ui_tweaks/pull/1](#1)
+- _Left Button Dragging_: can now drag to split with the left button [0b5a362](https://github.com/vurentjie/krita_ui_tweaks/pull/1/commits/3b76b1785f36295d290e9d73d0444af63e7ddf53) [#1](https://github.com/vurentjie/krita_ui_tweaks/pull/1)
 - _Save and Load Layouts_:
   - Save and load layouts as JSON files - options in menu and configurable
     shortcuts.
