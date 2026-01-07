@@ -1,38 +1,38 @@
 # SPDX-License-Identifier: CC0-1.0
 
-# try:
-#     from PyQt6 import QtCore, QtGui, QtWidgets, sip as QtSip
-# 
-#     QAction = QtGui.QAction
-# 
-#     def getEventPos(  # pyright: ignore[reportRedeclaration]
-#         event: QtGui.QMouseEvent,
-#     ) -> QtCore.QPointF:
-#         return event.position()
-# 
-#     def getEventGlobalPos(  # pyright: ignore[reportRedeclaration]
-#         event: QtGui.QMouseEvent,
-#     ) -> QtCore.QPointF:
-#         return event.globalPosition()
-# 
-#     def toPoint(  # pyright: ignore[reportRedeclaration]
-#         pos: QtCore.QPointF,
-#     ) -> QtCore.QPoint:
-#         return pos.toPoint()
+try:
+    from PyQt6 import QtCore, QtGui, QtWidgets, sip as QtSip
 
-# except:
-from PyQt5 import QtCore, QtGui, QtWidgets, sip as QtSip
+    QAction = QtGui.QAction
 
-QAction = QtWidgets.QAction
+    def getEventPos(  # pyright: ignore[reportRedeclaration]
+        event: QtGui.QMouseEvent,
+    ) -> QtCore.QPointF:
+        return event.position()
 
-def getEventPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
-    return event.pos()
+    def getEventGlobalPos(  # pyright: ignore[reportRedeclaration]
+        event: QtGui.QMouseEvent,
+    ) -> QtCore.QPointF:
+        return event.globalPosition()
 
-def getEventGlobalPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
-    return event.globalPos()
+    def toPoint(  # pyright: ignore[reportRedeclaration]
+        pos: QtCore.QPointF,
+    ) -> QtCore.QPoint:
+        return pos.toPoint()
 
-def toPoint(pos: QtCore.QPoint):
-    return pos
+except:
+    from PyQt5 import QtCore, QtGui, QtWidgets, sip as QtSip
+
+    QAction = QtWidgets.QAction
+
+    def getEventPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
+        return event.pos()
+
+    def getEventGlobalPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
+        return event.globalPos()
+
+    def toPoint(pos: QtCore.QPoint):
+        return pos
 
 
 import typing
