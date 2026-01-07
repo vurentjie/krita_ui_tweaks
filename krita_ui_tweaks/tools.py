@@ -8,7 +8,8 @@ from .pyqt import (
     QWidget,
 )
 
-from .component import Component, Window
+from krita import Window
+from .component import Component, COMPONENT_GROUP
 from .options import showOptions, getOpt, signals as OptionSignals
 from .i18n import i18n
 
@@ -16,8 +17,8 @@ import typing
 
 
 class Tools(Component):
-    def __init__(self, window: Window):
-        super().__init__(window)
+    def __init__(self, window: Window, pluginGroup: COMPONENT_GROUP|None = None):
+        super().__init__(window, pluginGroup = pluginGroup)
 
         _ = self._helper.newAction(
             window,
@@ -28,6 +29,7 @@ class Tools(Component):
         )
 
         view = self._helper.getView()
+        self._showToast = True
         self._defaultTool: str = "KritaShape/KisToolBrush"
         self._activeTool: str = self._defaultTool
         self._toolActions: dict[str, QAction | None] = {
@@ -111,10 +113,8 @@ class Tools(Component):
                         ),
                     )
                 )
-                if name == self._activeTool and getOpt(
-                    "toggle", "shared_tool"
-                ):
-                    action.trigger()
+            if name == self._activeTool and getOpt("toggle", "shared_tool"):
+                action.trigger()
 
     def onViewChanged(self):
         super().onViewChanged()
@@ -131,10 +131,9 @@ class Tools(Component):
                 action = self._toolActions.get(name)
 
         if action:
-            self._helper.disableToast()
+            self._showToast = False
             action.trigger()
-            self._helper.enableToast()
-
+            self._showToast = True
 
     def onToolAction(self, action: QAction | None):
         if not action:
@@ -144,6 +143,7 @@ class Tools(Component):
             return
         name = action.objectName()
         msg = action.text()
+
         checkableIcons = getOpt("toggle", "toolbar_icons")
 
         if checkableIcons and name == "view_toggle_reference_images":
@@ -154,9 +154,11 @@ class Tools(Component):
                     ta.setChecked(ta.isChecked())
             return
 
-        self._helper.showToast(f"{msg}")
-        self._activeTool = name
-        
+        splitPane = self._componentGroup.get("splitPane", None)
+        if self._showToast and (not splitPane or not splitPane.isSyncing()):
+            self._helper.showToast(f"{msg}")
+            self._activeTool = name
+
         view = self._helper.getView()
         data = self._helper.getViewData(view)
         if isinstance(data, dict):

@@ -182,15 +182,17 @@ class Helper:
         return self.isAlive(qwin.centralWidget(), QWidget) if qwin else None
 
     def getMdi(self):
-        cached = self.isAlive(self._cached.get('mdi', None), QMdiArea)
+        cached = self.isAlive(self._cached.get("mdi", None), QMdiArea)
         if cached:
             return cached
         qwin = self.getQwin()
-        self._cached['mdi'] = self.isAlive(qwin.findChild(QMdiArea), QMdiArea) if qwin else None
-        return self._cached['mdi']
+        self._cached["mdi"] = (
+            self.isAlive(qwin.findChild(QMdiArea), QMdiArea) if qwin else None
+        )
+        return self._cached["mdi"]
 
     def getTabBar(self):
-        cached = self.isAlive(self._cached.get('tabs', None), QTabBar)
+        cached = self.isAlive(self._cached.get("tabs", None), QTabBar)
         if cached:
             return cached
         central = self.getCentral()
@@ -198,10 +200,13 @@ class Helper:
             for c in central.findChildren(QTabBar):
                 obj = c.metaObject()
                 if obj and obj.className() == "QTabBar":
-                    self._cached['tabs'] = self.isAlive(c, QTabBar)
-                    return self._cached['tabs']
+                    self._cached["tabs"] = self.isAlive(c, QTabBar)
+                    return self._cached["tabs"]
 
-    def refreshWidget(self, widget: QWidget):
+    def refreshWidget(
+        self,
+        widget: QWidget | None = None,
+    ):
         widget.style().unpolish(widget)
         widget.style().polish(widget)
         widget.update()
@@ -212,6 +217,16 @@ class Helper:
             return QApplication.palette().color(role)
         return QColor(0, 0, 0, 0)
 
+    def settingColor(self, *args: str) -> QColor:
+        try:
+            app = self.getApp()
+            if app:
+                color = app.readSetting(*args)
+                r, g, b = map(int, color.split(","))
+                return QColor(r, g, b)
+        except:
+            return QColor(0, 0, 0, 0)
+
     def showToast(
         self, msg: str = "", icon: QIcon | None = None, ts: int = 2000
     ):
@@ -220,35 +235,6 @@ class Helper:
             if icon is None:
                 icon = QIcon()
             view.showFloatingMessage(msg, icon, ts, 1)
-
-    def disableToast(self):
-        mdi = self.getMdi()
-        if self._toastEnableTimer:
-            self._toastEnableTimer.stop()
-            self._toastEnableTimer = None
-        if mdi:
-            mdi.setProperty("toasts", "hidden")
-
-    def enableToast(self):
-        if not self._toastEnableTimer:
-
-            def cb():
-                mdi = self.getMdi()
-                if mdi:
-                    mdi.setProperty("toasts", "visible")
-                self._toastEnableTimer = None
-
-            t = QTimer()
-            t.setSingleShot(True)
-            t.timeout.connect(cb)
-            t.start(50)
-            self._toastEnableTimer = t
-
-    def showMsg(self, title: str = "", msg: str = ""):
-        if len(msg) == 0:
-            _ = QMessageBox.information(None, "", title)
-        else:
-            _ = QMessageBox.information(None, title, msg)
 
     def newAction(
         self,
@@ -345,4 +331,3 @@ class Helper:
         canvas = self.getCanvas()
         if canvas:
             canvas.setZoomLevel(z)
-
