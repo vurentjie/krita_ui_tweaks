@@ -76,7 +76,6 @@ class SavedLayout(TypedDict):
     path: str | None
 
 
-DRAG_DEADZONE = 10
 DRAG_VERTICAL_THRESHOLD = 40
 DRAG_ANGLE_THRESHOLD = 45
 
@@ -130,7 +129,7 @@ class TabDragRect(QWidget):
     def setText(self, text: str | None):
         self._text = text
         self.update()
-        
+
     def setColor(self, color: QColor):
         self._color = color
         self.update()
@@ -736,7 +735,7 @@ class SplitTabs(QTabBar):
             distance = math.sqrt(dx * dx + dy * dy)
 
             if self._leftDragMode == "detecting":
-                if distance >= DRAG_DEADZONE:
+                if distance >= getOpt("tab_behaviour", "tab_drag_deadzone"):
                     angle_rad = math.atan2(abs(dx), abs(dy))
                     angle_deg = math.degrees(angle_rad)
 
@@ -1360,7 +1359,7 @@ class Split(QObject):
         self._forceResizing: bool = False
         self._lastHandleRect: QRect = QRect()
         self._realignTick = self._helper.uid()
-        self._backing = None 
+        self._backing = None
 
         if isinstance(parent, QWidget):
             self.showCanvasBacking()
@@ -1405,17 +1404,17 @@ class Split(QObject):
         if not self._backing:
             # qwin = self._helper.getQwin()
             rect = self.globalRect()
-            app = self._helper.getApp() 
+            app = self._helper.getApp()
             mdi = self._helper.getMdi()
             sw = mdi.activeSubWindow() if mdi else None
             if app and sw:
                 color = self._helper.settingColor("", "canvasBorderColor", "")
-                self._backing = TabDragRect(sw.parent(), color = color)
+                self._backing = TabDragRect(sw.parent(), color=color)
                 self._backing.show()
                 self._backing.setGeometry(rect)
-                
+
     def updateCanvasBacking(self):
-        app = self._helper.getApp() 
+        app = self._helper.getApp()
         if app and self._backing:
             color = self._helper.settingColor("", "canvasBorderColor", "")
             self._backing.setColor(color)
@@ -1812,7 +1811,7 @@ class Split(QObject):
             old_rect != self._rect or self.isForceResizing()
         ):
             if self._toolbar is not None:
-                tabBarHeight = getOpt("appearance", "tab_height")
+                tabBarHeight = getOpt("tab_behaviour", "tab_height")
                 self._toolbar.setFixedHeight(tabBarHeight)
                 self._toolbar.setGeometry(
                     self._rect.x(),
@@ -1858,7 +1857,7 @@ class Split(QObject):
                 self._rect.size(),
             )
             if not withToolBar:
-                rect.setY(rect.y() + getOpt("appearance", "tab_height"))
+                rect.setY(rect.y() + getOpt("tab_behaviour", "tab_height"))
             return rect
         return QRect()
 
@@ -2676,17 +2675,19 @@ class SplitPane(Component):
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
         self._activeLayoutPath: str | None = None
-        self._canvasColor: str|None = None
+        self._canvasColor: str | None = None
+        self._currTheme: str | None = None
         self._overrides = {}
 
-        appearance = getOpt("appearance")
-        for k in appearance.keys():
-            self._overrides[k] = appearance[k]
+        tabBehaviour = getOpt("tab_behaviour")
+        for k in tabBehaviour.keys():
+            self._overrides[k] = tabBehaviour[k]
 
         Krita.instance().dbgTool = self
 
-        app = self._helper.getApp() 
+        app = self._helper.getApp()
         if app:
+            self._currTheme = app.readSetting("theme", "Theme", "")
             self._canvasColor = app.readSetting("", "canvasBorderColor", "")
             if app.readSetting("", "sessionOnStartup", "") != "0":
                 setOpt("toggle", "restore_layout", False)
@@ -2772,7 +2773,9 @@ class SplitPane(Component):
         textKeys = ("tab_max_chars", "tab_ellipsis")
 
         def updated(key):
-            return self._overrides.get(key, None) != getOpt("appearance", key)
+            return self._overrides.get(key, None) != getOpt(
+                "tab_behaviour", key
+            )
 
         if any(updated(k) for k in styleKeys):
             self.attachStyles()
@@ -2786,9 +2789,9 @@ class SplitPane(Component):
                 for doc in app.documents():
                     _, f = self.updateDocumentTabs(doc)
 
-        appearance = getOpt("appearance")
-        for k in appearance.keys():
-            self._overrides[k] = appearance[k]
+        tabBehaviour = getOpt("tab_behaviour")
+        for k in tabBehaviour.keys():
+            self._overrides[k] = tabBehaviour[k]
 
     def savePreviousLayout(self):
         if self._layoutWriteDebounce:
@@ -3074,10 +3077,10 @@ class SplitPane(Component):
                 }
             """
 
-        tabBarHeight = getOpt("appearance", "tab_height")
-        tabFontSize = getOpt("appearance", "tab_font_size")
+        tabBarHeight = getOpt("tab_behaviour", "tab_height")
+        tabFontSize = getOpt("tab_behaviour", "tab_font_size")
         tabFontBold = (
-            "bold" if getOpt("appearance", "tab_font_bold") else "normal"
+            "bold" if getOpt("tab_behaviour", "tab_font_bold") else "normal"
         )
         style = f"""
                 /* KRITA_UI_TWEAKS_STYLESHEET_BEGIN */
@@ -3191,10 +3194,12 @@ class SplitPane(Component):
         self.handleSplitter()
 
     def onThemeChanged(self):
-        if not self.topSplit():
+        topSplit = self.topSplit()
+        if not topSplit:
             return
 
         self.attachStyles()
+        topSplit.resize(force=True)
 
     def onViewChanged(self):
         if not self.topSplit():
@@ -3262,14 +3267,14 @@ class SplitPane(Component):
             return ""
 
         tabText = tabs.tabText(index)
-        if getOpt("appearance", "tab_hide_filesize"):
+        if getOpt("tab_behaviour", "tab_hide_filesize"):
             name = os.path.basename(doc.fileName())
             mod = " *" if doc.modified() else ""
             tabText = f"{name}{mod}"
 
         maxChars = self._overrides.get("tab_max_chars", 50)
         if len(tabText) > maxChars:
-            ellipsis = "…" if getOpt("appearance", "tab_ellipsis") else ""
+            ellipsis = "…" if getOpt("tab_behaviour", "tab_ellipsis") else ""
             tabText = f"{ellipsis}{tabText[-maxChars:]}"
         return tabText
 

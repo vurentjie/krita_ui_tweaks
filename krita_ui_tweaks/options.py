@@ -20,6 +20,7 @@ from .pyqt import (
 
 from krita import Krita
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 from .i18n import i18n, i18n_reset
 
@@ -74,9 +75,17 @@ class SettingsDialog(QDialog):
         self.setMinimumHeight(400)
 
         self._config: C = readConfig()
+        
+        sections = SimpleNamespace(
+            tabAppearance=i18n("Tab Appearance"),
+            tabDragging=i18n("Tab Dragging"),
+            splitPanes=i18n("Split Panes"),
+            tools=i18n("Tools"),
+            dockers=i18n("Dockers"),
+        )
 
         self._translated: dict[str, QLineEdit] = {}
-
+        
         for k in self._config.get("translated", {}).keys():
             self._translated[k] = InputItem(
                 input=QLineEdit(),
@@ -85,52 +94,74 @@ class SettingsDialog(QDialog):
                 label=QLabel(self._unescape(k)),
                 extra=None,
             )
-
-        self._appearance: dict[str, ToggleItem | NumberItem] = {
+            
+        self._tabBehaviour: dict[str, ToggleItem | NumberItem] = {
             "tab_max_chars": NumberItem(
                 input=QSpinBox(),
                 label=QLabel(i18n("Max characters to show")),
                 clamp=(10, 100),
-                section=i18n("Tabs"),
+                section=sections.tabAppearance,
                 extra=None,
             ),
             "tab_height": NumberItem(
                 input=QSpinBox(),
                 label=QLabel(i18n("Tab height")),
                 clamp=(20, 50),
-                section=i18n("Tabs"),
+                section=sections.tabAppearance,
                 extra=None,
             ),
             "tab_font_size": NumberItem(
                 input=QSpinBox(),
                 label=QLabel(i18n("Tab font size")),
                 clamp=(8, 20),
-                section=i18n("Tabs"),
+                section=sections.tabAppearance,
                 extra=None,
             ),
             "tab_font_bold": ToggleItem(
                 input=QCheckBox(i18n("Tab font bold")),
-                section=i18n("Tabs"),
+                section=sections.tabAppearance,
                 extra=None,
             ),
             "tab_hide_filesize": ToggleItem(
                 input=QCheckBox(i18n("Hide the file size")),
-                section=i18n("Tabs"),
+                section=sections.tabAppearance,
                 extra=None,
             ),
             "tab_ellipsis": ToggleItem(
                 input=QCheckBox(
                     i18n("Show ellipsis (…) when tab text is truncated")
                 ),
-                section=i18n("Tabs"),
+                section=sections.tabAppearance,
                 extra=None,
+            ),
+            
+            "tab_drag_middle_btn": ToggleItem(
+                input=QCheckBox(
+                    i18n("Splits can be created by dragging with the middle button")
+                ),
+                section=sections.tabDragging,
+                extra=None,
+            ),
+            "tab_drag_left_btn": ToggleItem(
+                input=QCheckBox(
+                    i18n("Splits can be created by dragging with the left button")
+                ),
+                section=sections.tabDragging,
+                extra=QLabel(i18n("<b>For left button: drag tabs vertically to initiate splitting</b>")),
+            ),
+            "tab_drag_deadzone": NumberItem(
+                input=QSpinBox(),
+                label=QLabel(i18n("Drag deadzone")),
+                clamp=(10, 50),
+                section=sections.tabDragging,
+                extra=QLabel(i18n("<b>Amount of pixels to move for tab dragging to start.<br>Only applicable for left button.</b>")),
             ),
         }
 
         self._toggle: dict[str, ToggleItem] = {
             "split_panes": ToggleItem(
                 input=QCheckBox(i18n("Enable split panes")),
-                section=i18n("Split Panes"),
+                section=sections.splitPanes,
                 extra=None,
             ),
             "restore_layout": ToggleItem(
@@ -139,7 +170,7 @@ class SettingsDialog(QDialog):
                         "Restore split pane layout when Krita restarts (experimental)"
                     )
                 ),
-                section=i18n("Split Panes"),
+                section=sections.splitPanes,
                 extra=QLabel(
                     i18n(
                         "<b>Will disable Krita's default session restore mechanism.</b>"
@@ -148,7 +179,7 @@ class SettingsDialog(QDialog):
             ),
             "toolbar_icons": ToggleItem(
                 input=QCheckBox(i18n("Highlight active tool in toolbars")),
-                section=i18n("Tools"),
+                section=sections.tools,
                 extra=None,
             ),
             "shared_tool": ToggleItem(
@@ -157,7 +188,7 @@ class SettingsDialog(QDialog):
                         "Do not change the active tool when switching documents"
                     )
                 ),
-                section=i18n("Tools"),
+                section=sections.tools,
                 extra=None,
             ),
             "hide_floating_message": ToggleItem(
@@ -166,12 +197,12 @@ class SettingsDialog(QDialog):
                         "Permanently hide the floating message that appears at the top-left of the canvas."
                     ),
                 ),
-                section=i18n("Tools"),
+                section=sections.tools,
                 extra=QLabel(i18n("<b>Requires restart.</b>")),
             ),
             "toggle_docking": ToggleItem(
                 input=QCheckBox(i18n("Toggle docking on and off")),
-                section=i18n("Dockers"),
+                section=sections.dockers,
                 extra=None,
             ),
         }
@@ -179,11 +210,11 @@ class SettingsDialog(QDialog):
         self.tabs = QTabWidget()
         self.optionsTab = self._setupOptionsTab()
         self.translateTab = self._setupTranslateTab()
-        self.appearanceTab = self._setupAppearanceTab()
+        self.behaviourTab = self._setupBehaviourTab()
         self.aboutTab = self._setupAboutTab()
 
         self.tabs.addTab(self.optionsTab, i18n("Options"))
-        self.tabs.addTab(self.appearanceTab, i18n("Appearance"))
+        self.tabs.addTab(self.behaviourTab, i18n("Behaviour"))
         self.tabs.addTab(self.translateTab, i18n("Translate"))
         self.tabs.addTab(self.aboutTab, i18n("About"))
 
@@ -233,12 +264,15 @@ class SettingsDialog(QDialog):
             block = QWidget()
             v = QVBoxLayout(block)
             v.setContentsMargins(0, 0, 0, 16)
+            item.label.setTextFormat(Qt.TextFormat.RichText)
             v.addWidget(item.label)
             v.addWidget(item.input)
             form.addRow(block)
         elif t == NumberItem:
             item.input.setRange(item.clamp[0], item.clamp[1])
+            item.input.setFixedWidth(100)
             item.input.setValue(getOpt(*key))
+            item.label.setTextFormat(Qt.TextFormat.RichText)
             form.addRow(item.label, item.input)
         if item.extra:
             item.extra.setTextFormat(Qt.TextFormat.RichText)
@@ -277,8 +311,8 @@ class SettingsDialog(QDialog):
     def _setupTranslateTab(self):
         return self._renderTabForm("translated", self._translated)
 
-    def _setupAppearanceTab(self):
-        return self._renderTabForm("appearance", self._appearance)
+    def _setupBehaviourTab(self):
+        return self._renderTabForm("tab_behaviour", self._tabBehaviour)
 
     def _setupAboutTab(self):
         tab = QWidget()
@@ -308,8 +342,8 @@ class SettingsDialog(QDialog):
         for _, (k, v) in enumerate(self._translated.items()):
             config["translated"][k] = self._getFormValue(v)
 
-        for _, (k, v) in enumerate(self._appearance.items()):
-            config["appearance"][k] = self._getFormValue(v)
+        for _, (k, v) in enumerate(self._tabBehaviour.items()):
+            config["tab_behaviour"][k] = self._getFormValue(v)
 
         for _, (k, v) in enumerate(self._toggle.items()):
             checked = self._getFormValue(v)
@@ -325,13 +359,16 @@ class SettingsDialog(QDialog):
 
 def defaultConfig() -> C:
     config: C = {
-        "appearance": {
+        "tab_behaviour": {
             "tab_max_chars": 30,
             "tab_height": 30,
             "tab_font_size": 12,
             "tab_font_bold": True,
             "tab_hide_filesize": False,
             "tab_ellipsis": True,
+            "tab_drag_middle_btn": True,
+            "tab_drag_left_btn": True,
+            "tab_drag_deadzone": 10,
         },
         "translated": {
             "Duplicate Tab": "Duplicate Tab",

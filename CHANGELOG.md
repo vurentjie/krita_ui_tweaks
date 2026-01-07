@@ -13,12 +13,18 @@ _Initial release._
 - _Toggle Docking_: instead of holding ctrl when dragging floating dockers can
   use a shortcut to enable or disable docking regions when needed.
 
-## v1.0.1 - In progress
+## v1.0.1 - 2026-07-01
 
 ### Added:
 
-- _New option_: Restore split panes when Krita restarts - disabled by default.
-  \_ _Changelog_: Add the changelog to keep track of things.
+- _Left Button Dragging_: can now drag to split with the left button (https://github.com/vurentjie/krita_ui_tweaks/pull/1/commits/3b76b1785f36295d290e9d73d0444af63e7ddf53)[0b5a362] (https://github.com/vurentjie/krita_ui_tweaks/pull/1)[#1]
+- _Save and Load Layouts_:
+  - Save and load layouts as JSON files - options in menu and configurable
+    shortcuts.
+  - Restore split panes layout when Krita restarts - disabled by default.
+- _Tab Appearance_: can change the tab appearance
+- _Hide floating messages_: ability to permanently hide the floating message that appears on the top left of the canvas
+- _Changelog_: Add the changelog to keep track of things.
 - _Versioning_: Add the current version details to the README and link to a
   release.
 
@@ -26,3 +32,4 @@ _Initial release._
 
 - _Typo_: fixed a typo in configuration key `krita_ui_teaks` should be
   `krita_ui_tweaks`.
+  
