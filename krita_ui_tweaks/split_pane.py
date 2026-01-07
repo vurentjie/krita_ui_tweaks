@@ -39,7 +39,7 @@ from .pyqt import (
 from krita import Window, View, Document
 from dataclasses import dataclass
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, TypedDict
 from types import SimpleNamespace
 
 from .component import Component, COMPONENT_GROUP
@@ -53,15 +53,26 @@ import json
 import os
 import time
 
-COLLAPSED_LAYOUT = tuple[typing.Literal["c"], list[str]]
-SPLIT_LAYOUT = tuple[
-    typing.Literal["v", "h"],
-    "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
-    "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
-    int,
-    int,
-    int,
-]
+
+class CollapsedLayout(TypedDict):
+    state: typing.Literal["c"]
+    files: list[str]
+    active: str | None
+
+
+class SplitLayout(TypedDict):
+    state: typing.Literal["v", "h"]
+    first: "SplitLayout | CollapsedLayout | None"
+    second: "SplitLayout | CollapsedLayout | None"
+    size: int
+
+
+class SavedLayout(TypedDict):
+    state: typing.Literal["s"]
+    winWidth: int
+    winHeight: int
+    layout: "SplitLayout | CollapsedLayout | None"
+    path: str | None
 
 
 @dataclass
@@ -887,6 +898,11 @@ class SplitToolbar(QWidget):
         hasTabIndex = tabIndex is not None
         hasTabs = self._tabs.count() > 1
         hasSplits = topSplit.state() == Split.STATE_SPLIT
+        
+        layoutPath = self._controller.getLayoutPath()
+        layoutName = os.path.basename(layoutPath) if layoutPath else None
+        if layoutName and layoutName.endswith(".json"):
+            layoutName = layoutName[:-5]
 
         actions: list[MenuAction] = [
             MenuAction(
@@ -990,8 +1006,13 @@ class SplitToolbar(QWidget):
                 separator=True,
             ),
             MenuAction(
-                text=i18n("Save Layout"),
+                text=i18n("Save Layout As…"),
                 callback=lambda: self._split.saveLayout(),
+            ),
+            MenuAction(
+                text=i18n(f"Save Current Layout ({layoutName})"),
+                callback=lambda: self._split.saveLayout(layoutPath),
+                visible=layoutPath is not None,
             ),
             MenuAction(
                 text=i18n("Load Layout"),
@@ -2160,8 +2181,8 @@ class Split(QObject):
                 second.closeEmpties()
 
     def getLayout(
-        self, verify: bool = True
-    ) -> "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None":
+        self, verify: bool = False
+    ) -> "SavedLayout | CollapsedLayout | SplitLayout | None":
         helper = self._helper
         mdi = helper.getMdi()
         app = helper.getApp()
@@ -2170,52 +2191,35 @@ class Split(QObject):
         if not (qwin and mdi and app and topSplit):
             return
 
-        if self == topSplit:
-            if verify:
-                for doc in app.documents():
-                    fname = doc.fileName()
-                    if not fname or not os.path.exists(fname):
-                        data = helper.getDocData(doc)
-                        if data and data.views[0]:
-                            view = data.views[0][0]
-                            index = self._controller.getIndexByView(view)
-                            activeWin = mdi.subWindowList()[index]
-                            mdi.setActiveSubWindow(activeWin)
+        if verify:
+            for doc in app.documents():
+                fname = doc.fileName()
+                if not fname or not os.path.exists(fname):
+                    choice = QMessageBox.question(
+                        None,
+                        "Krita",
+                        i18n(
+                            "Some documents are not saved to disk. These will not be included."
+                        ),
+                        i18n("Do you wish to continue?"),
+                        QMessageBox.StandardButton.No
+                        | QMessageBox.StandardButton.Yes,
+                        QMessageBox.StandardButton.No,
+                    )
 
-                            choice = QMessageBox.question(
-                                None,
-                                "Krita",
-                                i18n("Do you want to save your changes?"),
-                                QMessageBox.StandardButton.Cancel
-                                | QMessageBox.StandardButton.No
-                                | QMessageBox.StandardButton.Yes,
-                                QMessageBox.StandardButton.Yes,
-                            )
+                    if choice == QMessageBox.StandardButton.No:
+                        return
+                    else:
+                        break
 
-                            if choice == QMessageBox.StandardButton.Cancel:
-                                _ = QMessageBox.warning(
-                                    None,
-                                    "Krita",
-                                    i18n("The operation was aborted."),
-                                )
-                                return
-
-                            if choice == QMessageBox.StandardButton.Yes:
-                                app.action("file_save").trigger()
-                                # XXX edge case: save cancelled
-                                fname = doc.fileName()
-                                if not fname or not os.path.exists(fname):
-                                    _ = QMessageBox.warning(
-                                        None,
-                                        "Krita",
-                                        i18n("The operation was aborted."),
-                                    )
-                                    return
-
+        splitLayout = None
         if self._state == Split.STATE_COLLAPSED:
             tabs = self.tabs()
             assert tabs is not None
             files: list[str] = []
+            activeView = self.getActiveTabView()
+            activeDoc = activeView.document() if activeView else None
+            activeFile = activeDoc.fileName() if activeDoc else None
             for i in range(tabs.count()):
                 uid = tabs.getUid(i)
                 data = self._controller.getViewData(uid)
@@ -2223,7 +2227,15 @@ class Split(QObject):
                     path = data.view.document().fileName()
                     if os.path.exists(path):
                         files.append(path)
-            return ("c", files)
+            splitLayout = {
+                "state": "c",
+                "files": files,
+                "active": (
+                    activeFile
+                    if activeFile and os.path.exists(activeFile)
+                    else None
+                ),
+            }
 
         elif self._state == Split.STATE_SPLIT:
             assert self._handle is not None
@@ -2236,49 +2248,64 @@ class Split(QObject):
             )
             first = self._first.getLayout()
             second = self._second.getLayout()
+            splitLayout = {
+                "state": orient,
+                "first": first,
+                "second": second,
+                "size": self._handle.offset(),
+            }
+
+        if self == topSplit:
             w, h = qwin.width(), qwin.height()
-            return (orient, first, second, self._handle.offset(), w, h)
+            return {
+                "state": "s",
+                "layout": splitLayout,
+                "winWidth": w,
+                "winHeight": h,
+            }
+        else:
+            return splitLayout
 
     def getLayoutFiles(
         self,
-        layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
-    ) -> list[str]:
-        if layout[0] == "c":
-            layout = typing.cast(COLLAPSED_LAYOUT, layout)
-            return [f for f in layout[1] if os.path.exists(f)]
-        elif layout[0] in ("v", "h"):
-            layout = typing.cast(SPLIT_LAYOUT, layout)
-            assert layout[1] is not None
-            assert layout[2] is not None
-            return list(
-                set(
-                    self.getLayoutFiles(layout[1])
-                    + self.getLayoutFiles(layout[2])
+        layout: "SavedLayout | CollapsedLayout | SplitLayout",
+    ) -> tuple[list[str], list[str]]:
+        exists = []
+        missing = []
+        try:
+            state = layout.get("state", None)
+            if state == "s":
+                exists, missing = self.getLayoutFiles(layout["layout"])
+            elif state == "c":
+                layout = typing.cast(CollapsedLayout, layout)
+                for f in layout["files"]:
+                    if os.path.exists(f):
+                        exists.append(f)
+                    else:
+                        missing.append(f)
+            elif state in ("v", "h"):
+                layout = typing.cast(SplitLayout, layout)
+                exists_first, missing_first = self.getLayoutFiles(
+                    layout["first"]
                 )
-            )
-        else:
-            return []
+                exists_second, missing_second = self.getLayoutFiles(
+                    layout["second"]
+                )
+                exists = list(set(exists_first + exists_second))
+                missing = list(set(missing_first + missing_second))
+        except:
+            exists = []
+            missing = []
+
+        return exists, missing
 
     def restoreLayout(
-        self,
-        layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT",
+        self, layout: "CollapsedLayout | SplitLayout", silent: bool = False
     ):
         topSplit = self.topSplit()
         if self is not topSplit:
             if topSplit:
                 topSplit.restoreLayout(layout)
-            return
-
-        assert topSplit is not None
-        files = self.getLayoutFiles(layout)
-
-        if len(files) == 0:
-            _ = QMessageBox.warning(
-                None,
-                "Krita",
-                i18n("The operation was aborted.")
-                + i18n("The file could not be opened."),
-            )
             return
 
         helper = self._helper
@@ -2287,87 +2314,104 @@ class Split(QObject):
         mdi = helper.getMdi()
         if not (app and qwin and mdi):
             return
+            
+        if not isinstance(layout, dict):
+            return
 
         for doc in app.documents():
-            fname = doc.fileName()
-            if doc.modified() and fname not in files:
-                data = helper.getDocData(doc)
-                if data and data.views[0]:
-                    view = data.views[0][0]
-                    index = self._controller.getIndexByView(view)
-                    activeWin = mdi.subWindowList()[index]
-                    mdi.setActiveSubWindow(activeWin)
+            if doc.modified():
+                if silent:
+                    return
 
-                    choice = QMessageBox.question(
-                        None,
-                        "Krita",
-                        i18n("Do you want to save your changes?"),
-                        QMessageBox.StandardButton.Cancel
-                        | QMessageBox.StandardButton.No
-                        | QMessageBox.StandardButton.Yes,
-                        QMessageBox.StandardButton.Yes,
-                    )
+                choice = QMessageBox.question(
+                    None,
+                    "Krita",
+                    i18n(
+                        "You have unsaved changes. If you continue the files will be kept open in your new layout.\n\nDo you wish to continue?"
+                    ),
+                    QMessageBox.StandardButton.No
+                    | QMessageBox.StandardButton.Yes,
+                    QMessageBox.StandardButton.No,
+                )
 
-                    if choice == QMessageBox.StandardButton.Cancel:
-                        _ = QMessageBox.warning(
-                            None, "Krita", i18n("The operation was aborted.")
-                        )
-                        return
+                if choice == QMessageBox.StandardButton.No:
+                    return
+                else:
+                    break
 
-                    if choice == QMessageBox.StandardButton.Yes:
-                        app.action("file_save").trigger()
-                        # XXX edge case: save cancelled
-                        if doc.modified():
-                            _ = QMessageBox.warning(
-                                None,
-                                "Krita",
-                                i18n("The operation was aborted."),
-                            )
-                            return
+        assert topSplit is not None
+        files, missing = self.getLayoutFiles(layout)
+
+        # all files in the layout are missing
+        if len(files) == 0:
+            if not silent:
+                _ = QMessageBox.warning(
+                    None,
+                    "Krita",
+                    i18n("The operation was aborted.")
+                    + i18n("These files are missing:")
+                    + +"\n"
+                    + "\n".join(missing),
+                )
+            return
 
         updates = qwin.updatesEnabled()
-        qwin.setUpdatesEnabled(False)
+        # qwin.setUpdatesEnabled(False)
         self.resetLayout()
+
+        w, h = qwin.width(), qwin.height()
 
         context = SimpleNamespace(
             files=files,
+            missing={},
+            handled={},
             docs=helper.docsByFile(),
             views=helper.viewsByFile(),
-            missing=[],
-            width=qwin.width(),
-            height=qwin.height(),
+            currWidth=w,
+            currHeight=h,
+            savedWidth=w,
+            savedHeight=h,
         )
 
         self._restoreSplits(layout, context)
+        self._controller.setLayoutPath(layout.get("path", None))
 
         mdi = helper.getMdi()
         assert mdi is not None
 
         for f in context.views:
-            for v in context.views[f]:
+            size = len(context.views[f])
+            for i, v in enumerate(context.views[f]):
                 if helper.isAlive(v, View):
                     index = self._controller.getIndexByView(v)
                     if index != -1:
                         activeWin = mdi.subWindowList()[index]
                         if activeWin:
-                            activeWin.close()
+                            doc = v.document()
+                            if (
+                                not doc.modified()
+                                or i < size - 1
+                                or context.handled.get(doc.fileName(), None)
+                            ):
+                                activeWin.close()
 
         self.closeEmpties()
-        
         qwin.setUpdatesEnabled(updates)
 
-        if len(context.missing) > 0:
+        # some files in the layout are missing
+        missing = context.missing.keys()
+        if len(missing) > 0:
             _ = QMessageBox.warning(
                 None,
                 "Krita",
-                i18n("The file could not be opened.")
+                i18n("These files could not be opened:")
                 + "\n"
-                + ("\n".join(context.missing)),
+                + ("\n".join(missing)),
             )
 
     def _restoreSplits(
         self,
-        layout: "COLLAPSED_LAYOUT | SPLIT_LAYOUT | None",
+        layout: "SavedLayout | CollapsedLayout | SplitLayout | None",
         context: SimpleNamespace,
     ):
         if not layout:
@@ -2379,9 +2423,17 @@ class Split(QObject):
         assert app is not None
         assert isinstance(context, SimpleNamespace)
 
-        if layout[0] == "c":
-            layout = typing.cast(COLLAPSED_LAYOUT, layout)
-            for f in layout[1]:
+        state = layout.get("state", None)
+        if state == "s":
+            layout = layout["layout"]
+            state = layout.get("state", None)
+
+        if state == "c":
+            layout = typing.cast(CollapsedLayout, layout)
+            activeFile = layout.get("active", None)
+            activeView = None
+            files = layout.get("files", [])
+            for f in layout["files"]:
                 handled = False
 
                 if f in context.views:
@@ -2390,6 +2442,8 @@ class Split(QObject):
                         del context.views[f]
                     if helper.isAlive(view, View):
                         handled = True
+                        if not activeView and f == activeFile:
+                            activeView = view
                         controller.syncView(view=view, split=self)
 
                 if not handled and f in context.docs:
@@ -2399,31 +2453,43 @@ class Split(QObject):
                         controller.syncView(
                             addView=True, document=doc, split=self
                         )
+                        if not activeView and f == activeFile:
+                            activeView = self.getActiveTabView()
 
                 if not handled:
                     if os.path.exists(f):
                         doc = app.openDocument(f)
                         if doc:
                             context.docs[f] = doc
+                            handled = True
                             controller.syncView(
                                 addView=True, document=doc, split=self
                             )
-                    else:
-                        context.missing.append(f)
+                            if not activeView and f == activeFile:
+                                activeView = self.getActiveTabView()
 
-        elif layout[0] in ("v", "h"):
-            layout = typing.cast(SPLIT_LAYOUT, layout)
+                if handled:
+                    context.handled[f] = True
+                else:
+                    context.missing[f] = True
+
+            if activeView:
+                controller.syncView(view=activeView, split=self)
+
+        elif state in ("v", "h"):
+            layout = typing.cast(SplitLayout, layout)
             first, second = None, None
             handlePos = None
+            sz = layout.get("size", None)
 
-            if len(layout) > 3:
+            if isinstance(sz, int):
                 handlePos = (
-                    int(layout[3] / layout[4] * context.width)
-                    if layout[0] == "v"
-                    else int(layout[3] / layout[5] * context.height)
+                    int(sz / context.savedWidth * context.currWidth)
+                    if state == "v"
+                    else int(sz / context.savedHeight * context.currHeight)
                 )
 
-            if layout[0] == "v":
+            if state == "v":
                 first, second = self.makeSplitRight(
                     empty=True, handlePos=handlePos
                 )
@@ -2433,30 +2499,36 @@ class Split(QObject):
                 )
 
             if first:
-                first._restoreSplits(layout[1], context)
+                first._restoreSplits(layout.get("first", {}), context)
             if second:
-                second._restoreSplits(layout[2], context)
+                second._restoreSplits(layout.get("second", {}), context)
 
-    def saveLayout(self):
-        path, _ = QFileDialog.getSaveFileName(
-            None,
-            "Save JSON",
-            "",
-            "JSON files (*.json);;All files (*)"
-        )
+    def saveLayout(self, path: str|None = None):
+        topSplit = self.topSplit()
+        layout = topSplit.getLayout(verify=True)
+
+        if not layout:
+            return
+
+        files, _ = self.getLayoutFiles(layout)
+        if len(files) == 0:
+            return
+
+        if not path or not isinstance(path, str):
+            path, _ = QFileDialog.getSaveFileName(
+                None, "Save JSON", "", "JSON files (*.json);;All files (*)"
+            )
+            
         if not path:
             return
-            
+
         if not path.lower().endswith(".json"):
             path += ".json"
-            
+
         try:
-            topSplit = self.topSplit()
-            layout = topSplit.getLayout()
-            files = self.getLayoutFiles(layout)
-            if len(files) > 0:
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(layout, f, indent=2, ensure_ascii=False)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(layout, f, ensure_ascii=False)
+                self._controller.setLayoutPath(path)
         except:
             _ = QMessageBox.warning(
                 None,
@@ -2466,27 +2538,24 @@ class Split(QObject):
 
     def loadLayout(self):
         path, _ = QFileDialog.getOpenFileName(
-            None,
-            "Open JSON",
-            "",
-            "JSON files (*.json);;All files (*)"
+            None, "Open JSON", "", "JSON files (*.json);;All files (*)"
         )
         if path:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     layout = json.load(f)
-                    files = self.getLayoutFiles(layout)
-                    if len(files) > 0:
-                        self.restoreLayout(layout)
-            except:
+                    layout["path"] = path
+                    self.restoreLayout(layout)
+            except Exception as e:
                 _ = QMessageBox.warning(
                     None,
                     "Krita",
                     i18n("The operation was aborted.")
-                    + i18n("The file could not be opened."),
+                    + i18n("The file could not be opened.")
+                    + i18n("\nError:\n")
+                    + str(e),
                 )
 
-            
 
 class SplitPane(Component):
     winClosed = pyqtSignal()
@@ -2508,6 +2577,7 @@ class SplitPane(Component):
         self._layoutWriteDebounce: QTimer = QTimer()
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
+        self._activeLayoutPath: str | None = None
         self._overrides = {}
 
         appearance = getOpt("appearance")
@@ -2535,6 +2605,27 @@ class SplitPane(Component):
             i18n("Goto previous tab"),
             self.prevTab,
         )
+        
+        _ = self._helper.newAction(
+            window,
+            "krita_ui_tweaks_save_layout_as",
+            i18n("Save Layout As…"),
+            self.saveLayout,
+        )
+        
+        _ = self._helper.newAction(
+            window,
+            "krita_ui_tweaks_save_layout",
+            i18n("Save Current Layout"),
+            self.saveCurrentLayout,
+        )
+        
+        _ = self._helper.newAction(
+            window,
+            "krita_ui_tweaks_load_layout",
+            i18n("Load Layout"),
+            self.loadLayout,
+        )
 
         qapp = typing.cast(QApplication, QApplication.instance())
         qapp.aboutToQuit.connect(lambda: self.onQuit())
@@ -2545,7 +2636,28 @@ class SplitPane(Component):
 
     def onQuit(self):
         self._quit = True
-
+        
+    def setLayoutPath(self, path: str|None):
+        self._activeLayoutPath = path
+        
+    def getLayoutPath(self):
+        return self._activeLayoutPath
+        
+    def saveLayout(self):
+        topSplit = self.topSplit()
+        if topSplit:
+            topSplit.saveLayout()
+            
+    def saveCurrentLayout(self):
+        topSplit = self.topSplit()
+        if topSplit:
+            topSplit.saveLayout(self._activeLayoutPath)
+            
+    def loadLayout(self):
+        topSplit = self.topSplit()
+        if topSplit:
+            topSplit.loadLayout()
+        
     def onConfigSave(self):
         isEnabled = getOpt("toggle", "split_panes")
         if isEnabled != self._optEnabled:
@@ -2600,7 +2712,7 @@ class SplitPane(Component):
             if topSplit:
                 layout = topSplit.getLayout(verify=False)
                 try:
-                    files = topSplit.getLayoutFiles(layout)
+                    files, _ = topSplit.getLayoutFiles(layout)
                     if len(files) > 0:
                         app.writeSetting(
                             "krita_ui_tweaks",
@@ -2658,6 +2770,8 @@ class SplitPane(Component):
         fileName = doc.fileName()
         tabModified = doc.modified()
         tabText = self.formatTabText(index, doc)
+        if not os.path.exists(fileName):
+            doc.setModified(True)
 
         if savedFileName != fileName:
             data.doc["fileName"] = fileName
@@ -2692,7 +2806,7 @@ class SplitPane(Component):
         mdi = helper.getMdi()
         central = helper.getCentral()
         isEnabled = getOpt("toggle", "split_panes")
-        loadLayout: "SPLIT_LAYOUT | COLLAPSED_LAYOUT | None" = None
+        loadLayout: "SavedLayout | None" = None
 
         if (
             central
@@ -2707,8 +2821,8 @@ class SplitPane(Component):
                     layout = json.loads(
                         app.readSetting("krita_ui_tweaks", "restoreLayout", "")
                     )
-                    if isinstance(layout, list):
-                        loadLayout = typing.cast(SPLIT_LAYOUT, layout)
+                    if isinstance(layout, dict):
+                        loadLayout = typing.cast(SavedLayout, layout)
                 except:
                     pass
 
@@ -2723,6 +2837,7 @@ class SplitPane(Component):
                 self._viewData = {}
 
                 self._split = Split(parent=central, controller=self)
+
                 for i, _ in enumerate(mdi.subWindowList()):
                     self.syncView(index=i)
 
