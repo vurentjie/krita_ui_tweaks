@@ -2437,9 +2437,8 @@ class Split(QObject):
                 _ = QMessageBox.warning(
                     None,
                     "Krita",
-                    i18n("The operation was aborted.")
-                    + i18n("These files are missing:")
-                    + +"\n"
+                    i18n("Unable to restore session.\nThese files are missing:")
+                    + "\n"
                     + "\n".join(missing),
                 )
             return
