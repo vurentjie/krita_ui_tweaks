@@ -6,6 +6,7 @@
 ## Downloads
 If the latest version has any issues, you can download an older version.
 
+- [v1.0.2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.2.zip) (latest release)
 - [v1.0.1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.1.zip) 
 - [v1.0.0.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.0.zip) (original release)
 
