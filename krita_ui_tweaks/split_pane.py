@@ -2704,8 +2704,6 @@ class SplitPane(Component):
         for k in tabBehaviour.keys():
             self._overrides[k] = tabBehaviour[k]
 
-        Krita.instance().dbgTool = self
-
         app = self._helper.getApp()
         if app:
             self._currTheme = app.readSetting("theme", "Theme", "")
