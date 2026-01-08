@@ -1094,7 +1094,7 @@ class SplitToolbar(QWidget):
                 callback=lambda: self._split.saveLayout(),
             ),
             MenuAction(
-                text=i18n(f"Save Current Layout ({layoutName})"),
+                text=i18n("Save Current Layout") + f" ({layoutName})",
                 callback=lambda: self._split.saveLayout(layoutPath),
                 visible=layoutPath is not None,
             ),

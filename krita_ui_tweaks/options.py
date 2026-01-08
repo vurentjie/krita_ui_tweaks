@@ -422,6 +422,9 @@ def defaultConfig() -> C:
             "Docking disabled": "Docking disabled",
             "Goto next tab": "Goto next tab",
             "Goto previous tab": "Goto previous tab",
+            "Save Layout As…": "Save Layout As…",
+            "Save Current Layout": "Save Current Layout",
+            "Open Layout": "Open Layout",
         },
         "toggle": {
             "split_panes": True,
