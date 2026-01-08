@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: CC0-1.0
 
-from krita import Extension, Window
+from krita import Krita, Extension, Window
 from .pyqt import QObject
 from .tools import Tools
 from .split_pane import SplitPane
@@ -28,3 +28,6 @@ class Plugin(Extension):
         group["dockers"] = Dockers(window, pluginGroup=group)
 
         self._components.append(group)
+        
+        # For debug in the scripter tool
+        Krita.instance().uiTweaks = self._components
