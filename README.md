@@ -18,10 +18,6 @@ Various tweaks for Krita's interface.
 
 Krita is a free and open source digital painting program. More info here: [https://krita.org](https://krita.org)
 
-> This is a collection of features from my Krita setup that may be useful to others.
-> I use Krita on Linux.
-> I cannot vouch if these will work on other systems, but most likely they will. 
-
 All items below are enabled by default but can be disabled in the plugin options
 
 - *Split Panes*: create split tabbed panes and arrange documents side by side
