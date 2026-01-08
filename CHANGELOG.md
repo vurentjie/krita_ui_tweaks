@@ -17,13 +17,16 @@ _Initial release._
 
 ### Added:
 
-- _Left Button Dragging_: can now drag to split with the left button [0b5a362](https://github.com/vurentjie/krita_ui_tweaks/pull/1/commits/3b76b1785f36295d290e9d73d0444af63e7ddf53) [#1](https://github.com/vurentjie/krita_ui_tweaks/pull/1)
+- _Left Button Dragging_: can now drag to split with the left button
+  [0b5a362](https://github.com/vurentjie/krita_ui_tweaks/pull/1/commits/3b76b1785f36295d290e9d73d0444af63e7ddf53)
+  [#1](https://github.com/vurentjie/krita_ui_tweaks/pull/1)
 - _Save and Load Layouts_:
   - Save and load layouts as JSON files - options in menu and configurable
     shortcuts.
   - Restore split panes layout when Krita restarts - disabled by default.
 - _Tab Appearance_: can change the tab appearance
-- _Hide floating messages_: ability to permanently hide the floating message that appears on the top left of the canvas
+- _Hide floating messages_: ability to permanently hide the floating message
+  that appears on the top left of the canvas
 - _Changelog_: Add the changelog to keep track of things.
 - _Versioning_: Add the current version details to the README and link to a
   release.
@@ -32,4 +35,21 @@ _Initial release._
 
 - _Typo_: fixed a typo in configuration key `krita_ui_teaks` should be
   `krita_ui_tweaks`.
-  
+
+## v1.0.2 - 2026-08-01
+
+### Fixed:
+
+- _Restoring layouts_: fixed an issue when restoring layouts and some files are
+  missing, it would cause the layout to break.
+- _Perf_: made a change to make the splitting feel more instant
+
+### Changed:
+
+- _Text Edits_: changed "Load Layout" to "Open Layout"
+
+### Added:
+
+- _Shortcuts_: configurable shortcuts for the actions (Save/Open Layouts)
+- _Hide the menu button_: added an option to hide the menu button (3 dots)
+
