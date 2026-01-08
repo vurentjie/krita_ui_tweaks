@@ -2328,6 +2328,7 @@ class Split(QObject):
             activeView = self.getActiveTabView()
             activeDoc = activeView.document() if activeView else None
             activeFile = activeDoc.fileName() if activeDoc else None
+            activeIndex = -1
             for i in range(tabs.count()):
                 uid = tabs.getUid(i)
                 data = self._controller.getViewData(uid)
@@ -2335,14 +2336,12 @@ class Split(QObject):
                     path = data.view.document().fileName()
                     if os.path.exists(path):
                         files.append(path)
+                        if path == activeFile and activeIndex == -1:
+                            activeIndex = len(files) - 1 
             splitLayout = {
                 "state": "c",
                 "files": files,
-                "active": (
-                    activeFile
-                    if activeFile and os.path.exists(activeFile)
-                    else None
-                ),
+                "active": activeIndex,
             }
 
         elif self._state == Split.STATE_SPLIT:
@@ -2542,10 +2541,15 @@ class Split(QObject):
 
         if state == "c":
             layout = typing.cast(CollapsedLayout, layout)
+            # XXX need to check active file for backward compatibility
             activeFile = layout.get("active", None)
+            activeIndex = -1
+            if isinstance(activeFile, int):
+                activeIndex = activeFile 
+                activeFile = None
             activeView = None
             files = layout.get("files", [])
-            for f in layout["files"]:
+            for i,f in enumerate(layout["files"]):
                 handled = False
 
                 if f in context.views:
@@ -2565,7 +2569,7 @@ class Split(QObject):
                         controller.syncView(
                             addView=True, document=doc, split=self
                         )
-                        if not activeView and f == activeFile:
+                        if not activeView and (f == activeFile or i == activeIndex):
                             activeView = self.getActiveTabView()
 
                 if not handled:
@@ -2695,11 +2699,11 @@ class SplitPane(Component):
         self._layoutWriteDebounce: QTimer = QTimer()
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
-        self._activeLayoutPath: str | None = None
+        self._activeLayoutPath: str | None = None 
         self._canvasColor: str | None = None
         self._currTheme: str | None = None
         self._overrides = {}
-
+        
         tabBehaviour = getOpt("tab_behaviour")
         for k in tabBehaviour.keys():
             self._overrides[k] = tabBehaviour[k]
@@ -2710,7 +2714,8 @@ class SplitPane(Component):
             self._canvasColor = app.readSetting("", "canvasBorderColor", "")
             if app.readSetting("", "sessionOnStartup", "") != "0":
                 setOpt("toggle", "restore_layout", False)
-                app.writeSetting("krita_ui_tweaks", "restoreLayout", "false")
+                app.writeSetting("krita_ui_tweaks", "restoreLayout", "")
+                app.writeSetting("krita_ui_tweaks", "restoreLayoutPath", "")
 
         _ = self._helper.newAction(
             window,
@@ -2850,6 +2855,11 @@ class SplitPane(Component):
                         "restoreLayout",
                         json.dumps(layout) if len(files) > 0 else "",
                     )
+                    app.writeSetting(
+                        "krita_ui_tweaks",
+                        "restoreLayoutPath",
+                        self._activeLayoutPath if self._activeLayoutPath else ""  
+                    )
                 except:
                     pass
         else:
@@ -2961,6 +2971,9 @@ class SplitPane(Component):
                     )
                     if isinstance(layout, dict):
                         loadLayout = typing.cast(SavedLayout, layout)
+                        layoutPath = app.readSetting("krita_ui_tweaks", "restoreLayoutPath", "")
+                        if os.path.exists(layoutPath):
+                            loadLayout["path"] = layoutPath
                 except:
                     pass
 

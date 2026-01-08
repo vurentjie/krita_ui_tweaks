@@ -119,7 +119,7 @@ class Helper:
     def getView(self):
         win = self.getWin()
         return self.isAlive(win.activeView(), View) if win else None
-
+        
     def getDocData(
         self, obj: View | Document | None = None
     ) -> DocumentData | None:

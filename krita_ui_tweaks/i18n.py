@@ -29,10 +29,11 @@ def i18n(val: str, *args: str) -> str:
     translations = i18n_translations_get()
     translated = translations.get(val, "")
     if not translated.strip():
-        translated = Krita.krita_i18n(val, *args)
-    else:
-        for i,v in enumerate(args):
-            translated.replace(f"%{i}", v)
+        translated = Krita.krita_i18n(val)
+        
+    for i,v in enumerate(args):
+        translated = translated.replace(f"%{i+1}", v)
+        
     return translated
 
 
