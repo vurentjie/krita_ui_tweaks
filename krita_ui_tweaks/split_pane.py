@@ -3601,3 +3601,4 @@ class SplitPane(Component):
         toolbar = self.getToolbarByWindow(win)
         if toolbar:
             return toolbar.split()
+

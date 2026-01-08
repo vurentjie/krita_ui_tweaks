@@ -45,7 +45,6 @@ class Helper:
     def __init__(self, qwin: QMainWindow):
         self._uid = count(1)
         self._qwin: QMainWindow = qwin
-        self._toastEnableTimer: QTimer | None = None
         self._docData: dict[QUuid, DocumentData] = {}
         self._cached: dict[str, Any] = {}
         typing.cast(pyqtBoundSignal, self.getNotifier().viewClosed).connect(
