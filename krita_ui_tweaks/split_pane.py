@@ -1087,7 +1087,7 @@ class SplitToolbar(QWidget):
                 visible=layoutPath is not None,
             ),
             MenuAction(
-                text=i18n("Load Layout"),
+                text=i18n("Open Layout"),
                 callback=lambda: self._split.loadLayout(),
                 separator=True,
             ),
@@ -2618,8 +2618,9 @@ class Split(QObject):
         files, _ = self.getLayoutFiles(layout)
         if len(files) == 0:
             return
-
-        if not path or not isinstance(path, str):
+            
+        hasPath = path and isinstance(path, str) 
+        if not hasPath:
             path, _ = QFileDialog.getSaveFileName(
                 None, "Save JSON", "", "JSON files (*.json);;All files (*)"
             )
@@ -2634,6 +2635,8 @@ class Split(QObject):
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(layout, f, ensure_ascii=False)
                 self._controller.setLayoutPath(path)
+                if hasPath:
+                    self._helper.showToast("Layout saved")
         except:
             _ = QMessageBox.warning(
                 None,
@@ -2732,7 +2735,7 @@ class SplitPane(Component):
         _ = self._helper.newAction(
             window,
             "krita_ui_tweaks_load_layout",
-            i18n("Load Layout"),
+            i18n("Open Layout"),
             self.loadLayout,
         )
 
