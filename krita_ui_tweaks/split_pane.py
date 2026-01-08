@@ -922,6 +922,7 @@ class SplitToolbar(QWidget):
         self._helper: Helper = controller.helper()
         self._tabs: SplitTabs = SplitTabs(self, controller=controller)
         self._menu: QMenu | None = None
+        self._menuBtn: QPushButton | None = None
 
         if SplitToolbar.MenuIcon is None:
             pix = QPixmap(
@@ -933,11 +934,7 @@ class SplitToolbar(QWidget):
             rotated = pix.transformed(transform)
             SplitToolbar.MenuIcon = QIcon(rotated)
 
-        self._menuBtn = QPushButton("", self)
-        self._menuBtn.setIcon(SplitToolbar.MenuIcon)
-        self._menuBtn.setProperty("class", "menuButton")
-        self._menuBtn.setFixedSize(38, self._tabs.height())
-        self._menuBtn.clicked.connect(self.showMenu)
+        self.showMenuBtn()
 
     def globalRect(self) -> QRect:
         qwin = self._helper.getQwin()
@@ -953,6 +950,21 @@ class SplitToolbar(QWidget):
     def paintEvent(self, _: QPaintEvent):
         p = QPainter(self)
         p.fillRect(self.rect(), QColor("#2c2c2c"))
+
+    def showMenuBtn(self):
+        if not self._menuBtn and not getOpt(
+            "tab_behaviour", "tab_hide_menu_btn"
+        ):
+            self._menuBtn = QPushButton("", self)
+            self._menuBtn.setIcon(SplitToolbar.MenuIcon)
+            self._menuBtn.setProperty("class", "menuButton")
+            self._menuBtn.setFixedSize(38, self._tabs.height())
+            self._menuBtn.clicked.connect(self.showMenu)
+
+    def hideMenuBtn(self):
+        if self._menuBtn:
+            self._menuBtn.deleteLater()
+            self._menuBtn = None
 
     def setSplit(self, split: "Split"):
         self._split = split
@@ -1123,10 +1135,11 @@ class SplitToolbar(QWidget):
 
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
-        x = self.width() - self._menuBtn.width()
-        y = (self.height() - self._menuBtn.height()) // 2
-        self._menuBtn.move(x, y)
-
+        x = self.width()
+        if self._menuBtn:
+            x = self.width() - self._menuBtn.width()
+            y = (self.height() - self._menuBtn.height()) // 2
+            self._menuBtn.move(x, y)
         self._tabs.setFixedHeight(self.height())
         self._tabs.setGeometry(0, 0, x, self.height())
 
@@ -2443,26 +2456,16 @@ class Split(QObject):
                 _ = QMessageBox.warning(
                     None,
                     "Krita",
-                    i18n("Unable to restore session.\nThese files are missing:")
+                    i18n(
+                        "Unable to restore session.\nThese files are missing:"
+                    )
                     + "\n"
                     + "\n".join(missing),
                 )
             return
 
-        updates = qwin.updatesEnabled()
-
-        # qwin.setUpdatesEnabled(False)
         self.resetLayout()
         firstMost = self.firstMostSplit()
-
-        # if len(app.documents()) == 0:
-        #     f = files[0]
-        #     if os.path.exists(f):
-        #         doc = app.openDocument(f)
-        #         if doc:
-        #             self._controller.syncView(addView=True, document=doc, split=self)
-        #     QTimer.singleShot(5000, lambda: self.restoreLayout(layout))
-        #     return
 
         w, h = qwin.width(), qwin.height()
 
@@ -2476,9 +2479,12 @@ class Split(QObject):
             currHeight=h,
             savedWidth=w,
             savedHeight=h,
+            sizes=[],
         )
 
         self._restoreSplits(layout, context)
+        # need recalc sizes again after all splits are in place
+        self.restoreSizes(context.sizes)
         self._controller.setLayoutPath(layout.get("path", None))
 
         mdi = helper.getMdi()
@@ -2500,8 +2506,8 @@ class Split(QObject):
                             ):
                                 activeWin.close()
 
-        self.closeEmpties()
-        qwin.setUpdatesEnabled(updates)
+        # XXX delay this call
+        QTimer.singleShot(10, self.closeEmpties)
 
         # some files in the layout are missing
         missing = context.missing.keys()
@@ -2528,6 +2534,7 @@ class Split(QObject):
         assert app is not None
         assert isinstance(context, SimpleNamespace)
 
+        topSplit = self.topSplit()
         state = layout.get("state", None)
         if state == "s":
             layout = layout["layout"]
@@ -2605,6 +2612,9 @@ class Split(QObject):
 
             if first:
                 first._restoreSplits(layout.get("first", {}), context)
+                if handlePos:  # and self != topSplit:
+                    context.sizes.append((first, handlePos))
+
             if second:
                 second._restoreSplits(layout.get("second", {}), context)
 
@@ -2618,8 +2628,8 @@ class Split(QObject):
         files, _ = self.getLayoutFiles(layout)
         if len(files) == 0:
             return
-            
-        hasPath = path and isinstance(path, str) 
+
+        hasPath = path and isinstance(path, str)
         if not hasPath:
             path, _ = QFileDialog.getSaveFileName(
                 None, "Save JSON", "", "JSON files (*.json);;All files (*)"
@@ -2741,12 +2751,11 @@ class SplitPane(Component):
 
         qapp = typing.cast(QApplication, QApplication.instance())
         qapp.aboutToQuit.connect(lambda: self.onQuit())
-        
 
         self.attachStyles()
 
         OptionSignals.configSaved.connect(self.onConfigSave)
-        
+
         notifier = self._helper.getNotifier()
         if notifier:
             typing.cast(pyqtBoundSignal, notifier.imageSaved).connect(
@@ -2787,7 +2796,11 @@ class SplitPane(Component):
         if getOpt("toggle", "restore_layout"):
             self._debounceSaveLayout()
 
-        styleKeys = ("tab_font_size", "tab_font_bold", "tab_height")
+        styleKeys = (
+            "tab_font_size",
+            "tab_font_bold",
+            "tab_height",
+        )
         textKeys = ("tab_max_chars", "tab_ellipsis")
 
         def updated(key):
@@ -2837,7 +2850,7 @@ class SplitPane(Component):
                     app.writeSetting(
                         "krita_ui_tweaks",
                         "restoreLayout",
-                        json.dumps(layout) if len(files) > 0 else ""
+                        json.dumps(layout) if len(files) > 0 else "",
                     )
                 except:
                     pass

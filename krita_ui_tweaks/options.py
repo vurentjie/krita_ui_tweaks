@@ -3,19 +3,21 @@
 from .pyqt import (
     pyqtSignal,
     Qt,
-    QScrollArea,
-    QLabel,
-    QDialog,
-    QTabWidget,
-    QWidget,
-    QFormLayout,
-    QVBoxLayout,
+    QApplication,
     QCheckBox,
-    QLineEdit,
-    QSpinBox,
+    QDialog,
     QDialogButtonBox,
-    QObject,
+    QFormLayout,
     QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QObject,
+    QScrollArea,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 from krita import Krita
@@ -38,7 +40,7 @@ _global_config: C | None = None
 @dataclass
 class ToggleItem:
     input: QCheckBox
-    extra: QLabel | None
+    extra: QWidget | list[QWidget] | None
     section: str
 
 
@@ -46,7 +48,7 @@ class ToggleItem:
 class InputItem:
     input: QLineEdit
     label: QLabel | None
-    extra: QLabel | None
+    extra: QWidget | list[QWidget] | None
     section: str
     escape: bool
 
@@ -57,7 +59,7 @@ class NumberItem:
     label: QLabel | None
     section: str
     clamp: tuple[int, int]
-    extra: QLabel | None
+    extra: QWidget | list[QWidget] | None
 
 
 class Signals(QObject):
@@ -72,10 +74,10 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(i18n("UI Tweaks"))
         self.setMinimumWidth(400)
-        self.setMinimumHeight(400)
+        self.setMinimumHeight(600)
 
         self._config: C = readConfig()
-        
+
         sections = SimpleNamespace(
             tabAppearance=i18n("Tab Appearance"),
             tabDragging=i18n("Tab Dragging"),
@@ -83,9 +85,9 @@ class SettingsDialog(QDialog):
             tools=i18n("Tools"),
             dockers=i18n("Dockers"),
         )
-
-        self._translated: dict[str, QLineEdit] = {}
         
+        self._translated: dict[str, QLineEdit] = {}
+
         for k in self._config.get("translated", {}).keys():
             self._translated[k] = InputItem(
                 input=QLineEdit(),
@@ -94,7 +96,7 @@ class SettingsDialog(QDialog):
                 label=QLabel(self._unescape(k)),
                 extra=None,
             )
-            
+
         self._tabBehaviour: dict[str, ToggleItem | NumberItem] = {
             "tab_max_chars": NumberItem(
                 input=QSpinBox(),
@@ -134,27 +136,49 @@ class SettingsDialog(QDialog):
                 section=sections.tabAppearance,
                 extra=None,
             ),
-            
+            "tab_hide_menu_btn": ToggleItem(
+                input=QCheckBox(
+                    i18n("Hide the menu button in the tab toolbar (3 dots)")
+                ),
+                section=sections.tabAppearance,
+                extra=QLabel(
+                    i18n(
+                        "<b>Requires restart. The menu can still be accessed by right-clicking tabs.</b>"
+                    )
+                ),
+            ),
             "tab_drag_middle_btn": ToggleItem(
                 input=QCheckBox(
-                    i18n("Splits can be created by dragging with the middle button")
+                    i18n(
+                        "Splits can be created by dragging with the middle button"
+                    )
                 ),
                 section=sections.tabDragging,
                 extra=None,
             ),
             "tab_drag_left_btn": ToggleItem(
                 input=QCheckBox(
-                    i18n("Splits can be created by dragging with the left button")
+                    i18n(
+                        "Splits can be created by dragging with the left button"
+                    )
                 ),
                 section=sections.tabDragging,
-                extra=QLabel(i18n("<b>For left button: drag tabs vertically to initiate splitting</b>")),
+                extra=QLabel(
+                    i18n(
+                        "<b>For left button: drag tabs vertically to initiate splitting</b>"
+                    )
+                ),
             ),
             "tab_drag_deadzone": NumberItem(
                 input=QSpinBox(),
                 label=QLabel(i18n("Drag deadzone")),
                 clamp=(10, 50),
                 section=sections.tabDragging,
-                extra=QLabel(i18n("<b>Amount of pixels to move for tab dragging to start.<br>Only applicable for left button.</b>")),
+                extra=QLabel(
+                    i18n(
+                        "<b>Amount of pixels to move for tab dragging to start.<br>Only applicable for left button.</b>"
+                    )
+                ),
             ),
         }
 
@@ -166,9 +190,7 @@ class SettingsDialog(QDialog):
             ),
             "restore_layout": ToggleItem(
                 input=QCheckBox(
-                    i18n(
-                        "Restore split pane layout when Krita restarts"
-                    )
+                    i18n("Restore split pane layout when Krita restarts")
                 ),
                 section=sections.splitPanes,
                 extra=QLabel(
@@ -275,10 +297,17 @@ class SettingsDialog(QDialog):
             item.label.setTextFormat(Qt.TextFormat.RichText)
             form.addRow(item.label, item.input)
         if item.extra:
-            item.extra.setTextFormat(Qt.TextFormat.RichText)
-            item.extra.setEnabled(False)
-            item.extra.setContentsMargins(20, 0, 0, 0)
-            form.addRow(item.extra)
+            if not isinstance(item.extra, list):
+                item.extra = [item.extra]
+                
+            field = QHBoxLayout()
+            for extra in item.extra:
+                if isinstance(extra, QLabel):
+                    extra.setTextFormat(Qt.TextFormat.RichText)
+                    extra.setEnabled(False)
+                field.addWidget(extra)
+                field.setContentsMargins(20, 0, 0, 0)
+            form.addRow(field)
 
     def _renderTabForm(self, configKey: str, formItems):
         tab = QWidget()
@@ -360,6 +389,7 @@ class SettingsDialog(QDialog):
 def defaultConfig() -> C:
     config: C = {
         "tab_behaviour": {
+            "tab_hide_menu_btn": False,
             "tab_max_chars": 30,
             "tab_height": 30,
             "tab_font_size": 12,
