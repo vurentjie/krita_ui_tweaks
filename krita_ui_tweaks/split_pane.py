@@ -1087,7 +1087,7 @@ class SplitToolbar(QWidget):
                 visible=layoutPath is not None,
             ),
             MenuAction(
-                text=i18n("Load Layout"),
+                text=i18n("Open Layout"),
                 callback=lambda: self._split.loadLayout(),
                 separator=True,
             ),
@@ -2732,7 +2732,7 @@ class SplitPane(Component):
         _ = self._helper.newAction(
             window,
             "krita_ui_tweaks_load_layout",
-            i18n("Load Layout"),
+            i18n("Open Layout"),
             self.loadLayout,
         )
 
