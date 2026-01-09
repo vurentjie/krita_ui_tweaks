@@ -929,7 +929,8 @@ class SplitTabs(QTabBar):
 
 
 class SplitToolbar(QWidget):
-    MenuIcon = None
+    MenuIconDark = None
+    MenuIconLight = None
 
     def __init__(
         self, parent: QWidget, controller: "SplitPane", split: "Split"
@@ -943,15 +944,16 @@ class SplitToolbar(QWidget):
         self._menu: QMenu | None = None
         self._menuBtn: QPushButton | None = None
         self.setMouseTracking(True)
-        if SplitToolbar.MenuIcon is None:
-            pix = QPixmap(
-                ":/dark_hamburger_menu_dots.svg"
-                if self._helper.useDarkIcons()
-                else ":/light_hamburger_menu_dots.svg"
-            )
+        if SplitToolbar.MenuIconDark is None:
+            pix = QPixmap(":/dark_hamburger_menu_dots.svg")
             transform = QTransform().rotate(90)
             rotated = pix.transformed(transform)
-            SplitToolbar.MenuIcon = QIcon(rotated)
+            SplitToolbar.MenuIconDark = QIcon(rotated)
+
+            pix = QPixmap(":/light_hamburger_menu_dots.svg")
+            transform = QTransform().rotate(90)
+            rotated = pix.transformed(transform)
+            SplitToolbar.MenuIconLight = QIcon(rotated)
 
         self.showMenuBtn()
 
@@ -975,10 +977,14 @@ class SplitToolbar(QWidget):
             "tab_behaviour", "tab_hide_menu_btn"
         ):
             self._menuBtn = QPushButton("", self)
-            self._menuBtn.setIcon(SplitToolbar.MenuIcon)
+            self._menuBtn.setIcon(SplitToolbar.MenuIconDark if self._helper.useDarkIcons() else SplitToolbar.MenuIconLight)
             self._menuBtn.setProperty("class", "menuButton")
             self._menuBtn.setFixedSize(38, self._tabs.height())
             self._menuBtn.clicked.connect(self.showMenu)
+            
+    def updateMenuBtn(self):
+        if self._menuBtn:
+            self._menuBtn.setIcon(SplitToolbar.MenuIconDark if self._helper.useDarkIcons() else SplitToolbar.MenuIconLight)
 
     def hideMenuBtn(self):
         if self._menuBtn:
@@ -1819,7 +1825,7 @@ class Split(QObject):
                 return True
         return False
 
-    def resize(self, force: bool = True):
+    def resize(self, force: bool = True, refreshIcons: bool = False):
         if self._resizing:
             return
         self._forceResizing = force
@@ -1857,7 +1863,7 @@ class Split(QObject):
         self.showCanvasBacking()
         if self._backing:
             self._backing.setGeometry(self._rect)
-            
+
         if self._state == Split.STATE_SPLIT:
             if not self._handle:
                 return
@@ -1870,9 +1876,9 @@ class Split(QObject):
                 self._handle.clamp()
                 self._lastHandleRect = handleRect
                 if self._first:
-                    self._first.resize()
+                    self._first.resize(refreshIcons = refreshIcons)
                 if self._second:
-                    self._second.resize()
+                    self._second.resize(refreshIcons = refreshIcons)
         else:
             if self._state == Split.STATE_COLLAPSED and (
                 old_rect != self._rect or self.isForceResizing()
@@ -1889,6 +1895,8 @@ class Split(QObject):
                         tabBarHeight,
                     )
                     self.resizeSubWindow()
+                    if refreshIcons:
+                        self._toolbar.updateMenuBtn()
 
                 self.resized.emit()
 
@@ -3353,7 +3361,8 @@ class SplitPane(Component):
             return
 
         self.attachStyles()
-        topSplit.resize(force=True)
+        # just use resize to refresh the icons to avoid a second iteration
+        topSplit.resize(force=True, refreshIcons=True)
 
     def onViewChanged(self):
         if not self.topSplit():
