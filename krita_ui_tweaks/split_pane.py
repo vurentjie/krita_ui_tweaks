@@ -5,6 +5,7 @@ from .pyqt import (
     pyqtSignal,
     pyqtBoundSignal,
     QApplication,
+    QCoreApplication,
     QResizeEvent,
     QPaintEvent,
     QPixmap,
@@ -467,6 +468,7 @@ class SplitTabs(QTabBar):
             globalPos = self._dragPos
             pos = qwin.mapFromGlobal(globalPos)
             self.showDragPlaceHolder(pos)
+
             currSplit = self.split()
 
             if not currSplit:
@@ -491,6 +493,7 @@ class SplitTabs(QTabBar):
                 targetRect = targetSplit.globalRect(withToolBar=False)
                 rx, ry, rw, rh = targetRect.getRect()
 
+                isLocked = self._controller.isLocked()
                 topRect = topSplit.globalRect(withToolBar=False)
                 tx, ty, tw, th = topRect.getRect()
 
@@ -498,26 +501,35 @@ class SplitTabs(QTabBar):
                 y = pos.y()
                 edgeThreshold = 30
 
-                if x > tx and x < tx + edgeThreshold and th != rh:
-                    self._dropEdge = Qt.AnchorPoint.AnchorLeft
-                    topRect.setWidth(edgeThreshold)
-                elif x > tx + tw - edgeThreshold and x < tx + tw and th != rh:
-                    self._dropEdge = Qt.AnchorPoint.AnchorRight
-                    topRect.setX(tx + tw - edgeThreshold)
-                elif y > ty and y < ty + edgeThreshold and tw != rw:
-                    self._dropEdge = Qt.AnchorPoint.AnchorTop
-                    topRect.setHeight(edgeThreshold)
-                elif y > ty + th - edgeThreshold and y < ty + th and tw != rw:
-                    self._dropEdge = Qt.AnchorPoint.AnchorBottom
-                    topRect.setY(ty + th - edgeThreshold)
-                else:
-                    topRect = None
+                if not isLocked:
+                    if x > tx and x < tx + edgeThreshold and th != rh:
+                        self._dropEdge = Qt.AnchorPoint.AnchorLeft
+                        topRect.setWidth(edgeThreshold)
+                    elif (
+                        x > tx + tw - edgeThreshold
+                        and x < tx + tw
+                        and th != rh
+                    ):
+                        self._dropEdge = Qt.AnchorPoint.AnchorRight
+                        topRect.setX(tx + tw - edgeThreshold)
+                    elif y > ty and y < ty + edgeThreshold and tw != rw:
+                        self._dropEdge = Qt.AnchorPoint.AnchorTop
+                        topRect.setHeight(edgeThreshold)
+                    elif (
+                        y > ty + th - edgeThreshold
+                        and y < ty + th
+                        and tw != rw
+                    ):
+                        self._dropEdge = Qt.AnchorPoint.AnchorBottom
+                        topRect.setY(ty + th - edgeThreshold)
+                    else:
+                        topRect = None
 
-                if topRect is not None:
-                    self._dropSplit = topSplit
-                    self._dropAction = "makeSplitAtEdge"
-                    self.showDropPlaceHolder(topRect)
-                    return
+                    if topRect is not None:
+                        self._dropSplit = topSplit
+                        self._dropAction = "makeSplitAtEdge"
+                        self.showDropPlaceHolder(topRect)
+                        return
 
                 if isinstance(el, SplitHandle):
                     orient = el.orientation()
@@ -578,7 +590,7 @@ class SplitTabs(QTabBar):
                 if hasToolbar:
                     actions.transferTab = True
                     hasAction = True
-                elif level < 30:
+                elif not isLocked and level < 30:
                     if x < rx + edgeWidth and x >= rx:
                         actions.makeSplitLeft = max(0, (x - rx) / rw)
                         hasAction = True
@@ -599,7 +611,7 @@ class SplitTabs(QTabBar):
                     self.hideDropPlaceHolder()
                     return
 
-                if isOnlyTab:
+                if isOnlyTab and not isLocked:
                     parent = helper.isAlive(currSplit.parent(), Split)
                     targetParent = helper.isAlive(targetSplit.parent(), Split)
                     if parent and targetParent:
@@ -661,43 +673,48 @@ class SplitTabs(QTabBar):
                                     ):
                                         actions.makeSplitBelow = False
 
-                if (
-                    actions.makeSplitLeft is not False
-                    and (
-                        actions.makeSplitAbove is False
-                        or actions.makeSplitLeft <= actions.makeSplitAbove
-                    )
-                    and (
-                        actions.makeSplitBelow is False
-                        or actions.makeSplitLeft <= actions.makeSplitBelow
-                    )
-                ):
-                    targetRect.setWidth(edgeWidth)
-                    self._dropAction = "makeSplitLeft"
-                elif (
-                    actions.makeSplitRight is not False
-                    and (
-                        actions.makeSplitAbove is False
-                        or actions.makeSplitRight <= actions.makeSplitAbove
-                    )
-                    and (
-                        actions.makeSplitBelow is False
-                        or actions.makeSplitRight <= actions.makeSplitBelow
-                    )
-                ):
-                    targetRect.translate(rw - edgeWidth, 0)
-                    targetRect.setWidth(edgeWidth)
-                    self._dropAction = "makeSplitRight"
-                elif actions.makeSplitAbove is not False:
-                    targetRect.setHeight(edgeHeight)
-                    self._dropAction = "makeSplitAbove"
-                elif actions.makeSplitBelow is not False:
-                    targetRect.translate(0, rh - edgeHeight)
-                    targetRect.setHeight(edgeHeight)
-                    self._dropAction = "makeSplitBelow"
-                elif actions.transferTab:
-                    targetRect = targetSplit.globalRect()
-                    self._dropAction = "transferTab"
+                if isLocked:
+                    if actions.transferTab:
+                        targetRect = targetSplit.globalRect()
+                        self._dropAction = "transferTab"
+                else:
+                    if (
+                        actions.makeSplitLeft is not False
+                        and (
+                            actions.makeSplitAbove is False
+                            or actions.makeSplitLeft <= actions.makeSplitAbove
+                        )
+                        and (
+                            actions.makeSplitBelow is False
+                            or actions.makeSplitLeft <= actions.makeSplitBelow
+                        )
+                    ):
+                        targetRect.setWidth(edgeWidth)
+                        self._dropAction = "makeSplitLeft"
+                    elif (
+                        actions.makeSplitRight is not False
+                        and (
+                            actions.makeSplitAbove is False
+                            or actions.makeSplitRight <= actions.makeSplitAbove
+                        )
+                        and (
+                            actions.makeSplitBelow is False
+                            or actions.makeSplitRight <= actions.makeSplitBelow
+                        )
+                    ):
+                        targetRect.translate(rw - edgeWidth, 0)
+                        targetRect.setWidth(edgeWidth)
+                        self._dropAction = "makeSplitRight"
+                    elif actions.makeSplitAbove is not False:
+                        targetRect.setHeight(edgeHeight)
+                        self._dropAction = "makeSplitAbove"
+                    elif actions.makeSplitBelow is not False:
+                        targetRect.translate(0, rh - edgeHeight)
+                        targetRect.setHeight(edgeHeight)
+                        self._dropAction = "makeSplitBelow"
+                    elif actions.transferTab:
+                        targetRect = targetSplit.globalRect()
+                        self._dropAction = "transferTab"
 
                 if self._dropAction:
                     self._dropSplit = targetSplit
@@ -781,6 +798,7 @@ class SplitTabs(QTabBar):
         self._dropEdge = None
         self._dropAction = None
         self._dropSplit = None
+        self._controller.setActiveToolbar(self.parent())
         if index >= 0:
             if btn == Qt.MouseButton.LeftButton:
                 self._sync(index)
@@ -923,7 +941,7 @@ class SplitToolbar(QWidget):
         self._tabs: SplitTabs = SplitTabs(self, controller=controller)
         self._menu: QMenu | None = None
         self._menuBtn: QPushButton | None = None
-
+        self.setMouseTracking(True)
         if SplitToolbar.MenuIcon is None:
             pix = QPixmap(
                 ":/dark_hamburger_menu_dots.svg"
@@ -982,6 +1000,7 @@ class SplitToolbar(QWidget):
         hasTabIndex = tabIndex is not None
         hasTabs = self._tabs.count() > 1
         hasSplits = topSplit.state() == Split.STATE_SPLIT
+        isLocked = self._controller.isLocked()
 
         layoutPath = self._controller.getLayoutPath()
         layoutName = os.path.basename(layoutPath) if layoutPath else None
@@ -1006,25 +1025,25 @@ class SplitToolbar(QWidget):
             MenuAction(
                 text=i18n("Split && Move Left"),
                 callback=lambda: self._split.makeSplitLeft(tabIndex=tabIndex),
-                enabled=hasTabs,
+                enabled=hasTabs and not isLocked,
                 visible=hasTabIndex,
             ),
             MenuAction(
                 text=i18n("Split && Move Right"),
                 callback=lambda: self._split.makeSplitRight(tabIndex=tabIndex),
-                enabled=hasTabs,
+                enabled=hasTabs and not isLocked,
                 visible=hasTabIndex,
             ),
             MenuAction(
                 text=i18n("Split && Move Above"),
                 callback=lambda: self._split.makeSplitAbove(tabIndex=tabIndex),
-                enabled=hasTabs,
+                enabled=hasTabs and not isLocked,
                 visible=hasTabIndex,
             ),
             MenuAction(
                 text=i18n("Split && Move Below"),
                 callback=lambda: self._split.makeSplitBelow(tabIndex=tabIndex),
-                enabled=hasTabs,
+                enabled=hasTabs and not isLocked,
                 separator=True,
                 visible=hasTabIndex,
             ),
@@ -1033,6 +1052,7 @@ class SplitToolbar(QWidget):
                 callback=lambda: self._split.makeSplitLeft(
                     dupe=True, tabIndex=tabIndex
                 ),
+                enabled=not isLocked,
                 visible=hasTabIndex,
             ),
             MenuAction(
@@ -1040,6 +1060,7 @@ class SplitToolbar(QWidget):
                 callback=lambda: self._split.makeSplitRight(
                     dupe=True, tabIndex=tabIndex
                 ),
+                enabled=not isLocked,
                 visible=hasTabIndex,
             ),
             MenuAction(
@@ -1047,6 +1068,7 @@ class SplitToolbar(QWidget):
                 callback=lambda: self._split.makeSplitAbove(
                     dupe=True, tabIndex=tabIndex
                 ),
+                enabled=not isLocked,
                 visible=hasTabIndex,
             ),
             MenuAction(
@@ -1055,6 +1077,7 @@ class SplitToolbar(QWidget):
                     dupe=True, tabIndex=tabIndex
                 ),
                 separator=True,
+                enabled=not isLocked,
                 visible=hasTabIndex,
             ),
             MenuAction(
@@ -1075,10 +1098,12 @@ class SplitToolbar(QWidget):
             MenuAction(
                 text=i18n("Close Split Pane"),
                 callback=lambda: self._split.close(),
+                enabled=not isLocked,
                 separator=True,
             ),
             MenuAction(
                 text=i18n("Reset Layout"),
+                enabled=not isLocked,
                 callback=lambda: self._split.resetLayout(),
             ),
             MenuAction(
@@ -1101,6 +1126,17 @@ class SplitToolbar(QWidget):
             MenuAction(
                 text=i18n("Open Layout"),
                 callback=lambda: self._split.loadLayout(),
+            ),
+            MenuAction(
+                text=i18n("Lock Layout"),
+                callback=lambda: self._controller.lock(),
+                visible=not isLocked,
+                separator=True,
+            ),
+            MenuAction(
+                text=i18n("Unlock Layout"),
+                callback=lambda: self._controller.unlock(),
+                visible=isLocked,
                 separator=True,
             ),
             MenuAction(
@@ -1142,6 +1178,24 @@ class SplitToolbar(QWidget):
             self._menuBtn.move(x, y)
         self._tabs.setFixedHeight(self.height())
         self._tabs.setGeometry(0, 0, x, self.height())
+
+    def mousePressEvent(self, event: QMouseEvent):
+        qwin = self._helper.getQwin()
+        if not qwin:
+            return
+
+        self._controller.setActiveToolbar(self)
+        event.ignore()
+        # forward = QMouseEvent(
+        #     event.type(),
+        #     self.mapTo(self._tabs, event.pos()),
+        #     event.globalPos(),
+        #     event.button(),
+        #     event.buttons(),
+        #     event.modifiers(),
+        # )
+        # # QCoreApplication.sendEvent(self._tabs, forward)
+        # event.accept()
 
 
 class SplitHandle(QWidget):
@@ -1377,9 +1431,6 @@ class Split(QObject):
         self._realignTick = self._helper.uid()
         self._backing = None
 
-        if isinstance(parent, QWidget):
-            self.showCanvasBacking()
-
         mdi = self._helper.getMdi()
         assert mdi
 
@@ -1418,7 +1469,6 @@ class Split(QObject):
 
     def showCanvasBacking(self):
         if not self._backing:
-            # qwin = self._helper.getQwin()
             rect = self.globalRect()
             app = self._helper.getApp()
             mdi = self._helper.getMdi()
@@ -1435,7 +1485,7 @@ class Split(QObject):
             color = self._helper.settingColor("", "canvasBorderColor", "")
             self._backing.setColor(color)
 
-    def hideOverlay(self):
+    def hideCanvasBacking(self):
         if self._backing:
             self._backing.deleteLater()
             self._backing = None
@@ -1628,7 +1678,7 @@ class Split(QObject):
         return windows
 
     def checkShouldClose(self, ts: int = 100):
-        if self._checkClosing:
+        if self._checkClosing or self._controller.isLocked():
             return
         self._checkClosing = True
         helper = self._helper
@@ -1651,8 +1701,10 @@ class Split(QObject):
     def close(self):
         helper = self._helper
         controller = self._controller
+
         if (
             self._closing
+            or controller.isLocked()
             or not helper.isAlive(self, Split)
             or self._state != Split.STATE_COLLAPSED
         ):
@@ -1753,7 +1805,7 @@ class Split(QObject):
             self._second.clear(True)
             self._second = None
         if removeSelf and helper.isAlive(self, Split):
-            self.hideOverlay()
+            self.hideCanvasBacking()
             parent = self.parent()
             if parent and isinstance(parent, Split):
                 if self == parent._first:
@@ -1784,9 +1836,6 @@ class Split(QObject):
         if isinstance(parent, QWidget):
             # this is the origin rect x=0,y=0
             self._rect = parent.rect()
-            self.showCanvasBacking()
-            if self._backing:
-                self._backing.setGeometry(self._rect)
         elif isinstance(parent, Split):
             first = parent._first
             second = parent._second
@@ -1811,6 +1860,10 @@ class Split(QObject):
                         px, hy + hh, pw, max(0, ph - ((hy - py) + hh))
                     )
 
+        self.showCanvasBacking()
+        if self._backing:
+            self._backing.setGeometry(self._rect)
+            
         if self._state == Split.STATE_SPLIT:
             if not self._handle:
                 return
@@ -1826,20 +1879,24 @@ class Split(QObject):
                     self._first.resize()
                 if self._second:
                     self._second.resize()
-        elif self._state == Split.STATE_COLLAPSED and (
-            old_rect != self._rect or self.isForceResizing()
-        ):
-            if self._toolbar is not None:
-                tabBarHeight = getOpt("tab_behaviour", "tab_height")
-                self._toolbar.setFixedHeight(tabBarHeight)
-                self._toolbar.setGeometry(
-                    self._rect.x(),
-                    self._rect.y(),
-                    self._rect.width(),
-                    tabBarHeight,
-                )
-                self.resizeSubWindow()
-            self.resized.emit()
+        else:
+            if self._state == Split.STATE_COLLAPSED and (
+                old_rect != self._rect or self.isForceResizing()
+            ):
+                if self._backing:
+                    self._backing.raise_()
+                if self._toolbar is not None:
+                    tabBarHeight = getOpt("tab_behaviour", "tab_height")
+                    self._toolbar.setFixedHeight(tabBarHeight)
+                    self._toolbar.setGeometry(
+                        self._rect.x(),
+                        self._rect.y(),
+                        self._rect.width(),
+                        tabBarHeight,
+                    )
+                    self.resizeSubWindow()
+
+                self.resized.emit()
 
         if isFirst:
             self._controller.savePreviousLayout()
@@ -1944,7 +2001,9 @@ class Split(QObject):
         handlePos: int | None = None,
     ) -> tuple["Split | None", "Split | None"]:
         tabs = self.tabs()
-        if not (self._state == Split.STATE_COLLAPSED and (tabs or empty)):
+        if self._controller.isLocked() or not (
+            self._state == Split.STATE_COLLAPSED and (tabs or empty)
+        ):
             return (None, None)
 
         isSelf = tabSplit == self
@@ -2062,7 +2121,10 @@ class Split(QObject):
         tabSplit: "Split | None" = None,
         tabIndex: int | None = None,
     ):
-        if self._state == Split.STATE_SPLIT:
+        if (
+            not self._controller.isLocked()
+            and self._state == Split.STATE_SPLIT
+        ):
             assert self._handle is not None
             assert self._first is not None
             assert self._second is not None
@@ -2103,7 +2165,11 @@ class Split(QObject):
         tabIndex: int | None = None,
     ):
         topSplit = self.topSplit()
-        if topSplit and topSplit.state() == Split.STATE_SPLIT:
+        if (
+            not self._controller.isLocked()
+            and topSplit
+            and topSplit.state() == Split.STATE_SPLIT
+        ):
             sizes = topSplit.saveSizes()
 
             first = topSplit.first()
@@ -2271,6 +2337,8 @@ class Split(QObject):
                         handle.moveTo(offset)
 
     def closeEmpties(self):
+        if self._controller.isLocked():
+            return
         helper = self._helper
         if self._state == Split.STATE_COLLAPSED:
             tabs = self.tabs()
@@ -2337,7 +2405,7 @@ class Split(QObject):
                     if os.path.exists(path):
                         files.append(path)
                         if path == activeFile and activeIndex == -1:
-                            activeIndex = len(files) - 1 
+                            activeIndex = len(files) - 1
             splitLayout = {
                 "state": "c",
                 "files": files,
@@ -2366,6 +2434,7 @@ class Split(QObject):
             w, h = qwin.width(), qwin.height()
             return {
                 "state": "s",
+                "locked": self._controller.isLocked(),
                 "layout": splitLayout,
                 "winWidth": w,
                 "winHeight": h,
@@ -2463,6 +2532,7 @@ class Split(QObject):
                 )
             return
 
+        self._controller.unlock(silent=True)
         self.resetLayout()
         firstMost = self.firstMostSplit()
 
@@ -2484,6 +2554,8 @@ class Split(QObject):
         self._restoreSplits(layout, context)
         # need recalc sizes again after all splits are in place
         self.restoreSizes(context.sizes)
+        if layout.get("locked", False):
+            self._controller.lock()
         self._controller.setLayoutPath(layout.get("path", None))
 
         mdi = helper.getMdi()
@@ -2545,11 +2617,11 @@ class Split(QObject):
             activeFile = layout.get("active", None)
             activeIndex = -1
             if isinstance(activeFile, int):
-                activeIndex = activeFile 
+                activeIndex = activeFile
                 activeFile = None
             activeView = None
             files = layout.get("files", [])
-            for i,f in enumerate(layout["files"]):
+            for i, f in enumerate(layout["files"]):
                 handled = False
 
                 if f in context.views:
@@ -2569,7 +2641,9 @@ class Split(QObject):
                         controller.syncView(
                             addView=True, document=doc, split=self
                         )
-                        if not activeView and (f == activeFile or i == activeIndex):
+                        if not activeView and (
+                            f == activeFile or i == activeIndex
+                        ):
                             activeView = self.getActiveTabView()
 
                 if not handled:
@@ -2699,11 +2773,12 @@ class SplitPane(Component):
         self._layoutWriteDebounce: QTimer = QTimer()
         self._layoutWriteDebounce.timeout.connect(self._debounceSaveLayout)
         self._layoutWriteTime = time.monotonic()
-        self._activeLayoutPath: str | None = None 
+        self._activeLayoutPath: str | None = None
         self._canvasColor: str | None = None
         self._currTheme: str | None = None
+        self._layoutLocked: bool = False
         self._overrides = {}
-        
+
         tabBehaviour = getOpt("tab_behaviour")
         for k in tabBehaviour.keys():
             self._overrides[k] = tabBehaviour[k]
@@ -2752,6 +2827,13 @@ class SplitPane(Component):
             self.loadLayout,
         )
 
+        _ = self._helper.newAction(
+            window,
+            "krita_ui_tweaks_toggle_layout_lock",
+            i18n("Toggle Layout Locked"),
+            self.toggleLock,
+        )
+
         qapp = typing.cast(QApplication, QApplication.instance())
         qapp.aboutToQuit.connect(lambda: self.onQuit())
 
@@ -2767,6 +2849,35 @@ class SplitPane(Component):
 
     def onQuit(self):
         self._quit = True
+
+    def isLocked(self):
+        mdi = self._helper.getMdi()
+        if not mdi:
+            return False
+        return (
+            self._layoutLocked
+            and getOpt("toggle", "split_panes")
+            and mdi.viewMode() == QMdiArea.ViewMode.TabbedView
+        )
+
+    def lock(self, silent: bool = False):
+        self._layoutLocked = True
+        if not silent:
+            self._helper.showToast(i18n("Layout locked"))
+
+    def unlock(self, silent: bool = False):
+        self._layoutLocked = False
+        if not silent:
+            self._helper.showToast(i18n("Layout unlocked"))
+
+    def toggleLock(self, silent: bool = False):
+        self._layoutLocked = not self._layoutLocked
+        if not silent:
+            self._helper.showToast(
+                i18n("Layout locked")
+                if self._layoutLocked
+                else i18n("Layout unlocked")
+            )
 
     def setLayoutPath(self, path: str | None):
         self._activeLayoutPath = path
@@ -2858,7 +2969,11 @@ class SplitPane(Component):
                     app.writeSetting(
                         "krita_ui_tweaks",
                         "restoreLayoutPath",
-                        self._activeLayoutPath if self._activeLayoutPath else ""  
+                        (
+                            self._activeLayoutPath
+                            if self._activeLayoutPath
+                            else ""
+                        ),
                     )
                 except:
                     pass
@@ -2971,7 +3086,9 @@ class SplitPane(Component):
                     )
                     if isinstance(layout, dict):
                         loadLayout = typing.cast(SavedLayout, layout)
-                        layoutPath = app.readSetting("krita_ui_tweaks", "restoreLayoutPath", "")
+                        layoutPath = app.readSetting(
+                            "krita_ui_tweaks", "restoreLayoutPath", ""
+                        )
                         if os.path.exists(layoutPath):
                             loadLayout["path"] = layoutPath
                 except:
@@ -2985,6 +3102,7 @@ class SplitPane(Component):
             and isEnabled
         ):
             if not self._split:
+                self._layoutLocked = False
                 self._viewData = {}
 
                 self._split = Split(parent=central, controller=self)
@@ -3044,6 +3162,7 @@ class SplitPane(Component):
 
                 QTimer.singleShot(0, cb)
 
+            self._layoutLocked = False
             self._viewData = {}
             self._split.clear(True)
             self._split = None
