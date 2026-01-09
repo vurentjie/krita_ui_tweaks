@@ -30,7 +30,7 @@ import os
 import json
 import typing
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 C = dict[str, dict[str, str | bool]]
 
