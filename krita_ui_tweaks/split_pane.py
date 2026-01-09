@@ -798,7 +798,6 @@ class SplitTabs(QTabBar):
         self._dropEdge = None
         self._dropAction = None
         self._dropSplit = None
-        self.parent().makeActiveToolbar()
         if index >= 0:
             if btn == Qt.MouseButton.LeftButton:
                 self._sync(index)
@@ -820,6 +819,8 @@ class SplitTabs(QTabBar):
                 if parent:
                     parent.showMenu(event, tabIndex=index)
             self.tabPress.emit(event, index)
+        else:
+            self.parent().makeActiveToolbar()
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
