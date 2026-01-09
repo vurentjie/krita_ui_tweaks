@@ -2378,8 +2378,7 @@ class Split(QObject):
                         "Krita",
                         i18n(
                             "Some documents are not saved to disk. These will not be included."
-                        ),
-                        i18n("Do you wish to continue?"),
+                        ) + "\n\n" + i18n("Do you wish to continue?"),
                         QMessageBox.StandardButton.No
                         | QMessageBox.StandardButton.Yes,
                         QMessageBox.StandardButton.No,
@@ -2391,6 +2390,7 @@ class Split(QObject):
                         break
 
         splitLayout = None
+        isActiveSplit = self == self._controller.defaultSplit()
         if self._state == Split.STATE_COLLAPSED:
             tabs = self.tabs()
             assert tabs is not None
@@ -2412,6 +2412,7 @@ class Split(QObject):
                 "state": "c",
                 "files": files,
                 "active": activeIndex,
+                "isActiveSplit": isActiveSplit
             }
 
         elif self._state == Split.STATE_SPLIT:
@@ -2551,6 +2552,7 @@ class Split(QObject):
             savedWidth=w,
             savedHeight=h,
             sizes=[],
+            activeSplit=None
         )
 
         self._restoreSplits(layout, context)
@@ -2559,6 +2561,18 @@ class Split(QObject):
         if layout.get("locked", False):
             self._controller.lock()
         self._controller.setLayoutPath(layout.get("path", None))
+        
+        if context.activeSplit:
+            toolbar = context.activeSplit.toolbar()
+        else:
+            firstMost = self.firstMostSplit()
+            toolbar = firstMost.toolbar() if firstMost else None 
+
+        if toolbar:
+            toolbar.makeActiveToolbar()
+
+
+
 
         mdi = helper.getMdi()
         assert mdi is not None
@@ -2618,6 +2632,9 @@ class Split(QObject):
             # XXX need to check active file for backward compatibility
             activeFile = layout.get("active", None)
             activeIndex = -1
+            if layout.get("isActiveSplit", False):
+                context.activeSplit = self
+                
             if isinstance(activeFile, int):
                 activeIndex = activeFile
                 activeFile = None
