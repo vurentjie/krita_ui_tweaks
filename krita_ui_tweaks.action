@@ -38,5 +38,9 @@
             <icon></icon>
             <text>Load Layout</text>
         </Action>
+        <Action name="krita_ui_tweaks_toggle_layout_lock">
+            <icon></icon>
+            <text>Toggle Layout Locked</text>
+        </Action>
     </Actions>
 </ActionCollection>

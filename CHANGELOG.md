@@ -53,3 +53,9 @@ _Initial release._
 - _Shortcuts_: configurable shortcuts for the actions (Save/Open Layouts)
 - _Hide the menu button_: added an option to hide the menu button (3 dots)
 
+## v1.0.3 - 2026-09-01
+
+### Added:
+
+- _Layout locking_: adding ability to lock layouts
+
