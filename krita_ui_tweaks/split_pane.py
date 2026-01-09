@@ -798,7 +798,7 @@ class SplitTabs(QTabBar):
         self._dropEdge = None
         self._dropAction = None
         self._dropSplit = None
-        self._controller.setActiveToolbar(self.parent())
+        self.parent().makeActiveToolbar()
         if index >= 0:
             if btn == Qt.MouseButton.LeftButton:
                 self._sync(index)
@@ -1179,9 +1179,16 @@ class SplitToolbar(QWidget):
         self._tabs.setFixedHeight(self.height())
         self._tabs.setGeometry(0, 0, x, self.height())
 
-    def mousePressEvent(self, event: QMouseEvent):
-        self._controller.setActiveToolbar(self)
-        event.ignore()
+    def makeActiveToolbar(self):
+        if not self._helper.isAlive(self._split, Split):
+            return
+        controller = self._controller
+        controller.setActiveToolbar(self)
+        view = self._split.getActiveTabView()
+        if view:
+            kritaTab = controller.getIndexByView(view)
+            if kritaTab != -1:
+                controller.syncView(index=kritaTab, split=self._split)
 
 
 class SplitHandle(QWidget):

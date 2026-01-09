@@ -59,3 +59,8 @@ _Initial release._
 
 - _Layout locking_: adding ability to lock layouts
 
+### Fixed:
+
+- _Toolbar click_: clicking toolbar should make it's split pane active AND
+  activate its current tab (if any). 
+
