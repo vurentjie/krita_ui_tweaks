@@ -6,6 +6,7 @@
 ## Downloads
 If the latest version has any issues, you can download an older version.
 
+- [v1.0.3.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.3.zip) 
 - [v1.0.2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.2.zip) 
 - [v1.0.1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.1.zip) 
 - [v1.0.0.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.0.zip) (original release)
@@ -26,6 +27,16 @@ All items below are enabled by default but can be disabled in the plugin options
 - *Toggle Docking*: enable or disable docking when dragging floating dockers to dockable regions
 - *Save and Restore Layouts*: Menu options and shortcuts to save and restore split pane layouts as JSON files. Config option to restart Krita with your previously opened splits panes. 
 - *Tab Options*: Configure the tab appearance (height, max chars, etc) and tab dragging behaviour in the options menu.  
+- *Layout locking*:
+  You can now lock a layout (see preview below). This is helpful when you want to move images around but keep the same layout.
+
+  
+  - When layout's are locked you cannot add or remove split panes.
+  - You can drag tabs from one split to another.
+  - Closing tabs does not close the split pane.
+  - Closing the very last document will take you back to the home screen.
+  - There is a menu option and a shortcut to toggle locking.
+  - Some other menu options will become disabled when locked.
 
 ---
 
@@ -60,6 +71,19 @@ Instructional video:
 https://github.com/user-attachments/assets/8da930e0-4f5b-4da1-9fe9-e7bb2000bb1a
 
 ---
+
+You can now lock layouts to avoid closing splits when moving tabs around:
+
+
+
+https://github.com/user-attachments/assets/223fcc58-179a-40a9-9f4d-1741705ec701
+
+
+---
+
+
+
+
 
 Options 
 
