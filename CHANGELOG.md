@@ -63,4 +63,6 @@ _Initial release._
 
 - _Toolbar click_: clicking toolbar should make it's split pane active AND
   activate its current tab (if any). 
+- _Syntax error_: there was error occuring when saving layout when at least one open
+  document is new and not associated with a file on disk.  
 
