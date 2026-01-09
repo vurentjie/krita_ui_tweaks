@@ -2,4 +2,4 @@
 include = ["krita_ui_tweaks"]
 
 [environment]
-extra-paths = ["./typings/krita", "./typings/PyQt5"]
+extra-paths = ["./typings/krita", "./typings/PyQt5", "./typings/PyQt6"]

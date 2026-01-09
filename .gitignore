@@ -4,6 +4,7 @@ venv/
 dist/
 build/
 typings/
+typings
 
 .hg
 .svn
