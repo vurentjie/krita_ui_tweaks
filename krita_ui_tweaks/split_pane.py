@@ -1180,22 +1180,8 @@ class SplitToolbar(QWidget):
         self._tabs.setGeometry(0, 0, x, self.height())
 
     def mousePressEvent(self, event: QMouseEvent):
-        qwin = self._helper.getQwin()
-        if not qwin:
-            return
-
         self._controller.setActiveToolbar(self)
         event.ignore()
-        # forward = QMouseEvent(
-        #     event.type(),
-        #     self.mapTo(self._tabs, event.pos()),
-        #     event.globalPos(),
-        #     event.button(),
-        #     event.buttons(),
-        #     event.modifiers(),
-        # )
-        # # QCoreApplication.sendEvent(self._tabs, forward)
-        # event.accept()
 
 
 class SplitHandle(QWidget):
