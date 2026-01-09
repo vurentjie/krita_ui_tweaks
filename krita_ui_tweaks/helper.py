@@ -127,6 +127,8 @@ class Helper:
             obj = obj.document()
         if isinstance(obj, Document):
             uid = obj.rootNode().uniqueId()
+            if uid not in self._docData:
+                self._docData[uid] = DocumentData(doc={}, views=[])
             return self._docData.get(uid, None)
 
     def getViewData(self, view: View | None) -> dict[Any, Any] | None:
