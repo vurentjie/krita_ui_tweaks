@@ -6,6 +6,7 @@
 ## Downloads
 If the latest version has any issues, you can download an older version.
 
+- [v1.0.4.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.4.zip) 
 - [v1.0.3.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.3.zip) 
 - [v1.0.2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.2.zip) 
 - [v1.0.1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.1.zip) 
@@ -37,7 +38,7 @@ All items below are enabled by default but can be disabled in the plugin options
   - Closing the very last document will take you back to the home screen.
   - There is a menu option and a shortcut to toggle locking.
   - Some other menu options will become disabled when locked.
-
+- *Custom colors*: You can set your own custom background colors
 ---
 
 Screenshot of split panes:
@@ -90,4 +91,5 @@ Options
 <img width="564" height="557" alt="screenshot - options" src="https://github.com/user-attachments/assets/e963a2c0-785d-4a5a-8d74-74760ed1a851" />
 <img width="564" height="557" alt="screenshot - options 2 " src="https://github.com/user-attachments/assets/ca791dd4-4224-4656-9213-04739b70fe71" />
 <img width="564" height="557" alt="screenshot - options 3" src="https://github.com/user-attachments/assets/932b1af7-f249-450b-9355-a9c0ca55fa72" />
+<img width="562" height="637" alt="Screenshot from 2026-01-10 14-38-12" src="https://github.com/user-attachments/assets/ccbd631d-135e-4b19-a158-9d7c0c243e1d" />
 
