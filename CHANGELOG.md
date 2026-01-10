@@ -66,3 +66,8 @@ _Initial release._
 - _Syntax error_: there was error occuring when saving layout when at least one open
   document is new and not associated with a file on disk.  
 
+## v1.0.4 - 2026-10-01
+
+### Added:
+
+- _Custom colors_: ability to adjust the ui colors

@@ -88,6 +88,7 @@ QWindow = QtGui.QWindow
 QAbstractScrollArea = QtWidgets.QAbstractScrollArea
 QApplication = QtWidgets.QApplication
 QCheckBox = QtWidgets.QCheckBox
+QColorDialog = QtWidgets.QColorDialog
 QComboBox = QtWidgets.QComboBox
 QDialogButtonBox = QtWidgets.QDialogButtonBox
 QDialog = QtWidgets.QDialog

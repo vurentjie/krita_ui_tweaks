@@ -5,14 +5,23 @@ from .pyqt import (
     Qt,
     QApplication,
     QCheckBox,
+    QColor,
+    QColorDialog,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QIcon,
     QLabel,
     QLineEdit,
+    QMouseEvent,
     QObject,
+    QPainter,
+    QPaintEvent,
+    QPen,
+    QPoint,
+    QPushButton,
     QScrollArea,
     QSpinBox,
     QTabWidget,
@@ -21,20 +30,89 @@ from .pyqt import (
 )
 
 from krita import Krita
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from types import SimpleNamespace
 
 from .i18n import i18n, i18n_reset
+from .colors import ColorScheme, HasColorScheme
 
 import os
 import json
 import typing
+import time
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 
-C = dict[str, dict[str, str | bool]]
+CONFIG_SECTION_TYPE = dict[str, str | bool | int]
+CONFIG_TYPE = dict[str, CONFIG_SECTION_TYPE]
 
-_global_config: C | None = None
+_global_config: CONFIG_TYPE | None = None
+
+
+class ColorButton(QWidget):
+    colorChanged = pyqtSignal(QColor)
+
+    def __init__(
+            self, parent=None, color=QColor("white"), resetColor=QColor("white"), customColors: list[QColor]|None = []
+    ):
+        super().__init__(parent)
+        self._color: QColor = QColor(color)
+        self._resetColor: QColor = QColor(resetColor)
+        self._customColors: list[QColor]|None = customColors
+        self.setFixedSize(24, 24)
+
+    def paintEvent(self, _: QPaintEvent):
+        rect = self.rect()
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, False)
+        p.fillRect(rect, self._color)
+
+        borderColor = self._color.darker(120)
+        pen = QPen(borderColor)
+        pen.setWidth(1)
+        p.setPen(pen)
+        p.drawRect(rect.adjusted(0, 0, -1, -1))
+
+    def reset(self):
+        self.setColor(self._resetColor)
+
+    def color(self) -> QColor:
+        return self._color
+
+    def value(self) -> str:
+        return self._color.name()
+
+    def setColor(self, color: QColor):
+        if color.isValid() and color != self._color:
+            self._color = QColor(color)
+            self.update()
+            self.colorChanged.emit(self._color)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton:
+            dlg = QColorDialog(self._color, self)
+             
+            for k,v in enumerate(self._customColors):
+                dlg.setCustomColor(k,QColor(v))
+
+            dlg.setOption(QColorDialog.ShowAlphaChannel, False)
+            dlg.adjustSize()
+            button_rect = self.rect()
+            global_pos = self.mapToGlobal(button_rect.topRight())
+            offset = QPoint(self.width() + 5, 0)
+            dlg.move(global_pos + offset)
+            dlg.colorSelected.connect(self.setColor)
+            dlg.open()
+        super().mousePressEvent(event)
+
+
+@dataclass
+class ColorItem:
+    input: ColorButton
+    label: QLabel
+    extra: QWidget | list[QWidget] | None
+    section: str
 
 
 @dataclass
@@ -62,21 +140,34 @@ class NumberItem:
     extra: QWidget | list[QWidget] | None
 
 
+FormItem = ToggleItem | NumberItem | InputItem | ColorItem
+FormItems = dict[str, FormItem]
+
+
 class Signals(QObject):
-    configSaved = pyqtSignal()
+    configSaved = pyqtSignal(object)
 
 
 signals = Signals()
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        controller: HasColorScheme | None = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle(i18n("UI Tweaks"))
         self.setMinimumWidth(400)
         self.setMinimumHeight(600)
 
-        self._config: C = readConfig()
+        self._controller = controller
+        self._helper = self._controller.helper()
+        self._config: CONFIG_TYPE = readConfig()
+
+        val = "dark" if self._helper.useDarkIcons() else "light"
+        self._resetIcon = QIcon(f":/{val}_reload-preset.svg")
 
         sections = SimpleNamespace(
             tabAppearance=i18n("Tab Appearance"),
@@ -84,9 +175,10 @@ class SettingsDialog(QDialog):
             splitPanes=i18n("Split Panes"),
             tools=i18n("Tools"),
             dockers=i18n("Dockers"),
+            colors=i18n("Colors"),
         )
-        
-        self._translated: dict[str, QLineEdit] = {}
+
+        self._translated: FormItems = {}
 
         for k in self._config.get("translated", {}).keys():
             self._translated[k] = InputItem(
@@ -97,7 +189,7 @@ class SettingsDialog(QDialog):
                 extra=None,
             )
 
-        self._tabBehaviour: dict[str, ToggleItem | NumberItem] = {
+        self._tabBehaviour: FormItems = {
             "tab_max_chars": NumberItem(
                 input=QSpinBox(),
                 label=QLabel(i18n("Max characters to show")),
@@ -182,7 +274,7 @@ class SettingsDialog(QDialog):
             ),
         }
 
-        self._toggle: dict[str, ToggleItem] = {
+        self._toggle: FormItems = {
             "split_panes": ToggleItem(
                 input=QCheckBox(i18n("Enable split panes")),
                 section=sections.splitPanes,
@@ -229,14 +321,46 @@ class SettingsDialog(QDialog):
             ),
         }
 
+        colorLabels: dict[str, str] = {
+            "bar": i18n("Tab bar background"),
+            "tab": i18n("Tab background"),
+            "tabSelected": i18n("Tab selected background"),
+            "tabActive": i18n("Tab active background"),
+            "tabSeparator": i18n("Tab separator"),
+            "tabClose": i18n("Close button background when hovered"),
+            "splitHandle": i18n("Split drag handle"),
+            "dropZone": i18n("Drop zone"),
+            "dragTab": i18n("Drag tab indicator"),
+        }
+        schemeColors = self._controller.colors()
+        configColors = self._config.get("colors", {})
+        customColors = [getattr(schemeColors, f.name) for f in fields(schemeColors)]
+        # fill update the empty slots
+        customColors.extend(["#181818", "#282828", "#383838", "#474747", "#565656", "#646464", "#717171", "#7e7e7e"])
+
+        self._colors: FormItems = {}
+        for k in colorLabels.keys():
+            color = configColors[k]
+            resetColor = getattr(schemeColors, k, None)
+            if not color:
+                color = resetColor
+            self._colors[k] = ColorItem(
+                input=ColorButton(color=color, resetColor=resetColor, customColors = customColors),
+                label=QLabel(colorLabels[k]),
+                section=sections.colors,
+                extra=None,
+            )
+
         self.tabs = QTabWidget()
         self.optionsTab = self._setupOptionsTab()
         self.translateTab = self._setupTranslateTab()
         self.behaviourTab = self._setupBehaviourTab()
+        self.colorsTab = self._setupColorsTab()
         self.aboutTab = self._setupAboutTab()
 
         self.tabs.addTab(self.optionsTab, i18n("Options"))
         self.tabs.addTab(self.behaviourTab, i18n("Behaviour"))
+        self.tabs.addTab(self.colorsTab, i18n("Colors"))
         self.tabs.addTab(self.translateTab, i18n("Translate"))
         self.tabs.addTab(self.aboutTab, i18n("About"))
 
@@ -256,29 +380,30 @@ class SettingsDialog(QDialog):
     def _escape(self, val: str) -> str:
         return val.replace("&", "&&")
 
-    def _getFormValue(
-        self, item: ToggleItem | InputItem | NumberItem
-    ) -> typing.Any:
+    def _getFormValue(self, item: FormItem) -> typing.Any:
         t = type(item)
         if t == ToggleItem:
             return item.input.isChecked()
         elif t == InputItem:
             val = item.input.text().strip()
-            return self._escape(val) if item.escape else val
-        elif t == NumberItem:
+            return (
+                self._escape(val)
+                if typing.cast(InputItem, item).escape
+                else val
+            )
+        elif t in (ColorItem, NumberItem):
             return item.input.value()
 
     def _renderFormItem(
-        self,
-        form: QWidget,
-        key: tuple[str, str],
-        item: ToggleItem | InputItem | NumberItem,
+        self, form: QWidget, key: tuple[str, str], item: FormItem
     ) -> QWidget | None:
         t = type(item)
         if t == ToggleItem:
             item.input.setChecked(typing.cast(bool, getOpt(*key)))
             form.addRow(item.input)
         elif t == InputItem:
+            item = typing.cast(InputItem, item)
+            assert item.label is not None
             val = getOpt(*key)
             if item.escape:
                 val = self._unescape(val)
@@ -291,15 +416,33 @@ class SettingsDialog(QDialog):
             v.addWidget(item.input)
             form.addRow(block)
         elif t == NumberItem:
+            item = typing.cast(NumberItem, item)
+            assert item.label is not None
+            assert item.clamp is not None
             item.input.setRange(item.clamp[0], item.clamp[1])
             item.input.setFixedWidth(100)
             item.input.setValue(getOpt(*key))
             item.label.setTextFormat(Qt.TextFormat.RichText)
             form.addRow(item.label, item.input)
+        elif t == ColorItem:
+            item = typing.cast(ColorItem, item)
+            reset = QPushButton()
+            reset.setIcon(self._resetIcon)
+            reset.setToolTip(i18n("Reset to default color"))
+            reset.clicked.connect(item.input.reset)
+            reset.setFixedWidth(30)
+
+            block = QWidget()
+            v = QHBoxLayout(block)
+            v.setContentsMargins(0, 0, 0, 0)
+            v.addWidget(item.input)
+            v.addWidget(item.label)
+            v.addWidget(reset)
+            form.addRow(block)
         if item.extra:
             if not isinstance(item.extra, list):
                 item.extra = [item.extra]
-                
+
             field = QHBoxLayout()
             for extra in item.extra:
                 if isinstance(extra, QLabel):
@@ -336,6 +479,9 @@ class SettingsDialog(QDialog):
 
     def _setupOptionsTab(self):
         return self._renderTabForm("toggle", self._toggle)
+
+    def _setupColorsTab(self):
+        return self._renderTabForm("colors", self._colors)
 
     def _setupTranslateTab(self):
         return self._renderTabForm("translated", self._translated)
@@ -380,14 +526,27 @@ class SettingsDialog(QDialog):
             if k == "restore_layout" and checked:
                 Krita.instance().writeSetting("", "sessionOnStartup", "0")
 
+        schemeColors = self._controller.colors()
+        colorsChanged = False
+        configColors = self._config.get("colors", {})
+        
+        for _, (k, v) in enumerate(self._colors.items()):
+            color = self._getFormValue(v)
+            currColor = configColors.get(k, "")
+            resetColor = getattr(schemeColors, k, None)
+            newColor = "" if color == resetColor else color
+            if newColor != currColor:
+                colorsChanged = True
+            config["colors"][k] = newColor 
+
         writeConfig(config)
         _global_config = config
         i18n_reset()
-        signals.configSaved.emit()
+        signals.configSaved.emit({ "colorsChanged": colorsChanged })
 
 
-def defaultConfig() -> C:
-    config: C = {
+def defaultConfig() -> CONFIG_TYPE:
+    config: CONFIG_TYPE = {
         "tab_behaviour": {
             "tab_hide_menu_btn": False,
             "tab_max_chars": 30,
@@ -434,6 +593,18 @@ def defaultConfig() -> C:
             "hide_floating_message": False,
             "toggle_docking": True,
         },
+        "colors": {
+            # NOTE these are camelCase for convenient lookup
+            "bar": "",
+            "tab": "",
+            "tabSeparator": "",
+            "tabSelected": "",
+            "tabActive": "",
+            "tabClose": "",
+            "splitHandle": "",
+            "dropZone": "",
+            "dragTab": "",
+        },
     }
     return config
 
@@ -471,9 +642,8 @@ def setOpt(*args: typing.Any):
             break
 
     if item is not None:
-        item[key] = (
-            val  # pyright: ignore [reportIndexIssue, reportArgumentType]
-        )
+        item = typing.cast(CONFIG_SECTION_TYPE, item)
+        item[key] = val
         writeConfig(_global_config)
 
 
@@ -483,7 +653,7 @@ def readConfig():
     try:
         config = json.loads(app.readSetting("krita_ui_tweaks", "options", ""))
         assert isinstance(config, dict)
-        config = typing.cast(C, config)
+        config = typing.cast(CONFIG_TYPE, config)
         for section in defaults.keys():
             if not isinstance(config.get(section, None), dict):
                 config[section] = defaults[section]
@@ -498,12 +668,12 @@ def readConfig():
     return config
 
 
-def writeConfig(config: C):
+def writeConfig(config: CONFIG_TYPE):
     app = Krita.instance()
     app.writeSetting("krita_ui_tweaks", "options", json.dumps(config))
 
 
-def showOptions():
-    dlg = SettingsDialog()
+def showOptions(controller: HasColorScheme):
+    dlg = SettingsDialog(controller=controller)
     if dlg.exec() == QDialog.Accepted:
         dlg.onAccepted()

@@ -24,7 +24,7 @@ class Tools(Component):
             window,
             "krita_ui_tweaks",
             i18n("Krita UI Tweaks"),
-            showOptions,
+            self.showOptions,
             menu=True,
         )
 
@@ -73,6 +73,9 @@ class Tools(Component):
         }
 
         OptionSignals.configSaved.connect(self.onConfigSave)
+
+    def showOptions(self):
+        showOptions(self._componentGroup["splitPane"])
 
     def onConfigSave(self):
         qwin = self._helper.getQwin()

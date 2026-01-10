@@ -39,7 +39,7 @@ from .pyqt import (
 )
 
 from krita import Window, View, Document
-from dataclasses import dataclass
+from dataclasses import dataclass, replace, fields
 from contextlib import contextmanager
 from typing import Any, TypedDict
 from types import SimpleNamespace
@@ -48,6 +48,7 @@ from .component import Component, COMPONENT_GROUP
 from .options import showOptions, getOpt, setOpt, signals as OptionSignals
 from .helper import Helper
 from .i18n import i18n
+from .colors import ColorScheme, HasColorScheme
 
 import typing
 import re
@@ -406,9 +407,9 @@ class SplitTabs(QTabBar):
             return
 
         if self._dragPlaceHolder is None:
-            colors = self._controller.colors()
+            colors = self._controller.adjustedColors()
             assert colors is not None
-            bg = QColor(colors.tabActive)
+            bg = QColor(colors.dragTab)
             fg = QColor(colors.tabText)
             self._dragPlaceHolder = TabDragRect(
                 parent=qwin,
@@ -439,11 +440,11 @@ class SplitTabs(QTabBar):
             return
 
         if self._dropPlaceHolder is None:
-            palette = self._controller.colors()
+            palette = self._controller.adjustedColors()
             assert palette is not None
-            color = QColor(palette.tabActive)
+            color = QColor(palette.dropZone)
             color.setAlpha(50)
-            altColor = QColor(palette.tabActive).darker(150)
+            altColor = QColor(palette.dropZone).darker(150)
             altColor.setAlpha(100)
             self._dropPlaceHolder = TabDragRect(
                 qwin, color=color, altColor=altColor
@@ -977,14 +978,22 @@ class SplitToolbar(QWidget):
             "tab_behaviour", "tab_hide_menu_btn"
         ):
             self._menuBtn = QPushButton("", self)
-            self._menuBtn.setIcon(SplitToolbar.MenuIconDark if self._helper.useDarkIcons() else SplitToolbar.MenuIconLight)
+            self._menuBtn.setIcon(
+                SplitToolbar.MenuIconDark
+                if self._helper.useDarkIcons()
+                else SplitToolbar.MenuIconLight
+            )
             self._menuBtn.setProperty("class", "menuButton")
             self._menuBtn.setFixedSize(38, self._tabs.height())
             self._menuBtn.clicked.connect(self.showMenu)
-            
+
     def updateMenuBtn(self):
         if self._menuBtn:
-            self._menuBtn.setIcon(SplitToolbar.MenuIconDark if self._helper.useDarkIcons() else SplitToolbar.MenuIconLight)
+            self._menuBtn.setIcon(
+                SplitToolbar.MenuIconDark
+                if self._helper.useDarkIcons()
+                else SplitToolbar.MenuIconLight
+            )
 
     def hideMenuBtn(self):
         if self._menuBtn:
@@ -1148,7 +1157,7 @@ class SplitToolbar(QWidget):
             ),
             MenuAction(
                 text=i18n("Options"),
-                callback=showOptions,
+                callback=lambda: showOptions(self._controller),
             ),
         ]
 
@@ -1204,13 +1213,14 @@ class SplitHandle(QWidget):
     def __init__(
         self,
         split: "Split",
-        helper: Helper,
+        controller: "SplitPane",
         orient: Qt.Orientation | None = None,
         pos: int | None = None,
     ):
-        super().__init__(helper.getMdi())
+        super().__init__(controller._helper.getMdi())
         self.setObjectName("SplitHandle")
-        self._helper: Helper = helper
+        self._controller: "SplitPane" = controller
+        self._helper: Helper = controller._helper
         self._split: "Split" = split
         self._lastMousePos: QPoint = QPoint()
         self._dragging: bool = False
@@ -1239,8 +1249,8 @@ class SplitHandle(QWidget):
 
     def paintEvent(self, _: QPaintEvent):
         p = QPainter(self)
-        bg = self._helper.paletteColor("Window")
-        p.fillRect(self.rect(), bg)
+        colors = self._controller.adjustedColors()
+        p.fillRect(self.rect(), QColor(colors.splitHandle))
 
     def globalRect(self):
         qwin = self._helper.getQwin()
@@ -1454,7 +1464,7 @@ class Split(QObject):
             self._toolbar.show()  # ty: ignore[possibly-missing-attribute]
         else:
             self._handle = SplitHandle(
-                self, helper=self._helper, orient=orient
+                self, controller=self._controller, orient=orient
             )
             assert self._first is not None
             assert self._second is not None
@@ -1876,9 +1886,9 @@ class Split(QObject):
                 self._handle.clamp()
                 self._lastHandleRect = handleRect
                 if self._first:
-                    self._first.resize(refreshIcons = refreshIcons)
+                    self._first.resize(refreshIcons=refreshIcons)
                 if self._second:
-                    self._second.resize(refreshIcons = refreshIcons)
+                    self._second.resize(refreshIcons=refreshIcons)
         else:
             if self._state == Split.STATE_COLLAPSED and (
                 old_rect != self._rect or self.isForceResizing()
@@ -2012,7 +2022,7 @@ class Split(QObject):
         toolbar = self._toolbar
         self._toolbar = None
         self._handle = SplitHandle(
-            self, helper=self._helper, orient=orient, pos=handlePos
+            self, controller=self._controller, orient=orient, pos=handlePos
         )
 
         if swap:
@@ -2138,7 +2148,7 @@ class Split(QObject):
             toolbar = split._toolbar
             split._toolbar = None
             split._handle = SplitHandle(
-                split, helper=self._helper, orient=orient
+                split, controller=self._controller, orient=orient
             )
             split._first = Split(
                 split, toolbar=toolbar, controller=self._controller
@@ -2378,7 +2388,9 @@ class Split(QObject):
                         "Krita",
                         i18n(
                             "Some documents are not saved to disk. These will not be included."
-                        ) + "\n\n" + i18n("Do you wish to continue?"),
+                        )
+                        + "\n\n"
+                        + i18n("Do you wish to continue?"),
                         QMessageBox.StandardButton.No
                         | QMessageBox.StandardButton.Yes,
                         QMessageBox.StandardButton.No,
@@ -2412,7 +2424,7 @@ class Split(QObject):
                 "state": "c",
                 "files": files,
                 "active": activeIndex,
-                "isActiveSplit": isActiveSplit
+                "isActiveSplit": isActiveSplit,
             }
 
         elif self._state == Split.STATE_SPLIT:
@@ -2552,7 +2564,7 @@ class Split(QObject):
             savedWidth=w,
             savedHeight=h,
             sizes=[],
-            activeSplit=None
+            activeSplit=None,
         )
 
         self._restoreSplits(layout, context)
@@ -2561,18 +2573,15 @@ class Split(QObject):
         if layout.get("locked", False):
             self._controller.lock()
         self._controller.setLayoutPath(layout.get("path", None))
-        
+
         if context.activeSplit:
             toolbar = context.activeSplit.toolbar()
         else:
             firstMost = self.firstMostSplit()
-            toolbar = firstMost.toolbar() if firstMost else None 
+            toolbar = firstMost.toolbar() if firstMost else None
 
         if toolbar:
             toolbar.makeActiveToolbar()
-
-
-
 
         mdi = helper.getMdi()
         assert mdi is not None
@@ -2634,7 +2643,7 @@ class Split(QObject):
             activeIndex = -1
             if layout.get("isActiveSplit", False):
                 context.activeSplit = self
-                
+
             if isinstance(activeFile, int):
                 activeIndex = activeFile
                 activeFile = None
@@ -2785,7 +2794,8 @@ class SplitPane(Component):
         self._viewData: dict[int, ViewData] = {}
         self._split: Split | None = None
         self._activeToolbar: SplitToolbar | None = None
-        self._colors: SimpleNamespace | None = None
+        self._colors: ColorScheme | None = None
+        self._adjustedColors: ColorScheme | None = None
         self._optEnabled = getOpt("toggle", "split_panes")
         self._layoutRestored = False
         self._layoutLoading = False
@@ -2798,9 +2808,11 @@ class SplitPane(Component):
         self._layoutLocked: bool = False
         self._overrides = {}
 
-        tabBehaviour = getOpt("tab_behaviour")
-        for k in tabBehaviour.keys():
-            self._overrides[k] = tabBehaviour[k]
+        for section in ("tab_behaviour", "colors"):
+            items = getOpt(section)
+            self._overrides[section] = {}
+            for k in items.keys():
+                self._overrides[section][k] = items[k]
 
         app = self._helper.getApp()
         if app:
@@ -2866,6 +2878,9 @@ class SplitPane(Component):
                 self._debounceSaveLayout
             )
 
+    def helper(self):
+        return self._helper
+
     def onQuit(self):
         self._quit = True
 
@@ -2919,7 +2934,7 @@ class SplitPane(Component):
         if topSplit:
             topSplit.loadLayout()
 
-    def onConfigSave(self):
+    def onConfigSave(self, context: dict[str, Any]):
         isEnabled = getOpt("toggle", "split_panes")
         if isEnabled != self._optEnabled:
             self.toggleStyles()
@@ -2929,6 +2944,7 @@ class SplitPane(Component):
         if getOpt("toggle", "restore_layout"):
             self._debounceSaveLayout()
 
+        # TODO check context argument instead overrides 
         styleKeys = (
             "tab_font_size",
             "tab_font_bold",
@@ -2936,18 +2952,17 @@ class SplitPane(Component):
         )
         textKeys = ("tab_max_chars", "tab_ellipsis")
 
-        def updated(key):
-            return self._overrides.get(key, None) != getOpt(
-                "tab_behaviour", key
-            )
+        def updated(section, key):
+            items = self._overrides.get(section, None)
+            return items and items.get(key, None) != getOpt(section, key)
 
-        if any(updated(k) for k in styleKeys):
+        if any(updated("tab_behaviour", k) for k in styleKeys) or context.get("colorsChanged", False):
             self.attachStyles()
             topSplit = self.topSplit()
             if topSplit:
                 topSplit.resize(force=True)
 
-        if any(updated(k) for k in textKeys):
+        if any(updated("tab_behaviour", k) for k in textKeys):
             app = self._helper.getApp()
             if app:
                 for doc in app.documents():
@@ -3188,6 +3203,9 @@ class SplitPane(Component):
 
     def colors(self):
         return self._colors
+        
+    def adjustedColors(self):
+        return self._adjustedColors
 
     def toggleStyles(self):
         if getOpt("toggle", "split_panes"):
@@ -3218,31 +3236,42 @@ class SplitPane(Component):
             ":/dark_close-tab.svg" if useDarkIcons else ":/light_close-tab.svg"
         )
 
-        colors = (
-            SimpleNamespace(
+        self._colors = (
+            ColorScheme(
                 bar=winColor.darker(130).name(),
                 tab=winColor.darker(120).name(),
                 tabSeparator=winColor.darker(170).name(),
                 tabSelected=winColor.lighter(120).name(),
                 tabActive=hlColor.name(),
                 tabText=textColor.name(),
-                tabClose="lightcoral",
+                tabClose=QColor("lightcoral").name(),
                 menuSeparator=textColor.name(),
                 splitHandle=winColor.name(),
+                dropZone=hlColor.name(),
+                dragTab=hlColor.name(),
             )
             if useDarkIcons
-            else SimpleNamespace(
+            else ColorScheme(
                 bar=winColor.darker(150).name(),
                 tab=winColor.darker(120).name(),
                 tabSeparator=winColor.lighter(140).name(),
                 tabSelected=winColor.lighter(130).name(),
                 tabActive=hlColor.name(),
                 tabText=textColor.name(),
-                tabClose="darkred",
+                tabClose=QColor("darkred").name(),
                 menuSeparator=textColor.darker(150).name(),
                 splitHandle=winColor.name(),
+                dropZone=hlColor.name(),
+                dragTab=hlColor.name(),
             )
         )
+
+        colors = replace(self._colors)
+        for f in fields(colors):
+            override = getOpt("colors", f.name)
+            if override:
+                setattr(colors, f.name, override)
+        self._adjustedColors = colors
 
         hideFloatingMessage = ""
         if getOpt("toggle", "hide_floating_message"):
@@ -3348,7 +3377,6 @@ class SplitPane(Component):
                 /* KRITA_UI_TWEAKS_STYLESHEET_END */
             """
 
-        self._colors = colors
         app = typing.cast(QApplication, QApplication.instance())
 
         css = app.styleSheet()
