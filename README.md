@@ -20,7 +20,7 @@ Various tweaks for Krita's interface.
 
 Krita is a free and open source digital painting program. More info here: [https://krita.org](https://krita.org)
 
-All items below are enabled by default but can be disabled in the plugin options
+Plugin features:
 
 - *Split Panes*: create split tabbed panes and arrange documents side by side
 - *Toolbar Icons*: highlight the active tool in the toolbars (not just the toolbox docker)
