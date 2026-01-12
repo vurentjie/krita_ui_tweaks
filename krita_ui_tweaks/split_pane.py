@@ -2624,8 +2624,8 @@ class Split(QObject):
             assert self._handle is not None
             return (
                 [(self._first, self._handle.offset())]
-                + self._first.saveSizes()
-                + self._second.saveSizes()
+                + self._first.saveSplitSizes()
+                + self._second.saveSplitSizes()
             )
         return []
 
