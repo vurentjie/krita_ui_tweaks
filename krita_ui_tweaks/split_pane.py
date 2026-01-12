@@ -94,6 +94,7 @@ class SaveCanvasPosition:
     view: QRect
     handle: "SplitHandle|None"
     scroll: tuple[int, int]
+    data: dict[Any, Any]
 
 
 @dataclass
@@ -120,15 +121,15 @@ def almost_equal(a: NUMBER, b: NUMBER, eps: NUMBER = 2) -> bool:
     return abs(a - b) <= eps
 
 
-def perfect_fit_width(rect_a: QRect, rect_b: QRect) -> bool:
-    return almost_equal(rect_a.x(), rect_b.x(), 2) and almost_equal(
-        rect_a.width(), rect_b.width(), 2
+def perfect_fit_width(rect_a: QRect, rect_b: QRect, eps: NUMBER = 2) -> bool:
+    return almost_equal(rect_a.x(), rect_b.x(), eps) and almost_equal(
+        rect_a.width(), rect_b.width(), eps
     )
 
 
-def perfect_fit_height(rect_a: QRect, rect_b: QRect) -> bool:
-    return almost_equal(rect_a.y(), rect_b.y(), 2) and almost_equal(
-        rect_a.height(), rect_b.height(), 2
+def perfect_fit_height(rect_a: QRect, rect_b: QRect, eps: NUMBER = 2) -> bool:
+    return almost_equal(rect_a.y(), rect_b.y(), eps) and almost_equal(
+        rect_a.height(), rect_b.height(), eps
     )
 
 
@@ -1369,12 +1370,14 @@ class SplitHandle(QWidget):
             self._lastMousePos = toPoint(getEventGlobalPos(event))
             topSplit = self._controller.topSplit()
             if topSplit:
+
                 def cb(split: Split):
                     data = split.getCurrentViewData()
                     if data:
                         data.dragCanvasPosition = split.canvasPosition(
                             handle=self
                         )
+
                 topSplit.eachCollapsedSplit(cb)
             event.accept()
 
@@ -1436,7 +1439,7 @@ class SplitHandle(QWidget):
             if self._dragTimer:
                 self._dragTimer.stop()
                 self._dragTimer = None
-                
+
             self._lastDragDelta = 0
             first = self._split.first()
             second = self._split.second()
@@ -2347,7 +2350,11 @@ class Split(QObject):
             viewRect.moveTo(0, 0)
             scroll = self._helper.scrollOffset(win)
             return SaveCanvasPosition(
-                canvas=canvasPos, view=viewRect, handle=handle, scroll=scroll
+                canvas=canvasPos,
+                view=viewRect,
+                handle=handle,
+                scroll=scroll,
+                data={},
             )
 
     def centerCanvas(
@@ -2388,7 +2395,12 @@ class Split(QObject):
             s = min(sx, sy)
         return s
 
-    def zoomToFit(self, keepSize: bool = False, zoomMax: int | float = 1):
+    def zoomToFit(
+        self,
+        keepSize: bool = False,
+        zoomMax: int | float = 1,
+        axis: typing.Literal["x", "y"] | None = None,
+    ):
         view = self.getActiveTabView()
         if not view:
             return
@@ -2400,7 +2412,12 @@ class Split(QObject):
             _, _, vw, vh = pos.view.getRect()
             sx = cw / vw
             sy = ch / vh
-            s = max(sx, sy)
+            if axis == "x":
+                s = sx
+            elif axis == "y":
+                s = sy
+            else:
+                s = max(sx, sy)
             if not keepSize or s > 1:
                 helper.setZoomLevel(
                     canvas, min(zoomMax, float(pos.canvas.zoom * (1 / s)))
@@ -2508,19 +2525,63 @@ class Split(QObject):
         if not fit and not handle:
             # only do this if nothing changed
             self.centerCanvas()
-        elif fit:
-            self.zoomToFit(zoomMax=math.inf)
+        elif fit or perfectFitHeight or perfectFitWidth:
+            axis = None
+            orient = handle.orientation() if handle else None
             if perfectFitWidth and perfectFitHeight:
+                self.zoomToFit(zoomMax=math.inf)
                 self.centerCanvas()
-            elif perfectFitWidth:
+                return
+            elif perfectFitWidth and orient == Qt.Orientation.Vertical:
+                self.zoomToFit(zoomMax=math.inf, axis="x")
                 self.centerCanvas(axis="x")
-            elif perfectFitHeight:
+                return
+            elif perfectFitHeight and orient == Qt.Orientation.Horizontal:
+                self.zoomToFit(zoomMax=math.inf, axis="y")
                 self.centerCanvas(axis="y")
+                return
 
-        elif handle:
+        if handle:
             orient = handle.orientation()
             if contained:
                 self.zoomToFit(zoomMax=oldPos.canvas.zoom)
+
+                # # Doing this test here helps skip other things
+                # # XXX store the initial orientation used and keep using that
+                # testPos = self.canvasPosition()
+                # if (
+                #     orient == Qt.Orientation.Vertical
+                #     and testPos.view.width() < oldPos.canvas.rect.width()
+                # ) or (
+                #     orient == Qt.Orientation.Horizontal
+                #     and testPos.view.height() < oldPos.canvas.rect.height()
+                # ):
+                #
+                #     hint = oldPos.data.get("fit", None)
+                #     if hint:
+                #         self.centerCanvas(axis=hint if hint in ("x","y") else None)
+                #         return
+                #
+                #
+                #     testPerfectFitWidth = perfect_fit_width(
+                #         testPos.view, testPos.canvas.rect, 4
+                #     )
+                #     testPerfectFitHeight = perfect_fit_height(
+                #         testPos.view, testPos.canvas.rect, 4
+                #     )
+                #     if testPerfectFitWidth and testPerfectFitHeight:
+                #         self.centerCanvas()
+                #         oldPos.data["fit"] = "both"
+                #     elif testPerfectFitWidth:
+                #         self.centerCanvas(axis="x")
+                #         oldPos.data["fit"] = "x"
+                #     elif testPerfectFitHeight:
+                #         self.centerCanvas(axis="y")
+                #         oldPos.data["fit"] = "y"
+                #     else:
+                #         self.centerCanvas()
+                #         oldPos.data["fit"] = "both"
+                #     return
 
             intersected = currPos.view.intersected(currPos.canvas.rect)
 
@@ -2563,29 +2624,29 @@ class Split(QObject):
                                 oldPos,
                             )
 
-            updatedPos = self.canvasPosition()
-            if updatedPos:
-                nowContained = updatedPos.view.adjusted(-2, -2, 2, 2).contains(
-                    updatedPos.canvas.rect
-                )
-
-                perfectFitWidth = (
-                    perfectFitWidth
-                    or currPos.canvas.rect.width() >= updatedPos.view.width()
-                )
-                perfectFitHeight = (
-                    perfectFitHeight
-                    or currPos.canvas.rect.height() >= updatedPos.view.height()
-                )
-
-                if contained and nowContained:
-                    self.zoomToFit(zoomMax=oldPos.canvas.zoom)
-                    if perfectFitWidth and perfectFitHeight:
-                        self.centerCanvas()
-                    elif perfectFitWidth:
-                        self.centerCanvas(axis="x")
-                    elif perfectFitHeight:
-                        self.centerCanvas(axis="y")
+            # updatedPos = self.canvasPosition()
+            # if updatedPos:
+            #     nowContained = updatedPos.view.adjusted(-2, -2, 2, 2).contains(
+            #         updatedPos.canvas.rect
+            #     )
+            #
+            #     perfectFitWidth = (
+            #         perfectFitWidth
+            #         or currPos.canvas.rect.width() >= updatedPos.view.width()
+            #     )
+            #     perfectFitHeight = (
+            #         perfectFitHeight
+            #         or currPos.canvas.rect.height() >= updatedPos.view.height()
+            #     )
+            #
+            #     if contained and nowContained:
+            #         self.zoomToFit(zoomMax=oldPos.canvas.zoom)
+            #         if perfectFitWidth and perfectFitHeight:
+            #             self.centerCanvas()
+            #         elif perfectFitWidth:
+            #             self.centerCanvas(axis="x")
+            #         elif perfectFitHeight:
+            #             self.centerCanvas(axis="y")
 
     def saveSplitSizes(self) -> list[tuple["Split", int]]:
         if self._state == Split.STATE_SPLIT:
