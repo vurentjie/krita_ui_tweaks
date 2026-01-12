@@ -2713,30 +2713,40 @@ class Split(QObject):
         isActiveSplit = self == self._controller.defaultSplit()
         if self._state == Split.STATE_COLLAPSED:
             tabs = self.tabs()
-            assert tabs is not None
-            files: list[str] = []
-            activeView = self.getActiveTabView()
-            activeDoc = activeView.document() if activeView else None
-            activeFile = activeDoc.fileName() if activeDoc else None
-            activeIndex = -1
-            for i in range(tabs.count()):
-                uid = tabs.getUid(i)
-                data = self._controller.getViewData(uid)
-                if data and data.view:
-                    path = data.view.document().fileName()
-                    if os.path.exists(path):
-                        files.append(path)
-                        if path == activeFile and activeIndex == -1:
-                            activeIndex = len(files) - 1
-            splitLayout = typing.cast(
-                CollapsedLayout,
-                {
-                    "state": "c",
-                    "files": files,
-                    "active": activeIndex,
-                    "isActiveSplit": isActiveSplit,
-                },
-            )
+            if tabs:
+                files: list[str] = []
+                activeView = self.getActiveTabView()
+                activeDoc = activeView.document() if activeView else None
+                activeFile = activeDoc.fileName() if activeDoc else None
+                activeIndex = -1
+                for i in range(tabs.count()):
+                    uid = tabs.getUid(i)
+                    data = self._controller.getViewData(uid)
+                    if data and data.view:
+                        path = data.view.document().fileName()
+                        if os.path.exists(path):
+                            files.append(path)
+                            if path == activeFile and activeIndex == -1:
+                                activeIndex = len(files) - 1
+                splitLayout = typing.cast(
+                    CollapsedLayout,
+                    {
+                        "state": "c",
+                        "files": files,
+                        "active": activeIndex,
+                        "isActiveSplit": isActiveSplit,
+                    },
+                )
+            else:
+                splitLayout = typing.cast(
+                    CollapsedLayout,
+                    {
+                        "state": "c",
+                        "files": [],
+                        "active": -1,
+                        "isActiveSplit": False,
+                    },
+                )
 
         elif self._state == Split.STATE_SPLIT:
             assert self._handle is not None
