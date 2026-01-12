@@ -59,6 +59,8 @@ import json
 import os
 import time
 
+NUMBER = int | float
+
 
 class CollapsedLayout(TypedDict):
     state: typing.Literal["c"]
@@ -79,6 +81,7 @@ class SavedLayout(TypedDict):
     winHeight: int
     layout: "SplitLayout | CollapsedLayout | None"
     path: str | None
+    locked: bool
 
 
 DRAG_VERTICAL_THRESHOLD = 40
@@ -90,7 +93,7 @@ class SaveCanvasPosition:
     canvas: CanvasPosition
     view: QRect
     handle: "SplitHandle|None"
-    scroll: tuple[int | None, int | None]
+    scroll: tuple[int, int]
 
 
 @dataclass
@@ -112,6 +115,10 @@ class ViewData:
     realignTick: int | None
     dragCanvasPosition: SaveCanvasPosition | None
     resizeCanvasPosition: SaveCanvasPosition | None
+
+
+def almost_equal(a: NUMBER, b: NUMBER, eps: NUMBER = 2) -> bool:
+    return abs(a - b) <= eps
 
 
 class SubWindowInterceptor(QObject):
@@ -1484,8 +1491,8 @@ class Split(QObject):
         assert mdi
 
         if self._state == Split.STATE_COLLAPSED:
-            if isinstance(toolbar, SplitToolbar):
-                self._toolbar = toolbar
+            self._toolbar = self._helper.isAlive(toolbar, SplitToolbar)
+            if self._toolbar:
                 self._toolbar.setSplit(
                     self
                 )  # ty: ignore[possibly-missing-attribute]
@@ -1984,11 +1991,6 @@ class Split(QObject):
         if win and toolbar:
             rect = self._rect
 
-            data = self.getCurrentViewData()
-
-            dragCanvasPos = data.dragCanvasPosition
-            resizeCanvasPos = data.resizeCanvasPosition
-
             win.setFixedWidth(rect.width())
             win.setFixedHeight(rect.height() - toolbar.height())
             win.setGeometry(
@@ -2000,9 +2002,13 @@ class Split(QObject):
             win.raise_()
             win.show()
 
-            self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
+            data = self.getCurrentViewData()
+            if not data:
+                return
 
-            # update for next iteration
+            dragCanvasPos = data.dragCanvasPosition
+            resizeCanvasPos = data.resizeCanvasPosition
+            self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
             data.resizeCanvasPosition = self.canvasPosition()
 
     def globalRect(self, withToolBar: bool = True):
@@ -2158,7 +2164,7 @@ class Split(QObject):
 
         if self._state == Split.STATE_COLLAPSED:
             if tick:
-                self._realignTick = helper.uid()
+                self._realignTick = self._helper.uid()
             # TODO or remove?
         elif self._state == Split.STATE_SPLIT and nested:
             if self._first:
@@ -2383,14 +2389,30 @@ class Split(QObject):
                 canvas=canvasPos, view=viewRect, handle=handle, scroll=scroll
             )
 
-    def centerCanvas(self):
+    def centerCanvas(
+        self,
+        intersected: bool = False,
+        axis: typing.Literal["x", "y"] | None = None,
+    ):
         # XXX Assume working with visible view
         win = self.getActiveTabWindow()
         if win:
             pos = self.canvasPosition()
             if pos:
                 rect = QRect(pos.canvas.rect)
-                rect.moveCenter(pos.view.center())
+                if intersected:
+                    rect = pos.view.intersected(rect)
+
+                if axis == "x":
+                    rect.moveCenter(
+                        QPoint(pos.view.center().x(), rect.center().y())
+                    )
+                elif axis == "y":
+                    rect.moveCenter(
+                        QPoint(rect.center().x(), pos.view.center().y())
+                    )
+                else:
+                    rect.moveCenter(pos.view.center())
                 self._helper.scrollTo(win=win, x=-rect.x(), y=-rect.y())
 
     def placeCanvas(self, pos: SaveCanvasPosition | None):
@@ -2417,63 +2439,84 @@ class Split(QObject):
             s = min(sx, sy)
         return s
 
-    def zoomToFit(self, keepSize: bool = False, zoomMax: int = 1):
+    def zoomToFit(self, keepSize: bool = False, zoomMax: int | float = 1):
         view = self.getActiveTabView()
         if not view:
             return
         canvas = view.canvas()
         helper = self._helper
         pos = self.canvasPosition()
-        _, _, cw, ch = pos.canvas.rect.getRect()
-        _, _, vw, vh = pos.view.getRect()
-        sx = cw / vw
-        sy = ch / vh
-        s = max(sx, sy)
-        if not keepSize or s > 1:
-            helper.setZoomLevel(
-                canvas, min(zoomMax, float(pos.canvas.zoom * (1 / s)))
-            )
+        if pos:
+            _, _, cw, ch = pos.canvas.rect.getRect()
+            _, _, vw, vh = pos.view.getRect()
+            sx = cw / vw
+            sy = ch / vh
+            s = max(sx, sy)
+            if not keepSize or s > 1:
+                helper.setZoomLevel(
+                    canvas, min(zoomMax, float(pos.canvas.zoom * (1 / s)))
+                )
 
     def clampEdge(
         self,
         edge: Qt.AnchorPoint,
-        currPos: SaveCanvasPosition,
-        oldPos: SaveCanvasPosition,
-    ) -> tuple[SaveCanvasPosition, SaveCanvasPosition]:
+        currPos: SaveCanvasPosition | None,
+        oldPos: SaveCanvasPosition | None,
+    ):
         win = self.getActiveTabWindow()
 
-        if not win:
+        if not (win and currPos and oldPos):
             return
 
+        rect = currPos.canvas.rect
+        contained = oldPos.view.adjusted(-2, -2, 2, 2).contains(
+            oldPos.canvas.rect
+        )
+
+        # if contained else oldPos.view.intersected(currPos.canvas.rect)
+
         if edge == Qt.AnchorPoint.AnchorLeft:
-            diff = (
-                currPos.canvas.rect.x() + currPos.canvas.rect.width()
-            ) - currPos.view.width()
-            self._helper.scrollTo(
-                win, max(currPos.scroll[0] + diff, oldPos.scroll[0]), None
-            )
+            if contained:
+                diff = (rect.x() + rect.width()) - currPos.view.width()
+                self._helper.scrollTo(
+                    win, max(currPos.scroll[0] + diff, oldPos.scroll[0]), None
+                )
+            elif oldPos.scroll[0] < 0:
+                diff = oldPos.view.width() - currPos.view.width()
+                if diff < 0:
+                    diff = 0
+                # TODO handle centering
+                self._helper.scrollTo(
+                    win, min(0, oldPos.scroll[0] + diff), None
+                )
         elif edge == Qt.AnchorPoint.AnchorTop:
-            diff = (
-                currPos.canvas.rect.y() + currPos.canvas.rect.height()
-            ) - currPos.view.height()
-            self._helper.scrollTo(
-                win, None, max(currPos.scroll[1] + diff, oldPos.scroll[1])
-            )
+            if contained:
+                diff = (rect.y() + rect.height()) - currPos.view.height()
+                self._helper.scrollTo(
+                    win, None, max(currPos.scroll[1] + diff, oldPos.scroll[1])
+                )
+            elif oldPos.scroll[1] < 0:
+                diff = oldPos.view.height() - currPos.view.height()
+                if diff < 0:
+                    diff = 0
+                # TODO handle centering
+                self._helper.scrollTo(
+                    win, None, min(0, oldPos.scroll[1] + diff)
+                )
         elif edge == Qt.AnchorPoint.AnchorRight:
-            x = currPos.view.width() - (
-                currPos.canvas.rect.x() + currPos.canvas.rect.width()
-            )
-            diff = min(0, x)
-            diff = (
-                (max(currPos.scroll[0] - x, oldPos.scroll[0]))
-                if x > 0
-                else (currPos.scroll[0] - diff)
-            )
-            self._helper.scrollTo(win, diff, None)
+            if contained:
+                x = currPos.view.width() - (rect.x() + rect.width())
+                diff = min(0, x)
+                diff = (
+                    (max(currPos.scroll[0] - x, oldPos.scroll[0]))
+                    if x > 0
+                    else (currPos.scroll[0] - diff)
+                )
+                self._helper.scrollTo(win, diff, None)
+            else:
+                pass
         elif edge == Qt.AnchorPoint.AnchorBottom:
-            y = currPos.view.height() - (
-                currPos.canvas.rect.y() + currPos.canvas.rect.height()
-            )
+            y = currPos.view.height() - (rect.y() + rect.height())
             diff = min(0, y)
             diff = (
                 (max(currPos.scroll[1] - y, oldPos.scroll[1]))
@@ -2481,7 +2524,6 @@ class Split(QObject):
                 else (currPos.scroll[1] - diff)
             )
             self._helper.scrollTo(win, None, diff)
-        return self.canvasPosition(), currPos
 
     def adjustCanvas(
         self,
@@ -2504,22 +2546,33 @@ class Split(QObject):
             return
 
         handle = oldPos.handle
-        # currPos = self.canvasPosition()
-        #
-        # newViewRect = currPos.view
-        # newCanvasRect = currPos.canvas.rect
-
         oldViewRect = oldPos.view
         oldCanvasRect = oldPos.canvas.rect
+        contained = oldViewRect.adjusted(-2, -2, 2, 2).contains(oldCanvasRect)
 
-        if handle:
+        perfectFitWidth = almost_equal(
+            oldViewRect.x(), oldCanvasRect.x(), 2
+        ) and almost_equal(oldViewRect.width(), oldCanvasRect.width(), 2)
+
+        perfectFitHeight = almost_equal(
+            oldViewRect.y(), oldCanvasRect.y(), 2
+        ) and almost_equal(oldViewRect.height(), oldCanvasRect.height(), 2)
+
+        fit = contained and (perfectFitWidth or perfectFitHeight)
+
+        if not fit and not handle:
+            self.centerCanvas()
+        elif fit:
+            self.zoomToFit(zoomMax=math.inf)
+            self.centerCanvas()
+        elif handle:
             orient = handle.orientation()
-
-            contained = oldViewRect.contains(oldCanvasRect)
             if contained:
                 self.zoomToFit(zoomMax=oldPos.canvas.zoom)
 
             currPos = self.canvasPosition()
+            if not currPos:
+                return
             intersected = currPos.view.intersected(currPos.canvas.rect)
 
             didScroll = (
@@ -2547,69 +2600,25 @@ class Split(QObject):
                             )
                     elif self == second or self.isChildOf(second):
                         if orient == Qt.Orientation.Vertical:
-                            currPos, oldPos = self.clampEdge(
+                            self.clampEdge(
                                 Qt.AnchorPoint.AnchorRight, currPos, oldPos
                             )
-                            # if not contained:
-                            #     _, _ = self.clampEdge(Qt.AnchorPoint.AnchorLeft, currPos, oldPos)
                         else:
-                            currPos, oldPos = self.clampEdge(
+                            self.clampEdge(
                                 Qt.AnchorPoint.AnchorBottom,
                                 currPos,
                                 oldPos,
                             )
-                            # if not contained:
-                            #     _, _ = self.clampEdge(Qt.AnchorPoint.AnchorTop, currPos, oldPos)
 
-        else:
-            # first reset to old pos
-            # the center is the visible bit-right - top-left /2
-            self.zoomToFit(zoomMax=oldPos.canvas.zoom)
-            # now ensure all edges are within the view
-            # AND not beyond original
+            updatedPos = self.canvasPosition()
+            if updatedPos:
+                isNowContained = updatedPos.view.adjusted(
+                    -2, -2, 2, 2
+                ).contains(updatedPos.canvas.rect)
 
-        # if the view started of as contained it remains contained
-        # if the canvas is already contained in the new view do nothing
-        # if it is not then first check if it can be scrolled into view
-        # if not then scale it
-
-        # this one is tricker
-        # if the view is not contained then re center it in some cases (ie was invisible, or moved)
-
-        # if (zoomHintFit and oldViewRect.contains(oldCanvasRect) and not newViewRect)
-        #     pass
-        #     or (
-        #         zoomHint == "view_fit_overflow"
-        #         and (
-        #             oldPos.canvas.h < oldPos.view.h
-        #             or oldPos.canvas.w < oldPos.view.w
-        #         )
-        #     )
-        # ):
-        #     scale = self.scaleCanvasFactor(
-        #         oldViewRect, newViewRect, oldCanvasRect
-        #     )
-        #     helper.setZoomLevel(canvas, float(oldPos.canvas.z * scale))
-
-        # getViewData(view) dragResizeCanvasPosition
-        # getViewData(view) resizeCanvasPosition
-
-        # also get the size reported when drag resize started
-        # get the previously saved view canvas position
-        # if it does not exist center the canvas and fit if > view size
-
-        # if zoomHint == "always"
-        # or (zoomHint == "view_fit" and oldViewRect.contains(oldCanvasRect))
-        # or (zoomHint == "view_fit_overflow" and (oldCanvasHeight < oldViewHeight or oldCanvasWidth < oldViewWidth))
-        #    scaleZoom
-
-        # if alignHint == "center": find the center to use
-        #    centerCanvas
-        # if alignHint == "top_left": find the top-left to use (ie if it started out inside/outside choose differently)
-        #    scrollTo(0,0)
-
-        # self.centerCanvas()
-        # win.setProperty("splitCanvasPosition", self.canvasPosition())
+                if contained and isNowContained:
+                    self.zoomToFit(zoomMax=oldPos.canvas.zoom)
+                    self.centerCanvas()
 
     def saveSplitSizes(self) -> list[tuple["Split", int]]:
         if self._state == Split.STATE_SPLIT:
@@ -2721,12 +2730,15 @@ class Split(QObject):
                         files.append(path)
                         if path == activeFile and activeIndex == -1:
                             activeIndex = len(files) - 1
-            splitLayout = {
-                "state": "c",
-                "files": files,
-                "active": activeIndex,
-                "isActiveSplit": isActiveSplit,
-            }
+            splitLayout = typing.cast(
+                CollapsedLayout,
+                {
+                    "state": "c",
+                    "files": files,
+                    "active": activeIndex,
+                    "isActiveSplit": isActiveSplit,
+                },
+            )
 
         elif self._state == Split.STATE_SPLIT:
             assert self._handle is not None
@@ -2739,34 +2751,45 @@ class Split(QObject):
             )
             first = self._first.getLayout()
             second = self._second.getLayout()
-            splitLayout = {
-                "state": orient,
-                "first": first,
-                "second": second,
-                "size": self._handle.offset(),
-            }
+            splitLayout = typing.cast(
+                SplitLayout,
+                {
+                    "state": orient,
+                    "first": first,
+                    "second": second,
+                    "size": self._handle.offset(),
+                },
+            )
 
         if self == topSplit:
             w, h = qwin.width(), qwin.height()
-            return {
-                "state": "s",
-                "locked": self._controller.isLocked(),
-                "layout": splitLayout,
-                "winWidth": w,
-                "winHeight": h,
-            }
+            return typing.cast(
+                SavedLayout,
+                {
+                    "state": "s",
+                    "locked": self._controller.isLocked(),
+                    "layout": splitLayout,
+                    "winWidth": w,
+                    "winHeight": h,
+                },
+            )
         else:
             return splitLayout
 
     def getLayoutFiles(
         self,
-        layout: "SavedLayout | CollapsedLayout | SplitLayout",
+        layout: "SavedLayout | CollapsedLayout | SplitLayout | None",
     ) -> tuple[list[str], list[str]]:
         exists = []
         missing = []
+
+        if not layout:
+            return exists, missing
+
         try:
             state = layout.get("state", None)
             if state == "s":
+                layout = typing.cast(SavedLayout, layout)
                 exists, missing = self.getLayoutFiles(layout["layout"])
             elif state == "c":
                 layout = typing.cast(CollapsedLayout, layout)
@@ -3026,6 +3049,9 @@ class Split(QObject):
 
     def saveLayout(self, path: str | None = None):
         topSplit = self.topSplit()
+        if not topSplit:
+            return 
+
         layout = topSplit.getLayout(verify=True)
 
         if not layout:
