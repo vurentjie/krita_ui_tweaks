@@ -2434,6 +2434,55 @@ class Split(QObject):
                 canvas, min(zoomMax, float(pos.canvas.zoom * (1 / s)))
             )
 
+    def clampEdge(
+        self,
+        edge: Qt.AnchorPoint,
+        currPos: SaveCanvasPosition,
+        oldPos: SaveCanvasPosition,
+    ) -> tuple[SaveCanvasPosition, SaveCanvasPosition]:
+        win = self.getActiveTabWindow()
+
+        if not win:
+            return
+
+        if edge == Qt.AnchorPoint.AnchorLeft:
+            diff = (
+                currPos.canvas.rect.x() + currPos.canvas.rect.width()
+            ) - currPos.view.width()
+            self._helper.scrollTo(
+                win, max(currPos.scroll[0] + diff, oldPos.scroll[0]), None
+            )
+        elif edge == Qt.AnchorPoint.AnchorTop:
+            diff = (
+                currPos.canvas.rect.y() + currPos.canvas.rect.height()
+            ) - currPos.view.height()
+            self._helper.scrollTo(
+                win, None, max(currPos.scroll[1] + diff, oldPos.scroll[1])
+            )
+        elif edge == Qt.AnchorPoint.AnchorRight:
+            x = currPos.view.width() - (
+                currPos.canvas.rect.x() + currPos.canvas.rect.width()
+            )
+            diff = min(0, x)
+            diff = (
+                (max(currPos.scroll[0] - x, oldPos.scroll[0]))
+                if x > 0
+                else (currPos.scroll[0] - diff)
+            )
+            self._helper.scrollTo(win, diff, None)
+        elif edge == Qt.AnchorPoint.AnchorBottom:
+            y = currPos.view.height() - (
+                currPos.canvas.rect.y() + currPos.canvas.rect.height()
+            )
+            diff = min(0, y)
+            diff = (
+                (max(currPos.scroll[1] - y, oldPos.scroll[1]))
+                if y > 0
+                else (currPos.scroll[1] - diff)
+            )
+            self._helper.scrollTo(win, None, diff)
+        return self.canvasPosition(), currPos
+
     def adjustCanvas(
         self,
         dragPos: SaveCanvasPosition | None = None,
@@ -2463,54 +2512,61 @@ class Split(QObject):
         oldViewRect = oldPos.view
         oldCanvasRect = oldPos.canvas.rect
 
-        if oldViewRect.contains(oldCanvasRect):
-            if handle:
-                # dragging
-                orient = handle.orientation()
+        if handle:
+            orient = handle.orientation()
+
+            contained = oldViewRect.contains(oldCanvasRect)
+            if contained:
                 self.zoomToFit(zoomMax=oldPos.canvas.zoom)
-                currPos = self.canvasPosition()
 
-                # parts below can also be used for other case without zoom
-                intersected = currPos.view.intersected(currPos.canvas.rect)
-                if currPos.canvas.rect != intersected or currPos.scroll[0] != oldPos.scroll[0]:
-                    split = handle.split()
-                    if split:
-                        first = split.first()
-                        second = split.second()
-                        
-                        if self == first or self.isChildOf(first):
-                            if orient == Qt.Orientation.Vertical:
-                                diff = (currPos.canvas.rect.x() + currPos.canvas.rect.width()) - currPos.view.width()
-                                scrollX = max(currPos.scroll[0] + diff, oldPos.scroll[0])
-                                self._helper.showToast(f"dragging {diff}")
-                                self._helper.scrollTo(win, scrollX, None)
-                                # need to deal with left edge
-                                # left edge = clamp(currLeft, min=0, max=oldPos.leftEdge)
-                                pass
-                            else:
-                                # need to deal with top edge
-                                pass
-                        elif self == second or self.isChildOf(second):
-                            if orient == Qt.Orientation.Vertical:
-                                # need to deal with right edge
-                                pass
-                            else:
-                                # need to deal with bottom edge
-                                pass
+            currPos = self.canvasPosition()
+            intersected = currPos.view.intersected(currPos.canvas.rect)
 
-            else:
-                # first reset to old pos
-                self.zoomToFit(zoomMax=oldPos.canvas.zoom)
-                # now ensure all edges are within the view
-                # AND not beyond original
+            didScroll = (
+                orient == Qt.Orientation.Vertical
+                and currPos.scroll[0] != oldPos.scroll[0]
+            ) or (
+                orient == Qt.Orientation.Horizontal
+                and currPos.scroll[1] != oldPos.scroll[1]
+            )
 
-                #
+            if currPos.canvas.rect != intersected or didScroll:
+                split = handle.split()
+                if split:
+                    first = split.first()
+                    second = split.second()
 
-            pass
+                    if self == first or self.isChildOf(first):
+                        if orient == Qt.Orientation.Vertical:
+                            self.clampEdge(
+                                Qt.AnchorPoint.AnchorLeft, currPos, oldPos
+                            )
+                        else:
+                            self.clampEdge(
+                                Qt.AnchorPoint.AnchorTop, currPos, oldPos
+                            )
+                    elif self == second or self.isChildOf(second):
+                        if orient == Qt.Orientation.Vertical:
+                            currPos, oldPos = self.clampEdge(
+                                Qt.AnchorPoint.AnchorRight, currPos, oldPos
+                            )
+                            # if not contained:
+                            #     _, _ = self.clampEdge(Qt.AnchorPoint.AnchorLeft, currPos, oldPos)
+                        else:
+                            currPos, oldPos = self.clampEdge(
+                                Qt.AnchorPoint.AnchorBottom,
+                                currPos,
+                                oldPos,
+                            )
+                            # if not contained:
+                            #     _, _ = self.clampEdge(Qt.AnchorPoint.AnchorTop, currPos, oldPos)
+
         else:
+            # first reset to old pos
             # the center is the visible bit-right - top-left /2
-
-            pass
+            self.zoomToFit(zoomMax=oldPos.canvas.zoom)
+            # now ensure all edges are within the view
+            # AND not beyond original
 
         # if the view started of as contained it remains contained
         # if the canvas is already contained in the new view do nothing
