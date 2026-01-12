@@ -314,10 +314,10 @@ class Helper:
                     if hbar and x is not None:
                         hbar.setValue(x)
 
-                    vp = sa.viewport()
-                    if vp:
-                        vp.update()
-                        vp.repaint()
+                    # vp = sa.viewport()
+                    # if vp:
+                    #     vp.update()
+                    #     vp.repaint()
 
     def isPrintSize(self, view: View) -> bool:
         # NOTE This is set in tools.py
