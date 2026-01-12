@@ -1426,13 +1426,13 @@ class SplitHandle(QWidget):
             self._lastMousePos = pos
             event.accept()
 
-            # mdi = self._helper.getMdi()
-            # if mdi:
-            #     subwin = mdi.activeSubWindow()
-            #     for c in subwin.findChildren(QWidget):
-            #         cls = c.metaObject().className()
-            #         if "KisFloatingMessage" in cls or "FloatingMessage" in cls:
-            #             c.setVisible(False)
+            mdi = self._helper.getMdi()
+            if mdi:
+                subwin = mdi.activeSubWindow()
+                for c in subwin.findChildren(QWidget):
+                    cls = c.metaObject().className()
+                    if "KisFloatingMessage" in cls or "FloatingMessage" in cls:
+                        c.setVisible(False)
             event.accept()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -2445,10 +2445,7 @@ class Split(QObject):
             if contained:
                 diff = (rect.x() + rect.width()) - currPos.view.width()
                 x = max(currPos.scroll[0] + diff, oldPos.scroll[0])
-                if almost_equal(x, 0):
-                    self.centerCanvas(axis="x")
-                else:
-                    self._helper.scrollTo(win, x, None)
+                self._helper.scrollTo(win, x, None)
             else:
                 diff = oldPos.view.width() - currPos.view.width()
                 x = max(min(0, oldPos.scroll[0] + diff), oldPos.scroll[0])
@@ -2457,10 +2454,7 @@ class Split(QObject):
             if contained:
                 diff = (rect.y() + rect.height()) - currPos.view.height()
                 y = max(currPos.scroll[1] + diff, oldPos.scroll[1])
-                if almost_equal(y, 0):
-                    self.centerCanvas(axis="y")
-                else:
-                    self._helper.scrollTo(win, None, y)
+                self._helper.scrollTo(win, None, y)
             else:
                 diff = oldPos.view.height() - currPos.view.height()
                 y = max(min(0, oldPos.scroll[1] + diff), oldPos.scroll[1])
@@ -2472,10 +2466,7 @@ class Split(QObject):
                 if diff > 0
                 else (currPos.scroll[0] - min(0, diff))
             )
-            if contained and almost_equal(x, 0):
-                self.centerCanvas(axis="x")
-            else:
-                self._helper.scrollTo(win, x, None)
+            self._helper.scrollTo(win, x, None)
         elif edge == Qt.AnchorPoint.AnchorBottom:
             diff = currPos.view.height() - (rect.y() + rect.height())
             y = (
@@ -2483,10 +2474,7 @@ class Split(QObject):
                 if diff > 0
                 else (currPos.scroll[1] - min(0, diff))
             )
-            if contained and almost_equal(y, 0):
-                self.centerCanvas(axis="y")
-            else:
-                self._helper.scrollTo(win, None, y)
+            self._helper.scrollTo(win, None, y)
 
     def adjustCanvas(
         self,
@@ -2521,7 +2509,6 @@ class Split(QObject):
                 oldPos.data["fitViewHint"] = True
             return
 
-
         if oldPos is None:
             return
 
@@ -2534,53 +2521,116 @@ class Split(QObject):
 
         oldViewRect = oldPos.view
         oldCanvasRect = oldPos.canvas.rect
-        contained = oldViewRect.adjusted(-2, -2, 2, 2).contains(oldCanvasRect)
-
+        contained = oldViewRect.adjusted(-4, -4, 4, 4).contains(oldCanvasRect)
+        
+        perfectFitWidth = perfect_fit_width(oldViewRect, oldCanvasRect, 10)
+        perfectFitHeight = perfect_fit_height(oldViewRect, oldCanvasRect, 10)
+        fit = contained and (perfectFitWidth or perfectFitHeight)
+        
+        # # Doing this test here helps skip other things
+        # # XXX store the initial orientation used and keep using that
+        # testPos = self.canvasPosition()
+        # if (
+        #     orient == Qt.Orientation.Vertical
+        #     and testPos.view.width() < oldPos.canvas.rect.width()
+        # ) or (
+        #     orient == Qt.Orientation.Horizontal
+        #     and testPos.view.height() < oldPos.canvas.rect.height()
+        # ):
+        #
+        #     hint = oldPos.data.get("fit", None)
+        #     if hint:
+        #         self.centerCanvas(axis=hint if hint in ("x","y") else None)
+        #         return
+        #
+        #
+        #     testPerfectFitWidth = perfect_fit_width(
+        #         testPos.view, testPos.canvas.rect, 4
+        #     )
+        #     testPerfectFitHeight = perfect_fit_height(
+        #         testPos.view, testPos.canvas.rect, 4
+        #     )
+        #     if testPerfectFitWidth and testPerfectFitHeight:
+        #         self.centerCanvas()
+        #         oldPos.data["fit"] = "both"
+        #     elif testPerfectFitWidth:
+        #         self.centerCanvas(axis="x")
+        #         oldPos.data["fit"] = "x"
+        #     elif testPerfectFitHeight:
+        #         self.centerCanvas(axis="y")
+        #         oldPos.data["fit"] = "y"
+        #     else:
+        #         self.centerCanvas()
+        #         oldPos.data["fit"] = "both"
+        #     return
+        
         if not handle:
             self.centerCanvas()
-        elif handle and contained and getOpt("toggle", "zoom_constraint_hint"):
-            orient = handle.orientation()
-            horiz = orient == Qt.Orientation.Horizontal
-            vert = orient == Qt.Orientation.Vertical
-            if contained:
-                self.zoomToFit(zoomMax=oldPos.canvas.zoom)
+            return
+            
+            
+        if not getOpt("toggle", "zoom_constraint_hint"):
+            return
+            
+        orient = handle.orientation()
+        horiz = orient == Qt.Orientation.Horizontal
+        vert = orient == Qt.Orientation.Vertical
+            
+        if fit or perfectFitHeight or perfectFitWidth:
+            axis = None
+            orient = handle.orientation() if handle else None
+            if perfectFitWidth and perfectFitHeight:
+                self.zoomToFit(zoomMax=math.inf)
+                self.centerCanvas()
+                return
+            elif perfectFitWidth and orient == Qt.Orientation.Vertical:
+                self.zoomToFit(zoomMax=math.inf, axis="x")
+                self.centerCanvas(axis="x")
+                return
+            elif perfectFitHeight and orient == Qt.Orientation.Horizontal:
+                self.zoomToFit(zoomMax=math.inf, axis="y")
+                self.centerCanvas(axis="y")
+                return
 
-                testPos = self.canvasPosition()
-                handleWidth = (
-                    vert
-                    and testPos.view.width() < oldPos.canvas.rect.width()
-                )
-                handleHeight = (
-                    horiz
-                    and testPos.view.height() < oldPos.canvas.rect.height()
-                )
-                
-                if handleWidth or handleHeight :
-                    hint = oldPos.data.get("fit", None)
-                    if hint:
-                        self.centerCanvas(
-                            axis=hint if hint in ("x", "y") else None
-                        )
-                        return
+        if contained:
+            self.zoomToFit(zoomMax=oldPos.canvas.zoom)
 
-                    testPerfectFitWidth = perfect_fit_width(
-                        testPos.view, testPos.canvas.rect, 4
+            testPos = self.canvasPosition()
+            handleWidth = (
+                vert
+                and testPos.view.width() < oldPos.canvas.rect.width()
+            )
+            handleHeight = (
+                horiz
+                and testPos.view.height() < oldPos.canvas.rect.height()
+            )
+            
+            if handleWidth or handleHeight :
+                hint = oldPos.data.get("fit", None)
+                if hint:
+                    self.centerCanvas(
+                        axis=hint if hint in ("x", "y") else None
                     )
-                    testPerfectFitHeight = perfect_fit_height(
-                        testPos.view, testPos.canvas.rect, 4
-                    )
-                    if testPerfectFitWidth and testPerfectFitHeight:
-                        self.centerCanvas()
-                        oldPos.data["fit"] = "both"
-                        return
-                    elif testPerfectFitWidth:
-                        self.centerCanvas(axis="x")
-                        oldPos.data["fit"] = "x"
-                        return
-                    elif testPerfectFitHeight:
-                        self.centerCanvas(axis="y")
-                        oldPos.data["fit"] = "y"
-                        return
+                    return
+
+                testPerfectFitWidth = perfect_fit_width(
+                    testPos.view, testPos.canvas.rect, 4
+                )
+                testPerfectFitHeight = perfect_fit_height(
+                    testPos.view, testPos.canvas.rect, 4
+                )
+                if testPerfectFitWidth and testPerfectFitHeight:
+                    self.centerCanvas()
+                    oldPos.data["fit"] = "both"
+                    return
+                elif testPerfectFitWidth:
+                    self.centerCanvas(axis="x")
+                    oldPos.data["fit"] = "x"
+                    return
+                elif testPerfectFitHeight:
+                    self.centerCanvas(axis="y")
+                    oldPos.data["fit"] = "y"
+                    return
 
             intersected = currPos.view.intersected(currPos.canvas.rect)
 
