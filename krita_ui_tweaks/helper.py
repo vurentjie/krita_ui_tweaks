@@ -3,25 +3,28 @@
 from .pyqt import (
     pyqtBoundSignal,
     sip,
-    QWidgetAction,
+    QAbstractScrollArea,
+    QApplication,
     QColor,
     QIcon,
-    QMainWindow,
-    QApplication,
-    QMdiArea,
-    QMessageBox,
-    QAbstractScrollArea,
-    QTabBar,
-    QWidget,
-    QUuid,
-    QPalette,
-    QObject,
-    QTimer,
-    QStackedWidget,
     QLineEdit,
+    QMainWindow,
+    QMdiArea,
+    QMdiSubWindow,
+    QMessageBox,
+    QObject,
+    QPalette,
+    QRect,
+    QRectF,
+    QStackedWidget,
+    QTabBar,
+    QTimer,
+    QUuid,
+    QWidget,
+    QWidgetAction,
 )
 
-from krita import Krita, Window, Document, View, Notifier
+from krita import Krita, Window, Document, Canvas, View, Notifier
 
 from dataclasses import dataclass
 from itertools import count
@@ -32,6 +35,12 @@ import math
 import os
 
 T = TypeVar("T", bound=QObject)
+
+
+@dataclass
+class CanvasPosition:
+    rect: QRect
+    zoom: float
 
 
 @dataclass
@@ -119,7 +128,7 @@ class Helper:
     def getView(self):
         win = self.getWin()
         return self.isAlive(win.activeView(), View) if win else None
-        
+
     def getDocData(
         self, obj: View | Document | None = None
     ) -> DocumentData | None:
@@ -265,9 +274,12 @@ class Helper:
                 action.setIcon(icon)
         return typing.cast(QWidgetAction, action)
 
-    def scrollOffset(self) -> tuple[int | None, int | None]:
-        mdi = self.getMdi()
-        win = mdi.activeSubWindow() if mdi else None
+    def scrollOffset(
+        self, win: QMdiSubWindow | None = None
+    ) -> tuple[int | None, int | None]:
+        if not win:
+            mdi = self.getMdi()
+            win = mdi.activeSubWindow() if mdi else None
         if win:
             scrollAreas = win.findChildren(QAbstractScrollArea)
             for sa in scrollAreas:
@@ -280,9 +292,15 @@ class Helper:
                     )
         return (None, None)
 
-    def scrollTo(self, x: int | None = None, y: int | None = None):
-        mdi = self.getMdi()
-        win = mdi.activeSubWindow() if mdi else None
+    def scrollTo(
+        self,
+        win: QMdiSubWindow | None = None,
+        x: int | None = None,
+        y: int | None = None,
+    ):
+        if not win:
+            mdi = self.getMdi()
+            win = mdi.activeSubWindow() if mdi else None
         if win:
             scrollAreas = win.findChildren(QAbstractScrollArea)
             for sa in scrollAreas:
@@ -293,28 +311,41 @@ class Helper:
                         vbar.setValue(y)
                     if hbar and x is not None:
                         hbar.setValue(x)
+                        
+    def isPrintSize(self, view: View) -> bool:
+        # NOTE This is set in tools.py
+        viewData = self.getViewData(view)
+        return (
+            viewData.get("printSize", False)
+            if isinstance(viewData, dict)
+            else False
+        )
 
-    def getZoomLevel(self, raw: bool = False):
+    def getZoomLevel(self, canvas: Canvas | None = None, raw: bool = False):
         app = self.getApp()
         qwin = self.getQwin()
-        canvas = self.getCanvas()
-        doc = self.getDoc()
+        if not canvas:
+            canvas = self.getCanvas()
+            doc = self.getDoc()
+        else:
+            doc = canvas.view().document()
 
         if not (app and qwin and canvas and doc):
             return 1
 
-        action = app.action("view_print_size")
-        isPrintSize = action.isChecked() if action else False
+        view = canvas.view()
         zoom = canvas.zoomLevel()
         res = 72
         dpi = doc.resolution()
 
-        if isPrintSize:
+        if self.isPrintSize(view):
             screen = qwin.screen()
             mm_per_inch = 25.4
             sw = screen.size().width()
             spw = screen.physicalSize().width()
             dpi = sw / spw * mm_per_inch
+            val = math.ceil((zoom * res / dpi) * 1000) / 1000
+            canvas.setZoomLevel(val)
 
         val = zoom * res / dpi
 
@@ -324,11 +355,39 @@ class Helper:
         # NOTE ceiling and truncating here
         # keeps the value aligned with what
         # Krita reports in the user interface
-        # and is the value to use when doing
-        # setZoomLevel(getZoomLevel())
         return math.ceil(val * 1000) / 1000
 
-    def setZoomLevel(self, z: float):
-        canvas = self.getCanvas()
+    def setZoomLevel(
+        self, canvas: Canvas | None = None, zoom: float | None = None
+    ):
+        if zoom is None:
+            return
+        if not canvas:
+            canvas = self.getCanvas()
         if canvas:
-            canvas.setZoomLevel(z)
+            canvas.setZoomLevel(zoom)
+
+    def canvasPosition(
+        self, view: View | None = None, canvas: Canvas | None = None
+    ) -> CanvasPosition | None:
+        if canvas:
+            view = canvas.view()
+        elif view:
+            canvas = view.canvas()
+        if not (view and canvas):
+            return
+        doc = view.document()
+        imgRect = QRectF(0, 0, doc.width(), doc.height())
+        flakeToCanvas = view.flakeToCanvasTransform()
+        flakeToImg = view.flakeToImageTransform()
+        imgToFlake = flakeToImg.inverted()[0]
+        flakeRect = imgToFlake.mapRect(imgRect).toAlignedRect()
+        return CanvasPosition(
+            rect=QRect(
+                int(flakeToCanvas.dx()),
+                int(flakeToCanvas.dy()),
+                flakeRect.width(),
+                flakeRect.height(),
+            ),
+            zoom=self.getZoomLevel(canvas, raw=True),
+        )

@@ -12,13 +12,19 @@ from krita import Window
 from .component import Component, COMPONENT_GROUP
 from .options import showOptions, getOpt, signals as OptionSignals
 from .i18n import i18n
+from .helper import Helper
 
 import typing
 
 
 class Tools(Component):
-    def __init__(self, window: Window, pluginGroup: COMPONENT_GROUP|None = None):
-        super().__init__(window, pluginGroup = pluginGroup)
+    def __init__(
+        self,
+        window: Window,
+        pluginGroup: COMPONENT_GROUP | None = None,
+        helper: Helper | None = None,
+    ):
+        super().__init__(window, pluginGroup=pluginGroup, helper=helper)
 
         _ = self._helper.newAction(
             window,

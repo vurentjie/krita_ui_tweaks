@@ -7,6 +7,7 @@ from .pyqt import (
     QCheckBox,
     QColor,
     QColorDialog,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -23,6 +24,7 @@ from .pyqt import (
     QPoint,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -53,12 +55,16 @@ class ColorButton(QWidget):
     colorChanged = pyqtSignal(QColor)
 
     def __init__(
-            self, parent=None, color=QColor("white"), resetColor=QColor("white"), customColors: list[QColor]|None = []
+        self,
+        parent=None,
+        color=QColor("white"),
+        resetColor=QColor("white"),
+        customColors: list[QColor] | None = [],
     ):
         super().__init__(parent)
         self._color: QColor = QColor(color)
         self._resetColor: QColor = QColor(resetColor)
-        self._customColors: list[QColor]|None = customColors
+        self._customColors: list[QColor] | None = customColors
         self.setFixedSize(24, 24)
 
     def paintEvent(self, _: QPaintEvent):
@@ -92,9 +98,9 @@ class ColorButton(QWidget):
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             dlg = QColorDialog(self._color, self)
-             
-            for k,v in enumerate(self._customColors):
-                dlg.setCustomColor(k,QColor(v))
+
+            for k, v in enumerate(self._customColors):
+                dlg.setCustomColor(k, QColor(v))
 
             dlg.setOption(QColorDialog.ShowAlphaChannel, False)
             dlg.adjustSize()
@@ -123,6 +129,15 @@ class ToggleItem:
 
 
 @dataclass
+class ComboItem:
+    input: QComboBox
+    label: QLabel
+    options: dict[str, str]
+    extra: QWidget | list[QWidget] | None
+    section: str
+
+
+@dataclass
 class InputItem:
     input: QLineEdit
     label: QLabel | None
@@ -140,7 +155,7 @@ class NumberItem:
     extra: QWidget | list[QWidget] | None
 
 
-FormItem = ToggleItem | NumberItem | InputItem | ColorItem
+FormItem = ToggleItem | NumberItem | InputItem | ColorItem | ComboItem
 FormItems = dict[str, FormItem]
 
 
@@ -291,6 +306,13 @@ class SettingsDialog(QDialog):
                     )
                 ),
             ),
+            "zoom_constraint_hint": ToggleItem(
+                input=QCheckBox(i18n("Resize hint: scale images to viewport")),
+                section=sections.splitPanes,
+                extra=QLabel(
+                    i18n("<b>Applies to images smaller than the viewport</b>")
+                ),
+            ),
             "toolbar_icons": ToggleItem(
                 input=QCheckBox(i18n("Highlight active tool in toolbars")),
                 section=sections.tools,
@@ -334,9 +356,22 @@ class SettingsDialog(QDialog):
         }
         schemeColors = self._controller.colors()
         configColors = self._config.get("colors", {})
-        customColors = [getattr(schemeColors, f.name) for f in fields(schemeColors)]
+        customColors = [
+            getattr(schemeColors, f.name) for f in fields(schemeColors)
+        ]
         # fill update the empty slots
-        customColors.extend(["#181818", "#282828", "#383838", "#474747", "#565656", "#646464", "#717171", "#7e7e7e"])
+        customColors.extend(
+            [
+                "#181818",
+                "#282828",
+                "#383838",
+                "#474747",
+                "#565656",
+                "#646464",
+                "#717171",
+                "#7e7e7e",
+            ]
+        )
 
         self._colors: FormItems = {}
         for k in colorLabels.keys():
@@ -345,7 +380,11 @@ class SettingsDialog(QDialog):
             if not color:
                 color = resetColor
             self._colors[k] = ColorItem(
-                input=ColorButton(color=color, resetColor=resetColor, customColors = customColors),
+                input=ColorButton(
+                    color=color,
+                    resetColor=resetColor,
+                    customColors=customColors,
+                ),
                 label=QLabel(colorLabels[k]),
                 section=sections.colors,
                 extra=None,
@@ -382,7 +421,9 @@ class SettingsDialog(QDialog):
 
     def _getFormValue(self, item: FormItem) -> typing.Any:
         t = type(item)
-        if t == ToggleItem:
+        if t == ComboItem:
+            return item.input.currentData()
+        elif t == ToggleItem:
             return item.input.isChecked()
         elif t == InputItem:
             val = item.input.text().strip()
@@ -424,6 +465,29 @@ class SettingsDialog(QDialog):
             item.input.setValue(getOpt(*key))
             item.label.setTextFormat(Qt.TextFormat.RichText)
             form.addRow(item.label, item.input)
+        elif t == ComboItem:
+            item = typing.cast(ComboItem, item)
+            val = typing.cast(str, getOpt(*key))
+            assert item.input is not None
+            assert item.label is not None
+            index = 0
+            for i, (key, text) in enumerate(item.options.items()):
+                if val == key:
+                    index = i
+                item.input.addItem(text, key)
+
+            # item.input.setSizeAdjustPolicy(
+            #     QComboBox.SizeAdjustPolicy.AdjustToContents
+            # )
+            # item.input.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            item.input.setCurrentIndex(index)
+            block = QWidget()
+            v = QVBoxLayout(block)
+            v.setContentsMargins(0, 0, 0, 0)
+            item.label.setTextFormat(Qt.TextFormat.RichText)
+            v.addWidget(item.label)
+            v.addWidget(item.input)
+            form.addRow(block)
         elif t == ColorItem:
             item = typing.cast(ColorItem, item)
             reset = QPushButton()
@@ -521,15 +585,15 @@ class SettingsDialog(QDialog):
             config["tab_behaviour"][k] = self._getFormValue(v)
 
         for _, (k, v) in enumerate(self._toggle.items()):
-            checked = self._getFormValue(v)
-            config["toggle"][k] = checked
-            if k == "restore_layout" and checked:
+            val = self._getFormValue(v)
+            config["toggle"][k] = val
+            if k == "restore_layout" and val:
                 Krita.instance().writeSetting("", "sessionOnStartup", "0")
 
         schemeColors = self._controller.colors()
         colorsChanged = False
         configColors = self._config.get("colors", {})
-        
+
         for _, (k, v) in enumerate(self._colors.items()):
             color = self._getFormValue(v)
             currColor = configColors.get(k, "")
@@ -537,12 +601,12 @@ class SettingsDialog(QDialog):
             newColor = "" if color == resetColor else color
             if newColor != currColor:
                 colorsChanged = True
-            config["colors"][k] = newColor 
+            config["colors"][k] = newColor
 
         writeConfig(config)
         _global_config = config
         i18n_reset()
-        signals.configSaved.emit({ "colorsChanged": colorsChanged })
+        signals.configSaved.emit({"colorsChanged": colorsChanged})
 
 
 def defaultConfig() -> CONFIG_TYPE:
@@ -584,10 +648,13 @@ def defaultConfig() -> CONFIG_TYPE:
             "Save Layout As…": "Save Layout As…",
             "Save Current Layout": "Save Current Layout",
             "Open Layout": "Open Layout",
+            "Unlock Layout": "Unlock Layout",
+            "Lock Layout": "Lock Layout",
         },
         "toggle": {
             "split_panes": True,
             "restore_layout": False,
+            "zoom_constraint_hint": False,
             "toolbar_icons": True,
             "shared_tool": True,
             "hide_floating_message": False,

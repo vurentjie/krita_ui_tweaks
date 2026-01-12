@@ -73,7 +73,7 @@ COMPONENT_GROUP = dict[typing.Literal["tools", "splitPane", "dockers"], "Compone
 
 class Component(QObject):
     def __init__(
-        self, window: Window, pluginGroup: COMPONENT_GROUP | None = None
+            self, window: Window, pluginGroup: COMPONENT_GROUP | None = None, helper: Helper|None = None
     ):
         super().__init__()
         self._qwin: QMainWindow | None = window.qwindow()
@@ -82,7 +82,7 @@ class Component(QObject):
         if not self._qwin:
             return
 
-        self._helper: Helper = Helper(qwin=self._qwin)
+        self._helper: Helper = helper
 
         self._componentFlags = ComponentFlags(homeScreen=None, viewMode=None)
         self._componentFilters = ComponentFilters(
