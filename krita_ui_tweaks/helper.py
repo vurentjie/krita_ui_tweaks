@@ -389,5 +389,5 @@ class Helper:
                 flakeRect.width(),
                 flakeRect.height(),
             ),
-            zoom=self.getZoomLevel(canvas),
+            zoom=self.getZoomLevel(canvas, raw=True),
         )
