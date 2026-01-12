@@ -26,6 +26,7 @@ from .pyqt import (
     QPen,
     QPixmap,
     QPoint,
+    QPointF,
     QPushButton,
     QRect,
     QRectF,
@@ -85,15 +86,11 @@ DRAG_ANGLE_THRESHOLD = 45
 
 
 @dataclass
-class ViewSize:
-    w: int
-    h: int
-
-
-@dataclass
 class SaveCanvasPosition:
     canvas: CanvasPosition
-    view: ViewSize
+    view: QRect
+    handle: "SplitHandle|None"
+    scroll: tuple[int | None, int | None]
 
 
 @dataclass
@@ -1262,6 +1259,9 @@ class SplitHandle(QWidget):
     def setSplit(self, split: "Split"):
         self._split = split
 
+    def split(self) -> "Split|None":
+        return self._helper.isAlive(self._split, Split)
+
     def paintEvent(self, _: QPaintEvent):
         p = QPainter(self)
         colors = self._controller.adjustedColors()
@@ -1359,7 +1359,9 @@ class SplitHandle(QWidget):
                 def cb(split: Split):
                     data = split.getCurrentViewData()
                     if data:
-                        data.dragCanvasPosition = split.canvasPosition()
+                        data.dragCanvasPosition = split.canvasPosition(
+                            handle=self
+                        )
 
                 topSplit.eachCollapsedSplit(cb)
 
@@ -1513,6 +1515,16 @@ class Split(QObject):
 
     def state(self) -> int:
         return self._state
+
+    def isChildOf(self, obj) -> bool:
+        top = self
+        while self._helper.isAlive(top, Split) and isinstance(
+            top.parent(), Split
+        ):
+            top = top.parent()
+            if obj == top:
+                return True
+        return False
 
     def showCanvasBacking(self):
         if not self._backing:
@@ -2354,30 +2366,43 @@ class Split(QObject):
             if topSplit:
                 topSplit.closeEmpties()
 
-    def canvasPosition(self) -> SaveCanvasPosition | None:
+    def canvasPosition(
+        self, handle: "SplitHandle|None" = None
+    ) -> SaveCanvasPosition | None:
         # XXX Assume working with visible view
         view = self.getActiveTabView()
-        if not view:
+        win = self.getActiveTabWindow()
+        if not (view and win):
             return
         canvasPos = self._helper.canvasPosition(view=view)
         if canvasPos:
-            splitRect = self.globalRect(withToolBar=False)
-            viewSize = ViewSize(w=splitRect.width(), h=splitRect.height())
-            return SaveCanvasPosition(canvas=canvasPos, view=viewSize)
+            viewRect = self.globalRect(withToolBar=False)
+            viewRect.moveTo(0, 0)
+            scroll = self._helper.scrollOffset(win)
+            return SaveCanvasPosition(
+                canvas=canvasPos, view=viewRect, handle=handle, scroll=scroll
+            )
 
     def centerCanvas(self):
-        if True:
-            pass
         # XXX Assume working with visible view
         win = self.getActiveTabWindow()
         if win:
             pos = self.canvasPosition()
             if pos:
-                self._helper.scrollTo(
-                    win=win,
-                    x=int((pos.canvas.w - pos.view.w) * 0.5),
-                    y=int((pos.canvas.h - pos.view.h) * 0.5),
-                )
+                rect = QRect(pos.canvas.rect)
+                rect.moveCenter(pos.view.center())
+                self._helper.scrollTo(win=win, x=-rect.x(), y=-rect.y())
+
+    def placeCanvas(self, pos: SaveCanvasPosition | None):
+        # # XXX Assume working with visible view
+        # win = self.getActiveTabWindow()
+        # if win:
+        #     pos = self.canvasPosition()
+        #     if pos:
+        #         rect = QRect(pos.canvas.rect)
+        #         rect.moveCenter(pos.view.center())
+        #         self._helper.scrollTo(win=win, x=-rect.x(), y=-rect.y())
+        pass
 
     def scaleCanvasFactor(
         self, oldViewRect: QRectF, newViewRect: QRectF, oldCanvasRect: QRectF
@@ -2392,6 +2417,23 @@ class Split(QObject):
             s = min(sx, sy)
         return s
 
+    def zoomToFit(self, keepSize: bool = False, zoomMax: int = 1):
+        view = self.getActiveTabView()
+        if not view:
+            return
+        canvas = view.canvas()
+        helper = self._helper
+        pos = self.canvasPosition()
+        _, _, cw, ch = pos.canvas.rect.getRect()
+        _, _, vw, vh = pos.view.getRect()
+        sx = cw / vw
+        sy = ch / vh
+        s = max(sx, sy)
+        if not keepSize or s > 1:
+            helper.setZoomLevel(
+                canvas, min(zoomMax, float(pos.canvas.zoom * (1 / s)))
+            )
+
     def adjustCanvas(
         self,
         dragPos: SaveCanvasPosition | None = None,
@@ -2399,7 +2441,8 @@ class Split(QObject):
     ):
         # XXX Assume working with visible view
         view = self.getActiveTabView()
-        if not view:
+        win = self.getActiveTabWindow()
+        if not (view and win):
             return
 
         canvas = view.canvas()
@@ -2407,21 +2450,67 @@ class Split(QObject):
         oldPos = dragPos if dragPos is not None else resizePos
 
         if oldPos is None:
-            # first time what to do?
-            # center but also fit to view
+            self.zoomToFit()
             self.centerCanvas()
             return
 
-        globalPos = self.globalRect(withToolBar=False)
+        handle = oldPos.handle
+        # currPos = self.canvasPosition()
+        #
+        # newViewRect = currPos.view
+        # newCanvasRect = currPos.canvas.rect
 
-        oldViewRect = QRectF(0, 0, oldPos.view.w, oldPos.view.h)
-        newViewRect = QRectF(0, 0, globalPos.width(), globalPos.height())
-        oldCanvasRect = QRectF(
-            oldPos.canvas.x, oldPos.canvas.y, oldPos.canvas.w, oldPos.canvas.h
-        )
-        
+        oldViewRect = oldPos.view
+        oldCanvasRect = oldPos.canvas.rect
 
+        if oldViewRect.contains(oldCanvasRect):
+            if handle:
+                # dragging
+                orient = handle.orientation()
+                self.zoomToFit(zoomMax=oldPos.canvas.zoom)
+                currPos = self.canvasPosition()
 
+                # parts below can also be used for other case without zoom
+                intersected = currPos.view.intersected(currPos.canvas.rect)
+                if currPos.canvas.rect != intersected or currPos.scroll[0] != oldPos.scroll[0]:
+                    split = handle.split()
+                    if split:
+                        first = split.first()
+                        second = split.second()
+                        
+                        if self == first or self.isChildOf(first):
+                            if orient == Qt.Orientation.Vertical:
+                                diff = (currPos.canvas.rect.x() + currPos.canvas.rect.width()) - currPos.view.width()
+                                scrollX = max(currPos.scroll[0] + diff, oldPos.scroll[0])
+                                self._helper.showToast(f"dragging {diff}")
+                                self._helper.scrollTo(win, scrollX, None)
+                                # need to deal with left edge
+                                # left edge = clamp(currLeft, min=0, max=oldPos.leftEdge)
+                                pass
+                            else:
+                                # need to deal with top edge
+                                pass
+                        elif self == second or self.isChildOf(second):
+                            if orient == Qt.Orientation.Vertical:
+                                # need to deal with right edge
+                                pass
+                            else:
+                                # need to deal with bottom edge
+                                pass
+
+            else:
+                # first reset to old pos
+                self.zoomToFit(zoomMax=oldPos.canvas.zoom)
+                # now ensure all edges are within the view
+                # AND not beyond original
+
+                #
+
+            pass
+        else:
+            # the center is the visible bit-right - top-left /2
+
+            pass
 
         # if the view started of as contained it remains contained
         # if the canvas is already contained in the new view do nothing

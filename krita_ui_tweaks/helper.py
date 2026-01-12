@@ -14,6 +14,7 @@ from .pyqt import (
     QMessageBox,
     QObject,
     QPalette,
+    QRect,
     QRectF,
     QStackedWidget,
     QTabBar,
@@ -38,11 +39,8 @@ T = TypeVar("T", bound=QObject)
 
 @dataclass
 class CanvasPosition:
-    x: int
-    y: int
-    w: int
-    h: int
-    z: float
+    rect: QRect
+    zoom: float
 
 
 @dataclass
@@ -385,9 +383,11 @@ class Helper:
         imgToFlake = flakeToImg.inverted()[0]
         flakeRect = imgToFlake.mapRect(imgRect).toAlignedRect()
         return CanvasPosition(
-            x=int(flakeToCanvas.dx()),
-            y=int(flakeToCanvas.dy()),
-            w=flakeRect.width(),
-            h=flakeRect.height(),
-            z=self.getZoomLevel(canvas),
+            rect=QRect(
+                int(flakeToCanvas.dx()),
+                int(flakeToCanvas.dy()),
+                flakeRect.width(),
+                flakeRect.height(),
+            ),
+            zoom=self.getZoomLevel(canvas),
         )
