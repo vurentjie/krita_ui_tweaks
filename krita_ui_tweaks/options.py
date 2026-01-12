@@ -50,6 +50,7 @@ CONFIG_TYPE = dict[str, CONFIG_SECTION_TYPE]
 
 _global_config: CONFIG_TYPE | None = None
 
+
 class ColorButton(QWidget):
     colorChanged = pyqtSignal(QColor)
 
@@ -131,9 +132,7 @@ class ToggleItem:
 class ComboItem:
     input: QComboBox
     label: QLabel
-    options: (
-        dict[str, str]
-    )
+    options: dict[str, str]
     extra: QWidget | list[QWidget] | None
     section: str
 
@@ -305,6 +304,13 @@ class SettingsDialog(QDialog):
                     i18n(
                         "<b>Will disable Krita's default session restore mechanism.</b>"
                     )
+                ),
+            ),
+            "zoom_constraint_hint": ToggleItem(
+                input=QCheckBox(i18n("Resize hint: scale images to viewport")),
+                section=sections.splitPanes,
+                extra=QLabel(
+                    i18n("<b>Applies to images smaller than the viewport</b>")
                 ),
             ),
             "toolbar_icons": ToggleItem(
@@ -648,6 +654,7 @@ def defaultConfig() -> CONFIG_TYPE:
         "toggle": {
             "split_panes": True,
             "restore_layout": False,
+            "zoom_constraint_hint": False,
             "toolbar_icons": True,
             "shared_tool": True,
             "hide_floating_message": False,
