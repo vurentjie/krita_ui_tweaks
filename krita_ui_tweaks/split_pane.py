@@ -2500,23 +2500,29 @@ class Split(QObject):
 
         canvas = view.canvas()
         helper = self._helper
+        
+        oldPos = dragPos if dragPos is not None else resizePos
+        handle = None
+        fitViewHint = False
+        if oldPos:
+            handle = oldPos.handle 
+            fitViewHint = oldPos.data.get("fitViewHint")
 
         w, h = win.width(), win.height()
-        zoom = helper.getZoomLevel(raw=True)
+        zoom = helper.getZoomLevel(canvas, raw=True)
         win.setFixedHeight(h + 1)
         win.setFixedWidth(w + 1)
-        fitToView = zoom != helper.getZoomLevel(raw=True)
+        fitToView = zoom != helper.getZoomLevel(canvas, raw=True)
         win.setFixedHeight(h)
         win.setFixedWidth(w)
 
-        if fitToView:
+        if fitToView or fitViewHint:
+            if handle:
+                oldPos.data["fitViewHint"] = True
             return
 
-        oldPos = dragPos if dragPos is not None else resizePos
 
         if oldPos is None:
-            self.zoomToFit()
-            self.centerCanvas()
             return
 
         currPos = self.canvasPosition()
@@ -2526,7 +2532,6 @@ class Split(QObject):
         if oldPos.view == currPos.view:
             return
 
-        handle = oldPos.handle
         oldViewRect = oldPos.view
         oldCanvasRect = oldPos.canvas.rect
         contained = oldViewRect.adjusted(-2, -2, 2, 2).contains(oldCanvasRect)
