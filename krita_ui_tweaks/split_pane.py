@@ -591,12 +591,13 @@ class SplitTabs(QTabBar):
                                 self._dropAction = "makeSplitBetween"
                                 self.showDropPlaceHolder(rect)
                                 return
-
-                        targetSplit = (
-                            first
-                            if first.state() == Split.STATE_COLLAPSED
-                            else second
-                        )
+                    # Think must return here
+                    return
+                    # targetSplit = (
+                    #     first
+                    #     if first.state() == Split.STATE_COLLAPSED
+                    #     else second
+                    # )
 
                 if isOnlyTab and targetSplit == currSplit:
                     self.hideDropPlaceHolder()
