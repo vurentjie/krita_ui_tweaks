@@ -18,13 +18,19 @@ from krita import Window
 from .options import showOptions, getOpt, signals as OptionSignals
 from .component import Component, COMPONENT_GROUP
 from .i18n import i18n
+from .helper import Helper
+
+
 
 
 class Dockers(Component):
     def __init__(
-        self, window: Window, pluginGroup: COMPONENT_GROUP | None = None
+        self,
+        window: Window,
+        pluginGroup: COMPONENT_GROUP | None = None,
+        helper: Helper | None = None,
     ):
-        super().__init__(window, pluginGroup=pluginGroup)
+        super().__init__(window, pluginGroup=pluginGroup, helper=helper)
 
         app = self._helper.getApp()
         assert app is not None

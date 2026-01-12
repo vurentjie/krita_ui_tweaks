@@ -6,6 +6,7 @@ from .tools import Tools
 from .split_pane import SplitPane
 from .dockers import Dockers
 from .component import Component, COMPONENT_GROUP
+from .helper import Helper
 
 from dataclasses import dataclass
 
@@ -13,7 +14,7 @@ from dataclasses import dataclass
 class Plugin(Extension):
     def __init__(self, parent: QObject):
         super().__init__(parent)
-        self._components: list[COMPONENT_GROUP] = []
+        self._components: list[COMPONENT_GROUP|Helper] = []
 
     def setup(self):
         pass
@@ -23,9 +24,10 @@ class Plugin(Extension):
             return
 
         group = {}
-        group["tools"] = Tools(window, pluginGroup=group)
-        group["splitPane"] = SplitPane(window, pluginGroup=group)
-        group["dockers"] = Dockers(window, pluginGroup=group)
+        group["helper"] = Helper(qwin=window.qwindow())
+        group["tools"] = Tools(window, pluginGroup=group, helper=group["helper"])
+        group["splitPane"] = SplitPane(window, pluginGroup=group, helper=group["helper"])
+        group["dockers"] = Dockers(window, pluginGroup=group, helper=group["helper"])
 
         self._components.append(group)
         
