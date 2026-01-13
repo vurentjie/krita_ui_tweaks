@@ -298,7 +298,6 @@ class Helper:
         win: QMdiSubWindow | None = None,
         x: int | None = None,
         y: int | None = None,
-        repaint: bool = False,
     ):
         if not win:
             mdi = self.getMdi()
@@ -313,11 +312,6 @@ class Helper:
                         vbar.setValue(y)
                     if hbar and x is not None:
                         hbar.setValue(x)
-
-                    # vp = sa.viewport()
-                    # if vp:
-                    #     vp.update()
-                    #     vp.repaint()
 
     def isPrintSize(self, view: View) -> bool:
         # NOTE This is set in tools.py
