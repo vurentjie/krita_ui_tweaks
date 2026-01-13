@@ -2692,8 +2692,6 @@ class Split(QObject):
             if not (dragPos and resizePos):
                 return
             scale = self.scaleCanvasFactor(resizePos.view, currPos.view, handle.orientation())
-            if self == self._controller.defaultSplit():
-                self._controller.debugMsg(f"{scale}")
             zoom = helper.getZoomLevel(canvas)
             helper.setZoomLevel(canvas, zoom * scale)
             helper.scrollTo(win, dragPos.scroll[0], dragPos.scroll[1])
