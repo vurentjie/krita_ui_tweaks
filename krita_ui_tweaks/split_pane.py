@@ -4301,12 +4301,11 @@ class SplitPane(Component):
 
         if getattr(self, "_msg", None) is None:
             self._msg = TabDragRect(
-                parent=qwin,
-                text=msg,
+                parent=qwin, text=msg, color=helper.paletteColor("Window")
             )
 
         self._msg.setText(msg)
         self._msg.show()
         self._msg.raise_()
-        self._msg.setGeometry(300, 0, qwin.width() - 300, 30)
+        self._msg.setGeometry(700, 0, qwin.width() - 700, 23)
 
