@@ -2455,6 +2455,8 @@ class Split(QObject):
         self,
         intersected: bool = False,
         axis: typing.Literal["x", "y"] | None = None,
+        centerY: int | None = None,
+        centerX: int | None = None,
     ):
         win = self.getActiveTabWindow()
         if win:
@@ -2464,14 +2466,17 @@ class Split(QObject):
                 if intersected:
                     rect = pos.view.intersected(rect)
 
+                rectCenter = rect.center()
+                if centerY is None:
+                    centerY = rectCenter.y()
+
+                if centerX is None:
+                    centerX = rectCenter.x()
+
                 if axis == "x":
-                    rect.moveCenter(
-                        QPoint(pos.view.center().x(), rect.center().y())
-                    )
+                    rect.moveCenter(QPoint(pos.view.center().x(), centerY))
                 elif axis == "y":
-                    rect.moveCenter(
-                        QPoint(rect.center().x(), pos.view.center().y())
-                    )
+                    rect.moveCenter(QPoint(centerX, pos.view.center().y()))
                 else:
                     rect.moveCenter(pos.view.center())
                 self._helper.scrollTo(win=win, x=-rect.x(), y=-rect.y())
@@ -2534,6 +2539,7 @@ class Split(QObject):
         edge: Qt.AnchorPoint,
         currPos: SaveCanvasPosition | None,
         oldPos: SaveCanvasPosition | None,
+        resizePos: SaveCanvasPosition | None,
     ):
         win = self.getActiveTabWindow()
 
@@ -2551,6 +2557,7 @@ class Split(QObject):
             or hint is not None
         )
 
+        testRect = oldPos.canvas.rect
         oldScrollX = oldPos.scroll[0]
         oldScrollY = oldPos.scroll[1]
         currScrollX = currPos.scroll[0]
@@ -2693,11 +2700,15 @@ class Split(QObject):
                 return finalize()
             elif (vert or not handle) and handleWidth:
                 self.zoomToFit(zoomMax=math.inf, axis="x", keepScroll=True)
-                self.centerCanvas(axis="x")
+                self.centerCanvas(
+                    axis="x", centerY=oldPos.canvas.rect.center().y()
+                )
                 return finalize()
             elif (horiz or not handle) and handleHeight:
                 self.zoomToFit(zoomMax=math.inf, axis="y", keepScroll=True)
-                self.centerCanvas(axis="y")
+                self.centerCanvas(
+                    axis="y", centerX=oldPos.canvas.rect.center().x()
+                )
                 return finalize()
             elif not handle:
                 self.centerCanvas()
@@ -2719,23 +2730,33 @@ class Split(QObject):
                     if self == first or self.isChildOf(first):
                         if vert:
                             self.clampEdge(
-                                Qt.AnchorPoint.AnchorLeft, currPos, oldPos
+                                Qt.AnchorPoint.AnchorLeft,
+                                currPos,
+                                oldPos,
+                                resizePos,
                             )
                         else:
                             self.clampEdge(
-                                Qt.AnchorPoint.AnchorTop, currPos, oldPos
+                                Qt.AnchorPoint.AnchorTop,
+                                currPos,
+                                oldPos,
+                                resizePos,
                             )
                         return finalize()
                     elif self == second or self.isChildOf(second):
                         if vert:
                             self.clampEdge(
-                                Qt.AnchorPoint.AnchorRight, currPos, oldPos
+                                Qt.AnchorPoint.AnchorRight,
+                                currPos,
+                                oldPos,
+                                resizePos,
                             )
                         else:
                             self.clampEdge(
                                 Qt.AnchorPoint.AnchorBottom,
                                 currPos,
                                 oldPos,
+                                resizePos,
                             )
                         return finalize()
 
