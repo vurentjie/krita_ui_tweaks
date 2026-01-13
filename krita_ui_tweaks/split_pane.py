@@ -2489,7 +2489,7 @@ class Split(QObject):
                 self._helper.scrollTo(win=win, x=-rect.x(), y=-rect.y())
 
     def scaleCanvasFactor(
-            self, oldViewRect: QRectF, newViewRect: QRectF, orient: Qt.Orientation
+        self, oldViewRect: QRectF, newViewRect: QRectF, orient: Qt.Orientation
     ) -> float:
         if orient == Qt.Orientation.Vertical:
             return float(newViewRect.width()) / float(oldViewRect.width())
@@ -2687,39 +2687,57 @@ class Split(QObject):
 
         if oldPos.view == currPos.view:
             return
-            
-        if handle and handle.dragModifier() == Qt.KeyboardModifier.ControlModifier:
+
+        if (
+            handle
+            and handle.dragModifier() == Qt.KeyboardModifier.ControlModifier
+        ):
             if not (dragPos and resizePos):
                 return
-            
+
             zoom = dragPos.data.get("ctrlDragZoom", None)
             if not zoom:
                 zoom = helper.getZoomLevel(canvas)
-                
+
             usePos = dragPos.data.get("ctrlDragPos", None)
             if not usePos:
                 usePos = dragPos
-                
-            scale = self.scaleCanvasFactor(dragPos.view, usePos.view, handle.orientation())
+
+            rect = usePos.canvas.rect
+            intersected = usePos.view.intersected(rect)
+
+            yScale = float(intersected.height()) / float(rect.height())
+            xScale = float(intersected.width()) / float(rect.width())
+
+            orient = handle.orientation()
+            scale = self.scaleCanvasFactor(dragPos.view, usePos.view, orient)
             helper.setZoomLevel(canvas, zoom / scale)
-            helper.scrollTo(win, usePos.scroll[0], usePos.scroll[1])
             
+            newPos = self.canvasPosition()
+            rect = newPos.canvas.rect
+            rh, rw = rect.height(), rect.width()
+            x = usePos.scroll[0]
+            y = usePos.scroll[1]
+            if y > 0:
+                y = rh - (yScale * rh)
+            if x > 0:
+                x = rw - (xScale * rw)
+
+            helper.scrollTo(win, int(x), int(y))
+
             data = self.getCurrentViewData()
             if data:
-                data.dragCanvasPosition = self.canvasPosition(
-                    handle=handle
-                )
+                data.dragCanvasPosition = self.canvasPosition(handle=handle)
                 data.dragCanvasPosition.data["ctrlDragZoom"] = zoom
                 data.dragCanvasPosition.data["ctrlDragPos"] = usePos
             return finalize()
-            
+
         if containedHint:
             oldPos = containedHint[0]
             x, y = min(0, oldPos.scroll[0]), min(0, oldPos.scroll[1])
             if x != oldPos.scroll[0] or y != oldPos.scroll[1]:
                 helper.scrollTo(win, x, y)
                 oldPos.scroll = (x, y)
-                
 
         if not getOpt("toggle", "zoom_constraint_hint"):
             if not handle:
@@ -2729,12 +2747,11 @@ class Split(QObject):
         orient = handle.orientation() if handle else None
         horiz = orient == Qt.Orientation.Horizontal
         vert = orient == Qt.Orientation.Vertical
-        
 
         if contained:
             handleWidth = currPos.view.width() < oldPos.canvas.rect.width()
             handleHeight = currPos.view.height() < oldPos.canvas.rect.height()
-            
+
             if not handle and handleWidth and handleHeight:
                 self.centerCanvas()
                 return finalize()
