@@ -6,6 +6,10 @@
 ## Downloads
 If the latest version has any issues, you can download an older version.
 
+- [v1.0.5.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.5.zip)
+  - Added ctrl-drag resizing as an alternative
+  - Added new "Resize hint" option (disabled by default). See discussion [here](krita-artists.org/t/krita-split-panes-and-other-tweaks/157491)
+  - Refactored to improve performance over previous versions
 - [v1.0.4.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.4.zip) 
 - [v1.0.3.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.3.zip) 
 - [v1.0.2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.2.zip) 
