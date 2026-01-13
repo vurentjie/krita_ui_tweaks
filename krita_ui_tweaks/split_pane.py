@@ -122,7 +122,8 @@ class ViewData:
     )
     dragCanvasPosition: SaveCanvasPosition | None
     resizeCanvasPosition: SaveCanvasPosition | None
-
+    originalCanvasPosition: SaveCanvasPosition | None
+     
 
 def almost_equal(a: NUMBER, b: NUMBER, eps: NUMBER = 2) -> bool:
     return abs(a - b) <= eps
@@ -2072,8 +2073,8 @@ class Split(QObject):
                         return
 
                     dragCanvasPos = data.dragCanvasPosition
-                    originalDragCanvasPos = data.originalCanvasPosition
                     resizeCanvasPos = data.resizeCanvasPosition
+                    originalDragCanvasPos = data.originalCanvasPosition
                     if dragCanvasPos and resizeCanvasPos:
                         dragCanvasPos.data["containedHint"] = (
                             resizeCanvasPos.data.get("containedHint", None)
@@ -2633,12 +2634,13 @@ class Split(QObject):
         outOfView = False
         if originalDragPos or (not handle):
             testPos = oldPos if not handle else originalDragPos
-            outOfView = not testPos.view.adjusted(-2, -2, 2, 2).contains(
-                testPos.canvas.rect
-            )
-            if outOfView:
-                helper.scrollTo(win, testPos.scroll[0], testPos.scroll[1])
-                helper.setZoomLevel(canvas, testPos.canvas.zoom)
+            if testPos:
+                outOfView = not testPos.view.adjusted(-2, -2, 2, 2).contains(
+                    testPos.canvas.rect
+                )
+                if outOfView:
+                    helper.scrollTo(win, testPos.scroll[0], testPos.scroll[1])
+                    helper.setZoomLevel(canvas, testPos.canvas.zoom)
 
         if not fitViewHint and not outOfView:
             w, h = win.width(), win.height()
@@ -4206,8 +4208,9 @@ class SplitPane(Component):
                             ),
                             watcher=None,
                             watcherCallbacks={},
-                            dragCanvasPosition=None,
                             resizeCanvasPosition=None,
+                            dragCanvasPosition=None,
+                            originalCanvasPosition=None,
                         )
                         data.watcherCallbacks = {
                             "destroyed": lambda _, uid=uid: self.onSubWindowDestroyed(
