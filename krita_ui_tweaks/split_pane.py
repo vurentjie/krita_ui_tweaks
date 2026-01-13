@@ -112,7 +112,14 @@ class ViewData:
     win: QMdiSubWindow
     toolbar: "SplitToolbar | None"
     watcher: "SubWindowInterceptor | None"
-    watcherCallbacks: dict[str, typing.Callable[[object, Any], None]|typing.Callable[[Any], None]] | None
+    watcherCallbacks: (
+        dict[
+            str,
+            typing.Callable[[object, Any], None]
+            | typing.Callable[[Any], None],
+        ]
+        | None
+    )
     dragCanvasPosition: SaveCanvasPosition | None
     resizeCanvasPosition: SaveCanvasPosition | None
 
@@ -698,8 +705,7 @@ class SplitTabs(QTabBar):
                                 currRect = currSplit.globalRect(
                                     withToolBar=False
                                 )
-                                cw = currRect.width()
-                                ch = currRect.height()
+                                cx, cy, cw, ch = currRect.getRect()
 
                                 if targetSplit == firstMost:
                                     if (
@@ -716,11 +722,13 @@ class SplitTabs(QTabBar):
                                     if (
                                         orient == Qt.Orientation.Vertical
                                         and rh == ch
+                                        and ry == cy
                                     ):
                                         actions.makeSplitRight = False
                                     elif (
                                         orient == Qt.Orientation.Horizontal
                                         and rw == cw
+                                        and rx == cx
                                     ):
                                         actions.makeSplitBelow = False
 
@@ -2064,12 +2072,14 @@ class Split(QObject):
 
                     updatedPos = self.canvasPosition()
                     if dragCanvasPos and updatedPos:
-                        updatedPos.data["containedHint"] = dragCanvasPos.data.get(
-                            "containedHint", None
+                        updatedPos.data["containedHint"] = (
+                            dragCanvasPos.data.get("containedHint", None)
                         )
 
-                    if updatedPos and resizeCanvasPos and not updatedPos.data.get(
-                        "containedHint", None
+                    if (
+                        updatedPos
+                        and resizeCanvasPos
+                        and not updatedPos.data.get("containedHint", None)
                     ):
                         updatedPos.data["containedHint"] = (
                             resizeCanvasPos.data.get("containedHint", None)
@@ -2398,9 +2408,9 @@ class Split(QObject):
                     tabSplit=tabSplit, tabIndex=tabIndex, dupe=dupe
                 )
 
-            second.restoreSplitSizes(sizes, orient = second.orientation())
+            second.restoreSplitSizes(sizes, orient=second.orientation())
             self._controller.setCanvasAdjustEnabled(True)
-            
+
             def cb():
                 topSplit = self.topSplit()
                 if topSplit:
@@ -2531,7 +2541,11 @@ class Split(QObject):
             return
 
         rect = currPos.canvas.rect
-        hint = oldPos.data.get("containedHint", None) if oldPos is not None else None
+        hint = (
+            oldPos.data.get("containedHint", None)
+            if oldPos is not None
+            else None
+        )
         contained = (
             oldPos.view.adjusted(-2, -2, 2, 2).contains(oldPos.canvas.rect)
             or hint is not None
@@ -3907,7 +3921,7 @@ class SplitPane(Component):
 
     def resizingEnabled(self):
         return self._resizingEnabled
-        
+
     def setCanvasAdjustEnabled(self, state: bool = True):
         self._canvasAdjustEnabled = state
 
@@ -4249,4 +4263,33 @@ class SplitPane(Component):
         toolbar = self.getToolbarByWindow(win)
         if toolbar:
             return toolbar.split()
+
+    # just for debugging stuff sometimes
+
+    def showMsg(self, msg):
+        helper = self._helper
+        qwin = helper.getQwin()
+
+        if not qwin:
+            return
+
+        if msg:
+            uid = self._helper.uid()
+            msg = f"{uid}: {msg}"
+        else:
+            msg = ""
+
+        if getattr(self, "_msg", None) is None:
+            self._msg = TabDragRect(
+                parent=qwin,
+                text=msg,
+            )
+
+        self._msg.setText(msg)
+        self._msg.show()
+        self._msg.raise_()
+        self._msg.setGeometry(300, 0, qwin.width() - 300, 30)
+
+    def hideMsg(self):
+        self.showMsg("")
 
