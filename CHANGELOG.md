@@ -87,3 +87,4 @@ _Initial release._
 
 - _Resize hint:_ new option to scale images to viewport size if they are already
   contained in the viewport during resize.
+- _Ctrl-drag resizing:_ hold ctrl while resizing and it will scale up or down.
