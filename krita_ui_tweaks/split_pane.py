@@ -2691,16 +2691,26 @@ class Split(QObject):
         if handle and handle.dragModifier() == Qt.KeyboardModifier.ControlModifier:
             if not (dragPos and resizePos):
                 return
-            scale = self.scaleCanvasFactor(resizePos.view, currPos.view, handle.orientation())
-            zoom = helper.getZoomLevel(canvas)
-            helper.setZoomLevel(canvas, zoom * scale)
-            helper.scrollTo(win, dragPos.scroll[0], dragPos.scroll[1])
+            
+            zoom = dragPos.data.get("ctrlDragZoom", None)
+            if not zoom:
+                zoom = helper.getZoomLevel(canvas)
+                
+            usePos = dragPos.data.get("ctrlDragPos", None)
+            if not usePos:
+                usePos = dragPos
+                
+            scale = self.scaleCanvasFactor(dragPos.view, usePos.view, handle.orientation())
+            helper.setZoomLevel(canvas, zoom / scale)
+            helper.scrollTo(win, usePos.scroll[0], usePos.scroll[1])
             
             data = self.getCurrentViewData()
             if data:
                 data.dragCanvasPosition = self.canvasPosition(
                     handle=handle
                 )
+                data.dragCanvasPosition.data["ctrlDragZoom"] = zoom
+                data.dragCanvasPosition.data["ctrlDragPos"] = usePos
             return finalize()
             
         if containedHint:
