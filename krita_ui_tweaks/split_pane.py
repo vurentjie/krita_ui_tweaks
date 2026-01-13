@@ -112,7 +112,7 @@ class ViewData:
     win: QMdiSubWindow
     toolbar: "SplitToolbar | None"
     watcher: "SubWindowInterceptor | None"
-    watcherCallback: typing.Callable[[object, Any], None] | None
+    watcherCallbacks: dict[str, typing.Callable[[object, Any], None]] | None
     dragCanvasPosition: SaveCanvasPosition | None
     resizeCanvasPosition: SaveCanvasPosition | None
 
@@ -134,15 +134,25 @@ def perfect_fit_height(rect_a: QRect, rect_b: QRect, eps: NUMBER = 2) -> bool:
 
 
 class SubWindowInterceptor(QObject):
-    def __init__(self, callback: typing.Callable[..., Any]):
+    def __init__(self, callbacks: dict[str, typing.Callable[..., Any]]):
         super().__init__()
-        self._callback = callback
+        self._callbacks = callbacks
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.Close:
-            obj.destroyed.connect(self._callback)
-        return False
+        t = event.type()
+        if t == QEvent.Type.Close:
+            cb = self._callbacks.get("destroyed", None)
+            if cb:
+                obj.destroyed.connect(cb)
+        elif t in (
+            QEvent.Wheel,
+            QEvent.Scroll,
+        ):
+            cb = self._callbacks.get("scrolled", None)
+            if cb:
+                cb()
 
+        return False
 
 class TabDragRect(QWidget):
     def __init__(
@@ -1990,6 +2000,11 @@ class Split(QObject):
         self._forceResizing = False
         self._resizing = False
 
+    def onSubWindowScrolled(self):
+        if self._resizing:
+            return
+        # Not using yet
+
     def syncSubWindow(self, wasResized: bool = True):
         if self._state != Split.STATE_COLLAPSED:
             return
@@ -2031,8 +2046,27 @@ class Split(QObject):
 
                 dragCanvasPos = data.dragCanvasPosition
                 resizeCanvasPos = data.resizeCanvasPosition
+                if dragCanvasPos and resizeCanvasPos:
+                    dragCanvasPos.data["containedHint"] = (
+                        resizeCanvasPos.data.get("containedHint", None)
+                    )
+
                 self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
-                data.resizeCanvasPosition = self.canvasPosition()
+
+                updatedPos = self.canvasPosition()
+                if dragCanvasPos:
+                    updatedPos.data["containedHint"] = dragCanvasPos.data.get(
+                        "containedHint", None
+                    )
+
+                if resizeCanvasPos and not updatedPos.data.get(
+                    "containedHint", None
+                ):
+                    updatedPos.data["containedHint"] = (
+                        resizeCanvasPos.data.get("containedHint", None)
+                    )
+
+                data.resizeCanvasPosition = updatedPos
 
     def globalRect(self, withToolBar: bool = True):
         helper = self._helper
@@ -2466,7 +2500,7 @@ class Split(QObject):
         hint = oldPos.data.get("containedHint", None)
         contained = (
             oldPos.view.adjusted(-2, -2, 2, 2).contains(oldPos.canvas.rect)
-            or hint == True
+            or hint
         )
 
         oldScrollX = oldPos.scroll[0]
@@ -2513,7 +2547,7 @@ class Split(QObject):
         self,
         dragPos: SaveCanvasPosition | None = None,
         resizePos: SaveCanvasPosition | None = None,
-    ) -> bool|None:
+    ) -> bool | None:
         view = self.getActiveTabView()
         win = self.getActiveTabWindow()
         if not (view and win):
@@ -2540,7 +2574,7 @@ class Split(QObject):
             win.setFixedWidth(w)
 
         if fitToView or fitViewHint:
-            if handle:
+            if handle and oldPos:
                 oldPos.data["fitViewHint"] = True
             return
 
@@ -2551,12 +2585,44 @@ class Split(QObject):
         if not currPos:
             return
 
-        if oldPos.view == currPos.view:
-            return
-
         oldViewRect = oldPos.view
         oldCanvasRect = oldPos.canvas.rect
-        contained = oldViewRect.adjusted(-2, -2, 2, 2).contains(oldCanvasRect)
+        containedHint = oldPos.data.get("containedHint", None)
+
+        if (
+            containedHint
+            and oldPos.canvas.rect != containedHint[1].canvas.rect
+        ):
+            dragPos.data["containedHint"] = None
+            resizePos.data["containedHint"] = None
+            containedHint = None
+
+        contained = (
+            oldViewRect.adjusted(-2, -2, 2, 2).contains(oldCanvasRect)
+            or containedHint is not None
+        )
+
+        # TODO run on scroll as well
+        def finalize():
+            if not containedHint and contained:
+                testPos = self.canvasPosition()
+                cr = testPos.canvas.rect
+                cw, ch = cr.width(), cr.height()
+                sw, sh = self._rect.width(), self._rect.height()
+                if cw > sw or ch > sh:
+                    oldPos.data["containedHint"] = [oldPos, testPos]
+                else:
+                    oldPos.data["containedHint"] = None
+
+        if containedHint:
+            oldPos = containedHint[0]
+            x, y = min(0, oldPos.scroll[0]), min(0, oldPos.scroll[1])
+            if x != oldPos.scroll[0] or y != oldPos.scroll[1]:
+                helper.scrollTo(win, x, y)
+                oldPos.scroll = (x, y)
+
+        if oldPos.view == currPos.view:
+            return
 
         if not getOpt("toggle", "zoom_constraint_hint"):
             if not handle:
@@ -2566,25 +2632,25 @@ class Split(QObject):
         orient = handle.orientation() if handle else None
         horiz = orient == Qt.Orientation.Horizontal
         vert = orient == Qt.Orientation.Vertical
-        
+
         if contained:
             handleWidth = currPos.view.width() < oldPos.canvas.rect.width()
             handleHeight = currPos.view.height() < oldPos.canvas.rect.height()
             if not handle and handleWidth and handleHeight:
                 self.zoomToFit(zoomMax=math.inf)
                 self.centerCanvas()
-                return True
+                return finalize()
             elif (vert or not handle) and handleWidth:
                 self.zoomToFit(zoomMax=math.inf, axis="x", keepScroll=True)
                 self.centerCanvas(axis="x")
-                return True
+                return finalize()
             elif (horiz or not handle) and handleHeight:
                 self.zoomToFit(zoomMax=math.inf, axis="y", keepScroll=True)
                 self.centerCanvas(axis="y")
-                return True
+                return finalize()
             elif not handle:
                 self.centerCanvas()
-                return True
+                return finalize()
 
             self.zoomToFit(zoomMax=oldPos.canvas.zoom)
             intersected = currPos.view.intersected(currPos.canvas.rect)
@@ -2592,7 +2658,6 @@ class Split(QObject):
             didScroll = (vert and currPos.scroll[0] != oldPos.scroll[0]) or (
                 horiz and currPos.scroll[1] != oldPos.scroll[1]
             )
-            oldPos.data["containedHint"] = True
 
             if currPos.canvas.rect != intersected or didScroll:
                 split = handle.split()
@@ -2609,7 +2674,7 @@ class Split(QObject):
                             self.clampEdge(
                                 Qt.AnchorPoint.AnchorTop, currPos, oldPos
                             )
-                        return True
+                        return finalize()
                     elif self == second or self.isChildOf(second):
                         if vert:
                             self.clampEdge(
@@ -2621,7 +2686,7 @@ class Split(QObject):
                                 currPos,
                                 oldPos,
                             )
-                        return True
+                        return finalize()
 
     def saveSplitSizes(self) -> list[tuple["Split", int]]:
         if self._state == Split.STATE_SPLIT:
@@ -3785,6 +3850,18 @@ class SplitPane(Component):
                             tabs.removeTab(splitTabIndex)
                     split.checkShouldClose()
 
+    def onSubWindowScrolled(self, uid: int | None) -> None:
+        helper = self._helper
+        if isinstance(uid, int):
+            data = self._viewData.get(uid, None)
+            if data:
+                toolbar = helper.isAlive(data.toolbar, SplitToolbar)
+                split = helper.isAlive(
+                    toolbar.split() if toolbar else None, Split
+                )
+                if split:
+                    split.onSubWindowScrolled()
+
     def setDragSplit(self, split: "Split|None"):
         self._dragSplit = split
 
@@ -3966,15 +4043,20 @@ class SplitPane(Component):
                                 else defaultSplit.toolbar()
                             ),
                             watcher=None,
-                            watcherCallback=None,
+                            watcherCallbacks={},
                             dragCanvasPosition=None,
                             resizeCanvasPosition=None,
                         )
-                        data.watcherCallback = (
-                            lambda _, uid=uid: self.onSubWindowDestroyed(uid)
-                        )
+                        data.watcherCallbacks = {
+                            "destroyed": lambda _, uid=uid: self.onSubWindowDestroyed(
+                                uid
+                            ),
+                            "scrolled": lambda uid=uid: self.onSubWindowScrolled(
+                                uid
+                            ),
+                        }
                         data.watcher = SubWindowInterceptor(
-                            data.watcherCallback
+                            callbacks=data.watcherCallbacks
                         )
                         activeWin.installEventFilter(data.watcher)
                         addTab = True
