@@ -62,12 +62,28 @@ _Initial release._
 ### Fixed:
 
 - _Toolbar click_: clicking toolbar should make it's split pane active AND
-  activate its current tab (if any). 
-- _Syntax error_: there was error occuring when saving layout when at least one open
-  document is new and not associated with a file on disk.  
+  activate its current tab (if any).
+- _Syntax error_: there was error occuring when saving layout when at least one
+  open document is new and not associated with a file on disk.
 
 ## v1.0.4 - 2026-10-01
 
 ### Added:
 
 - _Custom colors_: ability to adjust the ui colors
+
+## v1.0.5 - 2026-13-01
+
+### Changed:
+
+- _Refactored_ canvas alignment, zooming during resize and splitting operations.
+  This adds a big performance improvement over previous versions.
+
+### Fixed:
+
+- _Dropzone_ edge case when splitting, a valid drop zone was not showing up.
+
+### Added:
+
+- _Resize hint:_ new option to scale images to viewport size if they are already
+  contained in the viewport during resize.
