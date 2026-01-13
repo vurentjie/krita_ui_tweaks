@@ -1281,6 +1281,7 @@ class SplitHandle(QWidget):
         self._dragDelta: int = 0
         self._lastDragDelta: int = 0
         self._dragTimer: QTimer | None = None
+        self._dragModifier: Qt.KeyboardModifier | None = None
         self._orient: Qt.Orientation = (
             orient
             if isinstance(orient, Qt.Orientation)
@@ -1428,6 +1429,9 @@ class SplitHandle(QWidget):
         if second:
             second.resize()
 
+    def dragModifier(self):
+        return self._dragModifier
+
     def handleMove(self):
         if self._dragDelta == 0 and self._lastDragDelta == 0:
             return
@@ -1439,6 +1443,8 @@ class SplitHandle(QWidget):
         self._dragDelta = 0
 
     def mouseMoveEvent(self, event: QMouseEvent):
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._dragModifier = Qt.KeyboardModifier.ControlModifier
         if self._dragging:
             if self._dragTimer is None:
                 self._dragTimer = QTimer()
@@ -1463,6 +1469,7 @@ class SplitHandle(QWidget):
             event.accept()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
+        self._dragModifier = None
         if event.button() == Qt.MouseButton.LeftButton:
             if self._dragTimer:
                 self._dragTimer.stop()
@@ -2068,7 +2075,7 @@ class Split(QObject):
                             resizeCanvasPos.data.get("containedHint", None)
                         )
 
-                    self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
+                    result = self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
 
                     updatedPos = self.canvasPosition()
                     if dragCanvasPos and updatedPos:
@@ -2482,17 +2489,12 @@ class Split(QObject):
                 self._helper.scrollTo(win=win, x=-rect.x(), y=-rect.y())
 
     def scaleCanvasFactor(
-        self, oldViewRect: QRectF, newViewRect: QRectF, oldCanvasRect: QRectF
+            self, oldViewRect: QRectF, newViewRect: QRectF, orient: Qt.Orientation
     ) -> float:
-        sx = newViewRect.width() / oldViewRect.width()
-        sy = newViewRect.height() / oldViewRect.height()
-        if oldCanvasRect.width() < oldViewRect.width():
-            s = sx
-        elif oldCanvasRect.height() < oldViewRect.height():
-            s = sy
+        if orient == Qt.Orientation.Vertical:
+            return float(newViewRect.width()) / float(oldViewRect.width())
         else:
-            s = min(sx, sy)
-        return s
+            return float(newViewRect.height()) / float(oldViewRect.height())
 
     def zoomToFit(
         self,
@@ -2619,6 +2621,10 @@ class Split(QObject):
             handle = oldPos.handle
             fitViewHint = oldPos.data.get("fitViewHint", None)
 
+        currPos = self.canvasPosition()
+        if not currPos:
+            return
+
         if not fitViewHint:
             w, h = win.width(), win.height()
             zoom = helper.getZoomLevel(canvas, raw=True)
@@ -2664,23 +2670,48 @@ class Split(QObject):
             if not containedHint and contained:
                 testPos = self.canvasPosition()
                 if testPos:
+                    rect = self.globalRect(withToolBar=False)
                     cr = testPos.canvas.rect
                     cw, ch = cr.width(), cr.height()
-                    sw, sh = self._rect.width(), self._rect.height()
-                    if cw > sw or ch > sh:
+                    sw, sh = rect.width(), rect.height()
+                    if (
+                        cw >= sw
+                        or ch >= sh
+                        or almost_equal(cw, sw)
+                        or almost_equal(ch, sh)
+                    ):
                         oldPos.data["containedHint"] = [oldPos, testPos]
                     else:
                         oldPos.data["containedHint"] = None
+                    return
 
+        if oldPos.view == currPos.view:
+            return
+            
+        if handle and handle.dragModifier() == Qt.KeyboardModifier.ControlModifier:
+            if not (dragPos and resizePos):
+                return
+            scale = self.scaleCanvasFactor(resizePos.view, currPos.view, handle.orientation())
+            if self == self._controller.defaultSplit():
+                self._controller.debugMsg(f"{scale}")
+            zoom = helper.getZoomLevel(canvas)
+            helper.setZoomLevel(canvas, zoom * scale)
+            helper.scrollTo(win, dragPos.scroll[0], dragPos.scroll[1])
+            
+            data = self.getCurrentViewData()
+            if data:
+                data.dragCanvasPosition = self.canvasPosition(
+                    handle=handle
+                )
+            return finalize()
+            
         if containedHint:
             oldPos = containedHint[0]
             x, y = min(0, oldPos.scroll[0]), min(0, oldPos.scroll[1])
             if x != oldPos.scroll[0] or y != oldPos.scroll[1]:
                 helper.scrollTo(win, x, y)
                 oldPos.scroll = (x, y)
-
-        if oldPos.view == currPos.view:
-            return
+                
 
         if not getOpt("toggle", "zoom_constraint_hint"):
             if not handle:
@@ -2690,12 +2721,13 @@ class Split(QObject):
         orient = handle.orientation() if handle else None
         horiz = orient == Qt.Orientation.Horizontal
         vert = orient == Qt.Orientation.Vertical
+        
 
         if contained:
             handleWidth = currPos.view.width() < oldPos.canvas.rect.width()
             handleHeight = currPos.view.height() < oldPos.canvas.rect.height()
+            
             if not handle and handleWidth and handleHeight:
-                # self.zoomToFit(zoomMax=math.inf)
                 self.centerCanvas()
                 return finalize()
             elif (vert or not handle) and handleWidth:
