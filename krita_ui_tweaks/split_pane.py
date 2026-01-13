@@ -3623,6 +3623,7 @@ class SplitPane(Component):
             if not self._split:
                 self._layoutLocked = False
                 self._viewData = {}
+                self._activeLayoutPath = None
 
                 self._split = Split(parent=central, controller=self)
 
@@ -4285,9 +4286,7 @@ class SplitPane(Component):
         if toolbar:
             return toolbar.split()
 
-    # just for debugging stuff sometimes
-
-    def showMsg(self, msg):
+    def debugMsg(self, msg):
         helper = self._helper
         qwin = helper.getQwin()
 
@@ -4310,7 +4309,4 @@ class SplitPane(Component):
         self._msg.show()
         self._msg.raise_()
         self._msg.setGeometry(300, 0, qwin.width() - 300, 30)
-
-    def hideMsg(self):
-        self.showMsg("")
 
