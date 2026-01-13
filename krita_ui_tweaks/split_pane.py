@@ -1403,9 +1403,11 @@ class SplitHandle(QWidget):
                 def cb(split: Split):
                     data = split.getCurrentViewData()
                     if data:
-                        data.dragCanvasPosition = split.canvasPosition(
+                        pos = split.canvasPosition(
                             handle=self
-                        )
+                        )                          
+                        data.originalCanvasPosition = pos
+                        data.dragCanvasPosition = pos
 
                 topSplit.eachCollapsedSplit(cb)
             event.accept()
@@ -1491,6 +1493,7 @@ class SplitHandle(QWidget):
                     data = split.getCurrentViewData()
                     if data:
                         data.dragCanvasPosition = None
+                        data.originalCanvasPosition = None
 
                 topSplit.eachCollapsedSplit(cb)
 
@@ -2069,13 +2072,14 @@ class Split(QObject):
                         return
 
                     dragCanvasPos = data.dragCanvasPosition
+                    originalDragCanvasPos = data.originalCanvasPosition
                     resizeCanvasPos = data.resizeCanvasPosition
                     if dragCanvasPos and resizeCanvasPos:
                         dragCanvasPos.data["containedHint"] = (
                             resizeCanvasPos.data.get("containedHint", None)
                         )
 
-                    result = self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
+                    result = self.adjustCanvas(dragCanvasPos, resizeCanvasPos, originalDragCanvasPos)
 
                     updatedPos = self.canvasPosition()
                     if dragCanvasPos and updatedPos:
@@ -2604,6 +2608,7 @@ class Split(QObject):
         self,
         dragPos: SaveCanvasPosition | None = None,
         resizePos: SaveCanvasPosition | None = None,
+        originalDragPos: SaveCanvasPosition | None = None
     ) -> bool | None:
         view = self.getActiveTabView()
         win = self.getActiveTabWindow()
@@ -2625,7 +2630,17 @@ class Split(QObject):
         if not currPos:
             return
 
-        if not fitViewHint:
+        outOfView = False
+        if originalDragPos or (not handle):
+            testPos = oldPos if not handle else originalDragPos
+            outOfView = not testPos.view.adjusted(-2, -2, 2, 2).contains(
+                testPos.canvas.rect
+            )
+            if outOfView:
+                helper.scrollTo(win, testPos.scroll[0], testPos.scroll[1])
+                helper.setZoomLevel(canvas, testPos.canvas.zoom)
+
+        if not fitViewHint and not outOfView:
             w, h = win.width(), win.height()
             zoom = helper.getZoomLevel(canvas, raw=True)
             win.setFixedHeight(h + 1)
@@ -2660,7 +2675,7 @@ class Split(QObject):
                 resizePos.data["containedHint"] = None
             containedHint = None
 
-        contained = (
+        contained = not outOfView and (
             oldViewRect.adjusted(-2, -2, 2, 2).contains(oldCanvasRect)
             or containedHint is not None
         )
@@ -2712,7 +2727,7 @@ class Split(QObject):
             orient = handle.orientation()
             scale = self.scaleCanvasFactor(dragPos.view, usePos.view, orient)
             helper.setZoomLevel(canvas, zoom / scale)
-            
+
             newPos = self.canvasPosition()
             rect = newPos.canvas.rect
             rh, rw = rect.height(), rect.width()
@@ -3347,6 +3362,8 @@ class SplitPane(Component):
         self._resizingEnabled: bool = True
         self._canvasAdjustEnabled: bool = True
         self._overrides = {}
+        self._debugMsg = None 
+        self._debugId = 0
 
         for section in ("tab_behaviour", "colors"):
             items = getOpt(section)
@@ -4350,19 +4367,20 @@ class SplitPane(Component):
         if not qwin:
             return
 
+
+        self._debugId += 1
         if msg:
-            uid = self._helper.uid()
-            msg = f"{uid}: {msg}"
+            msg = f"{self._debugId}: {msg}"
         else:
             msg = ""
 
         if getattr(self, "_msg", None) is None:
-            self._msg = TabDragRect(
+            self._debugMsg = TabDragRect(
                 parent=qwin, text=msg, color=helper.paletteColor("Window")
             )
 
-        self._msg.setText(msg)
-        self._msg.show()
-        self._msg.raise_()
-        self._msg.setGeometry(700, 0, qwin.width() - 700, 23)
+        self._debugMsg.setText(msg)
+        self._debugMsg.show()
+        self._debugMsg.raise_()
+        self._debugMsg.setGeometry(700, 0, qwin.width() - 700, 23)
 
