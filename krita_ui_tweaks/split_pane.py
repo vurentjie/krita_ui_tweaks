@@ -2035,46 +2035,47 @@ class Split(QObject):
             win.raise_()
             win.show()
 
-            dragSplit = self._controller.dragSplit()
-            if dragSplit:
-                first = dragSplit.first()
-                second = dragSplit.second()
-                if (
-                    self == first
-                    or self.isChildOf(first)
-                    or self == second
-                    or self.isChildOf(second)
-                ):
-                    wasResized = True
+            if self._controller.canvasAdjustEnabled():
+                dragSplit = self._controller.dragSplit()
+                if dragSplit:
+                    first = dragSplit.first()
+                    second = dragSplit.second()
+                    if (
+                        self == first
+                        or self.isChildOf(first)
+                        or self == second
+                        or self.isChildOf(second)
+                    ):
+                        wasResized = True
 
-            if wasResized:
-                data = self.getCurrentViewData()
-                if not data:
-                    return
+                if wasResized:
+                    data = self.getCurrentViewData()
+                    if not data:
+                        return
 
-                dragCanvasPos = data.dragCanvasPosition
-                resizeCanvasPos = data.resizeCanvasPosition
-                if dragCanvasPos and resizeCanvasPos:
-                    dragCanvasPos.data["containedHint"] = (
-                        resizeCanvasPos.data.get("containedHint", None)
-                    )
+                    dragCanvasPos = data.dragCanvasPosition
+                    resizeCanvasPos = data.resizeCanvasPosition
+                    if dragCanvasPos and resizeCanvasPos:
+                        dragCanvasPos.data["containedHint"] = (
+                            resizeCanvasPos.data.get("containedHint", None)
+                        )
 
-                self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
+                    self.adjustCanvas(dragCanvasPos, resizeCanvasPos)
 
-                updatedPos = self.canvasPosition()
-                if dragCanvasPos and updatedPos:
-                    updatedPos.data["containedHint"] = dragCanvasPos.data.get(
+                    updatedPos = self.canvasPosition()
+                    if dragCanvasPos and updatedPos:
+                        updatedPos.data["containedHint"] = dragCanvasPos.data.get(
+                            "containedHint", None
+                        )
+
+                    if updatedPos and resizeCanvasPos and not updatedPos.data.get(
                         "containedHint", None
-                    )
+                    ):
+                        updatedPos.data["containedHint"] = (
+                            resizeCanvasPos.data.get("containedHint", None)
+                        )
 
-                if updatedPos and resizeCanvasPos and not updatedPos.data.get(
-                    "containedHint", None
-                ):
-                    updatedPos.data["containedHint"] = (
-                        resizeCanvasPos.data.get("containedHint", None)
-                    )
-
-                data.resizeCanvasPosition = updatedPos
+                    data.resizeCanvasPosition = updatedPos
 
     def globalRect(self, withToolBar: bool = True):
         helper = self._helper
@@ -2338,6 +2339,7 @@ class Split(QObject):
             and topSplit.state() == Split.STATE_SPLIT
         ):
 
+            self._controller.setCanvasAdjustEnabled(False)
             sizes = topSplit.saveSplitSizes()
 
             first = topSplit.first()
@@ -2397,6 +2399,14 @@ class Split(QObject):
                 )
 
             second.restoreSplitSizes(sizes, orient = second.orientation())
+            self._controller.setCanvasAdjustEnabled(True)
+            
+            def cb():
+                topSplit = self.topSplit()
+                if topSplit:
+                    topSplit.resize(force=True)
+
+            QTimer.singleShot(0, cb)
 
     def resetLayout(self):
         tabs = self._helper.getTabBar()
@@ -3243,6 +3253,7 @@ class SplitPane(Component):
         self._layoutLocked: bool = False
         self._dragSplit: "Split|None" = None
         self._resizingEnabled: bool = True
+        self._canvasAdjustEnabled: bool = True
         self._overrides = {}
 
         for section in ("tab_behaviour", "colors"):
@@ -3894,8 +3905,14 @@ class SplitPane(Component):
     def setResizingEnabled(self, state: bool = True):
         self._resizingEnabled = state
 
-    def resizingEnabled(self, state: bool = True):
+    def resizingEnabled(self):
         return self._resizingEnabled
+        
+    def setCanvasAdjustEnabled(self, state: bool = True):
+        self._canvasAdjustEnabled = state
+
+    def canvasAdjustEnabled(self):
+        return self._canvasAdjustEnabled
 
     def setDragSplit(self, split: "Split|None"):
         self._dragSplit = split
