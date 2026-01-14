@@ -124,7 +124,7 @@ class ViewData:
     dragCanvasPosition: SaveCanvasPosition | None
     resizeCanvasPosition: SaveCanvasPosition | None
     originalCanvasPosition: SaveCanvasPosition | None
-     
+
 
 def almost_equal(a: NUMBER, b: NUMBER, eps: NUMBER = 2) -> bool:
     return abs(a - b) <= eps
@@ -1405,9 +1405,7 @@ class SplitHandle(QWidget):
                 def cb(split: Split):
                     data = split.getCurrentViewData()
                     if data:
-                        pos = split.canvasPosition(
-                            handle=self
-                        )                          
+                        pos = split.canvasPosition(handle=self)
                         data.originalCanvasPosition = pos
                         data.dragCanvasPosition = pos
 
@@ -1437,7 +1435,7 @@ class SplitHandle(QWidget):
         return self._dragModifier
 
     def handleMove(self):
-        if self._dragDelta == 0: #and self._lastDragDelta == 0:
+        if self._dragDelta == 0:  # and self._lastDragDelta == 0:
             return
         if self._orient == Qt.Orientation.Vertical:
             self.moveTo(self.x() + self._dragDelta)
@@ -2019,7 +2017,9 @@ class Split(QObject):
                         self._rect.width(),
                         tabBarHeight,
                     )
-                    self.syncSubWindow(wasResized=self._rect.size() != old_rect.size())
+                    self.syncSubWindow(
+                        wasResized=self._rect.size() != old_rect.size()
+                    )
                     if refreshIcons:
                         self._toolbar.updateMenuBtn()
 
@@ -2083,7 +2083,9 @@ class Split(QObject):
                             resizeCanvasPos.data.get("containedHint", None)
                         )
 
-                    result = self.adjustCanvas(dragCanvasPos, resizeCanvasPos, originalDragCanvasPos)
+                    result = self.adjustCanvas(
+                        dragCanvasPos, resizeCanvasPos, originalDragCanvasPos
+                    )
 
                     updatedPos = self.canvasPosition()
                     if dragCanvasPos and updatedPos:
@@ -2613,7 +2615,7 @@ class Split(QObject):
         self,
         dragPos: SaveCanvasPosition | None = None,
         resizePos: SaveCanvasPosition | None = None,
-        originalDragPos: SaveCanvasPosition | None = None
+        originalDragPos: SaveCanvasPosition | None = None,
     ) -> bool | None:
         view = self.getActiveTabView()
         win = self.getActiveTabWindow()
@@ -2639,8 +2641,11 @@ class Split(QObject):
         if originalDragPos or (not handle):
             testPos = oldPos if not handle else originalDragPos
             if testPos:
-                outOfView = testPos.viewObj == view and not testPos.view.adjusted(-2, -2, 2, 2).contains(
-                    testPos.canvas.rect
+                outOfView = (
+                    testPos.viewObj == view
+                    and not testPos.view.adjusted(-2, -2, 2, 2).contains(
+                        testPos.canvas.rect
+                    )
                 )
                 if outOfView:
                     helper.scrollTo(win, testPos.scroll[0], testPos.scroll[1])
@@ -2772,6 +2777,13 @@ class Split(QObject):
         if contained:
             handleWidth = currPos.view.width() < oldPos.canvas.rect.width()
             handleHeight = currPos.view.height() < oldPos.canvas.rect.height()
+            
+            if originalDragPos and getOpt("toggle", "zoom_constraint_hint"): 
+                if not handleWidth:
+                    handleWidth = perfect_fit_width(originalDragPos.view, originalDragPos.canvas.rect)
+                    
+                if not handleHeight:
+                    handleHeight = perfect_fit_height(originalDragPos.view, originalDragPos.canvas.rect)
 
             if not handle and handleWidth and handleHeight:
                 self.centerCanvas()
@@ -3368,7 +3380,7 @@ class SplitPane(Component):
         self._resizingEnabled: bool = True
         self._canvasAdjustEnabled: bool = True
         self._overrides = {}
-        self._debugMsg = None 
+        self._debugMsg = None
         self._debugId = 0
 
         for section in ("tab_behaviour", "colors"):
@@ -4373,7 +4385,6 @@ class SplitPane(Component):
 
         if not qwin:
             return
-
 
         self._debugId += 1
         if msg:

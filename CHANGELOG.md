@@ -95,3 +95,4 @@ _Initial release._
 
 - _Canvas alignment:_ fix an issue introduced with aligning canvas
 - _Ctrl-drag resizing:_ fix an issue ctrl-drag resizing
+- _Resize hint:_ fix edge case on upsizing 
