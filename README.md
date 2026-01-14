@@ -6,7 +6,7 @@
 ## Downloads
 If the latest version has any issues, you can download an older version.
 - [v1.0.6.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.6.zip)
-  - (2025-01-14) Bug fixes for:
+  - Bug fixes:
     - Canvas alignment
     - Ctrl-drag resizing
     - Fix upsizing when "Resize hint" option is enabled
