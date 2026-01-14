@@ -2212,6 +2212,7 @@ class Split(QObject):
 
         self._state = Split.STATE_SPLIT
 
+        target = None
         if not empty:
             if isSelf or tabSplit is None:
                 tabSplit = self._second if swap else self._first
@@ -2224,10 +2225,15 @@ class Split(QObject):
 
         self._controller.setResizingEnabled(True)
 
-        def cb():
+        def cb(target=target):
             topSplit = self.topSplit()
             if topSplit:
                 topSplit.resize(force=True)
+            target = self._helper.isAlive(target, Split)
+            if target:
+                parent = target.parent()
+                if parent:
+                    parent.equalize()
 
         QTimer.singleShot(0, cb)
 
