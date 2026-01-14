@@ -2775,15 +2775,22 @@ class Split(QObject):
         vert = orient == Qt.Orientation.Vertical
 
         if contained:
-            handleWidth = currPos.view.width() < oldPos.canvas.rect.width()
-            handleHeight = currPos.view.height() < oldPos.canvas.rect.height()
-            
-            if originalDragPos and getOpt("toggle", "zoom_constraint_hint"): 
-                if not handleWidth:
-                    handleWidth = perfect_fit_width(originalDragPos.view, originalDragPos.canvas.rect)
-                    
-                if not handleHeight:
-                    handleHeight = perfect_fit_height(originalDragPos.view, originalDragPos.canvas.rect)
+            handleWidth, handleHeight = False, False
+            if originalDragPos and getOpt("toggle", "zoom_constraint_hint"):
+                handleWidth = perfect_fit_width(
+                    originalDragPos.view, originalDragPos.canvas.rect
+                )
+                handleHeight = perfect_fit_height(
+                    originalDragPos.view, originalDragPos.canvas.rect
+                )
+
+            if not handleWidth:
+                handleWidth = currPos.view.width() < oldPos.canvas.rect.width()
+
+            if not handleHeight:
+                handleHeight = (
+                    currPos.view.height() < oldPos.canvas.rect.height()
+                )
 
             if not handle and handleWidth and handleHeight:
                 self.centerCanvas()
