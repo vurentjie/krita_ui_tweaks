@@ -94,3 +94,4 @@ _Initial release._
 ### Fixed:
 
 - _Canvas alignment:_ fix an issue introduced with aligning canvas
+- _Ctrl-drag resizing:_ fix an issue ctrl-drag resizing
