@@ -92,6 +92,7 @@ DRAG_ANGLE_THRESHOLD = 45
 class SaveCanvasPosition:
     canvas: CanvasPosition
     view: QRect
+    viewObj: View
     handle: "SplitHandle|None"
     scroll: tuple[int, int]
     data: dict[Any, Any]
@@ -2458,6 +2459,7 @@ class Split(QObject):
             return SaveCanvasPosition(
                 canvas=canvasPos,
                 view=viewRect,
+                viewObj=view,
                 handle=handle,
                 scroll=scroll,
                 data={},
@@ -2635,7 +2637,7 @@ class Split(QObject):
         if originalDragPos or (not handle):
             testPos = oldPos if not handle else originalDragPos
             if testPos:
-                outOfView = not testPos.view.adjusted(-2, -2, 2, 2).contains(
+                outOfView = testPos.viewObj == view and not testPos.view.adjusted(-2, -2, 2, 2).contains(
                     testPos.canvas.rect
                 )
                 if outOfView:
