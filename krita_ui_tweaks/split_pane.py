@@ -2744,10 +2744,10 @@ class Split(QObject):
             rh, rw = rect.height(), rect.width()
             x = usePos.scroll[0]
             y = usePos.scroll[1]
-            if y > 0:
-                y = rh - (yScale * rh)
-            if x > 0:
-                x = rw - (xScale * rw)
+            # if y > 0:
+            #     y = rh - (yScale * rh)
+            # if x > 0:
+            #     x = rw - (xScale * rw)
 
             helper.scrollTo(win, int(x), int(y))
 
