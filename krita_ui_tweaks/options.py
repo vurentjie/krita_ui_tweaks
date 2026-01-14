@@ -43,7 +43,7 @@ import json
 import typing
 import time
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 
 CONFIG_SECTION_TYPE = dict[str, str | bool | int]
 CONFIG_TYPE = dict[str, CONFIG_SECTION_TYPE]

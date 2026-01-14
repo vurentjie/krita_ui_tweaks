@@ -88,3 +88,9 @@ _Initial release._
 - _Resize hint:_ new option to scale images to viewport size if they are already
   contained in the viewport during resize.
 - _Ctrl-drag resizing:_ hold ctrl while resizing and it will scale up or down.
+
+## v1.0.6 - 2026-14-01
+
+### Fixed:
+
+- _Canvas alignment:_ fix an issue introduced with aligning canvas
