@@ -1437,7 +1437,7 @@ class SplitHandle(QWidget):
         return self._dragModifier
 
     def handleMove(self):
-        if self._dragDelta == 0 and self._lastDragDelta == 0:
+        if self._dragDelta == 0: #and self._lastDragDelta == 0:
             return
         if self._orient == Qt.Orientation.Vertical:
             self.moveTo(self.x() + self._dragDelta)
@@ -1480,6 +1480,7 @@ class SplitHandle(QWidget):
                 self._dragTimer = None
 
             self._lastDragDelta = 0
+            self._controller.setCanvasAdjustEnabled(False)
             first = self._split.first()
             second = self._split.second()
             if first:
@@ -1499,6 +1500,7 @@ class SplitHandle(QWidget):
 
                 topSplit.eachCollapsedSplit(cb)
 
+            self._controller.setCanvasAdjustEnabled(True)
             self._dragging = False
             event.accept()
 
@@ -2017,7 +2019,7 @@ class Split(QObject):
                         self._rect.width(),
                         tabBarHeight,
                     )
-                    self.syncSubWindow(wasResized=self._rect != old_rect)
+                    self.syncSubWindow(wasResized=self._rect.size() != old_rect.size())
                     if refreshIcons:
                         self._toolbar.updateMenuBtn()
 
