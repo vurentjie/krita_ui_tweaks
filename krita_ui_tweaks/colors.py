@@ -3,6 +3,7 @@ from typing import Protocol
 
 from .helper import Helper
 
+
 @dataclass
 class ColorScheme:
     bar: str

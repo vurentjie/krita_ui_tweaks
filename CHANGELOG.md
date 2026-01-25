@@ -97,3 +97,14 @@ _Initial release._
 - _Ctrl-drag resizing:_ fix an issue ctrl-drag resizing
 - _Resize hint:_ fix edge case on upsizing
 - _Splitting:_ ensure split sizes are correct when make a new split (edge case)
+
+## v1.0.7 - 2026-25-01
+
+### Added:
+
+- _Config option:_ Split handle size
+- _Drag and drop:_ Ctrl-drag to move all tabs
+- _Scaling modes:_ Apply scaling modes when resizing splits
+- _Action:_ Center canvas
+- _Fit to View:_ Fit to view actions are now all toggles
+- _Restore defaults:_ Add buttons to restore default options

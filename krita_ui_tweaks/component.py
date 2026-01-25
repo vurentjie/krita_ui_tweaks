@@ -68,12 +68,17 @@ class ComponentTimers(QObject):
 
 componentTimers = ComponentTimers()
 
-COMPONENT_GROUP = dict[typing.Literal["tools", "splitPane", "dockers"], "Component|None"]
+COMPONENT_GROUP = dict[
+    typing.Literal["tools", "splitPane", "dockers", "helper"], "Component|None"
+]
 
 
 class Component(QObject):
     def __init__(
-            self, window: Window, pluginGroup: COMPONENT_GROUP | None = None, helper: Helper|None = None
+        self,
+        window: Window,
+        pluginGroup: COMPONENT_GROUP | None = None,
+        helper: Helper | None = None,
     ):
         super().__init__()
         self._qwin: QMainWindow | None = window.qwindow()

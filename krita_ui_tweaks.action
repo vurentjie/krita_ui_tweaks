@@ -42,5 +42,21 @@
             <icon></icon>
             <text>Toggle Layout Locked</text>
         </Action>
+        <Action name="krita_ui_tweaks_scaling_mode_anchored">
+            <icon></icon>
+            <text>Scaling Mode Anchored</text>
+        </Action>
+        <Action name="krita_ui_tweaks_scaling_mode_contained">
+            <icon></icon>
+            <text>Scaling Mode Contained</text>
+        </Action>
+        <Action name="krita_ui_tweaks_scaling_mode_expanded">
+            <icon></icon>
+            <text>Scaling Mode Expanded</text>
+        </Action>
+        <Action name="krita_ui_tweaks_center_canvas">
+            <icon></icon>
+            <text>Center Canvas</text>
+        </Action>
     </Actions>
 </ActionCollection>

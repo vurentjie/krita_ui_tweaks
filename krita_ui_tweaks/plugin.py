@@ -14,7 +14,7 @@ from dataclasses import dataclass
 class Plugin(Extension):
     def __init__(self, parent: QObject):
         super().__init__(parent)
-        self._components: list[COMPONENT_GROUP|Helper] = []
+        self._components: list[COMPONENT_GROUP | Helper] = []
 
     def setup(self):
         pass
@@ -23,13 +23,25 @@ class Plugin(Extension):
         if not window:
             return
 
+        # NOTE tools should be initialized before split pane
         group = {}
-        group["helper"] = Helper(qwin=window.qwindow())
-        group["tools"] = Tools(window, pluginGroup=group, helper=group["helper"])
-        group["splitPane"] = SplitPane(window, pluginGroup=group, helper=group["helper"])
-        group["dockers"] = Dockers(window, pluginGroup=group, helper=group["helper"])
+        group["helper"]: Helper = Helper(
+            qwin=window.qwindow(), pluginGroup=group
+        )
+        group["tools"]: Tools = Tools(
+            window, pluginGroup=group, helper=group["helper"]
+        )
+        group["splitPane"]: SplitPane = SplitPane(
+            window, pluginGroup=group, helper=group["helper"]
+        )
+        group["dockers"]: Dockers = Dockers(
+            window, pluginGroup=group, helper=group["helper"]
+        )
 
         self._components.append(group)
         
+        qwin = window.qwindow()
+        qwin.setProperty("uiTweaks", group)
+
         # For debug in the scripter tool
         Krita.instance().uiTweaks = self._components
