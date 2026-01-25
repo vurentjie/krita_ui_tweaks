@@ -338,10 +338,10 @@ class SplitPane(Component):
         savedTabModified = data.doc.get("tabModified", None)
         
         if len(data.views) == 0:
-            return
+            return (False, False)
 
         if len(data.views[0]) == 0:
-            return
+            return (False, False)
 
         view = data.views[0][0]
         index = self.getIndexByView(view)
