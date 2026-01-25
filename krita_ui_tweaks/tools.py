@@ -549,8 +549,15 @@ class Tools(Component):
             if data:
                 data["fitMode"] = False
                 data["toggleSavePosition"] = None
-                data["prevResizePosition"] = helper.canvasPosition(
-                    win=win, view=view
+
+                def cb(data=data, win=win, view=view):
+                    data["prevResizePosition"] = helper.canvasPosition(
+                        win=win, view=view
+                    )
+
+                wid = id(win)
+                self._helper.debounceCallback(
+                    f"updateResizePosition{wid}", cb, timeout_seconds=0.2
                 )
                 for key in self._fitActions.keys():
                     self._fitActions[key].setChecked(False)
