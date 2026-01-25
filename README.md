@@ -139,6 +139,7 @@ Note that fit-to-view actions are now also toggles, which differs from the defau
 You can configure a default scaling mode to use in the options dialog.
 
 <img width="692" height="183" alt="scaling-modes" src="https://github.com/user-attachments/assets/5c8ae7ef-ffbc-438d-a48c-c87f140dd306" />
+<img width="314" height="277" alt="scaling-mode-tools" src="https://github.com/user-attachments/assets/38fcccfc-032a-43f2-8f2c-f8d9b69d9985" />
 
 https://github.com/user-attachments/assets/8e54acf1-2aae-4602-bbc6-4744d1be5cf0
 
