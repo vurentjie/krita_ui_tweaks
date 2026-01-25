@@ -5,6 +5,7 @@
 If the latest version has any issues, you can download an older version.
 
 - [v1.0.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.7.zip)
+  - [update]: Patched the release to fix an issue with layout restoring. Please re-download.
   - New features:
     - Split handle size can be set in options.
     - Press ctrl when drag and dropping tabs to move all tabs
