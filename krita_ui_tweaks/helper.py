@@ -718,6 +718,21 @@ class Helper:
             else:
                 deltaX = 0
 
+        if getOpt("resize", "scaling_contained_only") and not pos.v.contains(
+            pos.r
+        ):
+            return
+
+        if getOpt("resize", "scaling_contained_partial") and not (
+            pos.vw >= pos.cw and pos.vh >= pos.ch
+        ):
+            return
+
+        if getOpt("resize", "scaling_contained_shorter") and not (
+            pos.vw >= pos.cw or pos.vh >= pos.ch
+        ):
+            return
+
         if mode == "anchored":
             if deltaX != 0:
                 scale = nw / pos.vw

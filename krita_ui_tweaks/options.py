@@ -402,6 +402,28 @@ class SettingsDialog(QDialog):
                         "<b>Default scaling mode will be set when Krita starts up.</b>"
                     )
                 ),
+                spaceBelow=10,
+            ),
+            "scaling_contained_only": ToggleItem(
+                subtitle=QLabel(i18n("<b>Only apply scaling when:</b>")),
+                input=QCheckBox(i18n("Canvas is contained in the viewport")),
+                section=sections.scalingMode,
+            ),
+            "scaling_contained_partial": ToggleItem(
+                input=QCheckBox(
+                    i18n(
+                        "Canvas is smaller than the viewport (but partially out of view)"
+                    )
+                ),
+                section=sections.scalingMode,
+            ),
+            "scaling_contained_shorter": ToggleItem(
+                input=QCheckBox(
+                    i18n(
+                        "Canvas is either shorter or narrower than the viewport"
+                    )
+                ),
+                section=sections.scalingMode,
             ),
         }
 
@@ -937,6 +959,9 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             ),
             "split_handle_size": ConfigVal(default=8, clamp=(4, 12)),
             "restore_fit_mode": ConfigVal(default=True),
+            "scaling_contained_only": ConfigVal(default=False),
+            "scaling_contained_partial": ConfigVal(default=False),
+            "scaling_contained_shorter": ConfigVal(default=False),
         },
         "colors": {
             "bar": ConfigVal(default=""),
