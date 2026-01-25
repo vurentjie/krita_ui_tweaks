@@ -668,13 +668,13 @@ class Helper:
         newPos: CanvasPosition,
         contain: bool = False,
         mode: "SCALING_MODE | None" = None,
+        splitPane=None
     ):
 
         from .split_pane.split_helpers import log as dbgLog
         from .options import (
             getOpt,
         )
-
         def getPos(pos: CanvasPosition | None = None, win=win, view=view):
             if pos is None:
                 pos = self.canvasPosition(win=win, view=view)
@@ -722,7 +722,7 @@ class Helper:
             pos.r
         ):
             return
-
+            
         if getOpt("resize", "scaling_contained_partial") and not (
             pos.vw >= pos.cw and pos.vh >= pos.ch
         ):
@@ -816,7 +816,7 @@ class Helper:
                 scale = delta / deltaMax
 
                 if scale >= 1:
-                    if containHeight:
+                    if containHeight or (contain and nh >= pos.vh):
                         self.zoomToFit(win=win, view=view)
                     else:
                         self.zoomToFitWidth(win=win, view=view)
@@ -901,7 +901,7 @@ class Helper:
                 scale = delta / deltaMax
 
                 if scale >= 1:
-                    if containWidth:
+                    if containWidth or (contain and nw >= pos.vw):
                         self.zoomToFit(win=win, view=view)
                     else:
                         self.zoomToFitHeight(win=win, view=view)

@@ -600,6 +600,7 @@ class Tools(Component):
                         oldPos=oldPos,
                         newPos=newPos,
                         mode=self._actionToScaling.get(name),
+                        splitPane=splitPane,
                     )
 
         data["prevResizePosition"] = helper.canvasPosition(win=win, view=view)
