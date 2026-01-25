@@ -21,8 +21,6 @@ from .i18n import i18n
 from .helper import Helper
 
 
-
-
 class Dockers(Component):
     def __init__(
         self,

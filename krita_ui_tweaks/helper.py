@@ -7,6 +7,7 @@ from .pyqt import (
     QApplication,
     QColor,
     QIcon,
+    QLabel,
     QLineEdit,
     QMainWindow,
     QMdiArea,
@@ -14,8 +15,11 @@ from .pyqt import (
     QMessageBox,
     QObject,
     QPalette,
+    QPoint,
+    QPointF,
     QRect,
     QRectF,
+    QScrollBar,
     QStackedWidget,
     QTabBar,
     QTimer,
@@ -28,12 +32,18 @@ from krita import Krita, Window, Document, Canvas, View, Notifier
 
 from dataclasses import dataclass
 from itertools import count
-from typing import Any, Type, TypeVar
+from typing import Any, Type, TypeVar, TYPE_CHECKING
+from types import SimpleNamespace
 
 import typing
 import math
 import os
 import time
+
+
+if TYPE_CHECKING:
+    from .component import Component
+    from .tools import SCALING_MODE
 
 T = TypeVar("T", bound=QObject)
 
@@ -41,7 +51,11 @@ T = TypeVar("T", bound=QObject)
 @dataclass
 class CanvasPosition:
     rect: QRect
+    bbox: QRect
+    viewport: QRect
     zoom: float
+    minZoom: float | None = None
+    maxZoom: float | None = None
 
 
 @dataclass
@@ -50,13 +64,29 @@ class DocumentData:
     views: list[tuple[View, dict[Any, Any]]]
 
 
+COMPONENT_GROUP = dict[
+    typing.Literal["tools", "splitPane", "dockers", "helper"], "Component|None"
+]
+
+
 class Helper:
 
-    def __init__(self, qwin: QMainWindow):
+    def __init__(
+        self, qwin: QMainWindow, pluginGroup: COMPONENT_GROUP | None = None
+    ):
         self._uid = count(1)
+        self._componentGroup: COMPONENT_GROUP | None = pluginGroup
         self._qwin: QMainWindow = qwin
         self._docData: dict[QUuid, DocumentData] = {}
         self._cached: dict[str, Any] = {}
+        self._isScrolling = False
+        self._isZooming = False
+        self._debounceTimer: QTimer = QTimer()
+        self._debounceTimer.timeout.connect(self.runDebounceCallbacks)
+        self._debounceCheckTime: float = time.monotonic()
+        self._debounceCallbacks: dict[
+            str, tuple[typing.Callable[..., Any], float, float]
+        ] = {}
         typing.cast(pyqtBoundSignal, self.getNotifier().viewClosed).connect(
             lambda: QTimer.singleShot(10, self.refreshDocData)
         )
@@ -71,6 +101,40 @@ class Helper:
         if isinstance(obj, cls) and not sip.isdeleted(typing.cast(Any, obj)):
             return obj
         return None
+
+    def runDebounceCallbacks(self):
+        now = time.monotonic()
+        removeKeys = []
+        for k in list(self._debounceCallbacks.keys()):
+            v = self._debounceCallbacks.get(k, None)
+            if v and now - v[1] >= v[2]:
+                v[0]()
+                removeKeys.append(k)
+
+        for k in removeKeys:
+            if k in self._debounceCallbacks:
+                del self._debounceCallbacks[k]
+
+        if not self._debounceCallbacks:
+            self._debounceTimer.stop()
+
+    def debounceCallback(
+        self,
+        key: str,
+        cb: typing.Callable[..., Any],
+        timeout_seconds: float = 2.0,
+    ):
+        if self._debounceTimer:
+            exists = self._debounceCallbacks.get(key, None)
+            now = exists[1] if exists else time.monotonic()
+            self._debounceCallbacks[key] = (
+                cb,
+                now,
+                timeout_seconds,
+            )
+            self.runDebounceCallbacks()
+            if self._debounceCallbacks:
+                self._debounceTimer.start(100)
 
     def useDarkIcons(self) -> bool:
         bg = self.paletteColor("Window")
@@ -87,6 +151,9 @@ class Helper:
 
     def getScriptDir(self):
         return os.path.dirname(os.path.abspath(__file__))
+
+    def getIconPath(self, name):
+        return os.path.join(self.getScriptDir(), "icons", name)
 
     def getWin(self) -> Window | None:
         for w in self.getApp().windows():
@@ -202,6 +269,32 @@ class Helper:
         )
         return self._cached["mdi"]
 
+    def getViewSubWindow(
+        self, uid: int | None = None
+    ) -> (QMdiSubWindow | None, View | None, dict[Any, Any] | None):
+        subwin, view, data = None, None, None
+        if isinstance(uid, int):
+            win = self.getWin()
+            mdi = self.getMdi()
+            if mdi and win:
+
+                subwin = next(
+                    (
+                        w
+                        for w in mdi.subWindowList()
+                        if w.property("uiTweaksId") == uid
+                    ),
+                    None,
+                )
+
+                for v in win.views():
+                    d = self.getViewData(v)
+                    if d and d.get("uiTweaksId") == uid:
+                        view = v
+                        data = d
+
+        return (subwin, view, data)
+
     def getTabBar(self):
         cached = self.isAlive(self._cached.get("tabs", None), QTabBar)
         if cached:
@@ -218,9 +311,10 @@ class Helper:
         self,
         widget: QWidget | None = None,
     ):
-        widget.style().unpolish(widget)
-        widget.style().polish(widget)
-        widget.update()
+        if widget:
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+            widget.update()
 
     def paletteColor(self, key: str) -> QColor:
         role = getattr(QPalette.ColorRole, key, None)
@@ -246,6 +340,15 @@ class Helper:
             if icon is None:
                 icon = QIcon()
             view.showFloatingMessage(msg, icon, ts, 1)
+
+    def hideToast(self):
+        mdi = self.getMdi()
+        if mdi:
+            subwin = mdi.activeSubWindow()
+            if subwin:
+                for c in subwin.findChildren(QWidget):
+                    if c.metaObject().className() == "KisFloatingMessage":
+                        c.setVisible(False)
 
     def newAction(
         self,
@@ -275,6 +378,38 @@ class Helper:
                 action.setIcon(icon)
         return typing.cast(QWidgetAction, action)
 
+    def isPrintSize(self, view: View) -> bool:
+        # NOTE This is set in tools.py
+        viewData = self.getViewData(view)
+        return (
+            viewData.get("printSize", False)
+            if isinstance(viewData, dict)
+            else False
+        )
+
+    def isScrolling(self) -> bool:
+        return self._isScrolling
+
+    def getScrollBars(
+        self, win: QMdiSubWindow | None = None
+    ) -> tuple[
+        QScrollBar | None, QScrollBar | None, QAbstractScrollArea | None
+    ]:
+        bars = []
+        if not win:
+            mdi = self.getMdi()
+            win = mdi.activeSubWindow() if mdi else None
+        if win:
+            scrollAreas = win.findChildren(QAbstractScrollArea)
+            for sa in scrollAreas:
+                if sa.objectName() == "" and isinstance(
+                    sa, QAbstractScrollArea
+                ):
+                    hbar = sa.horizontalScrollBar()
+                    vbar = sa.verticalScrollBar()
+                    return (hbar, vbar, sa)
+        return (None, None, None)
+
     def scrollOffset(
         self, win: QMdiSubWindow | None = None
     ) -> tuple[int | None, int | None]:
@@ -303,6 +438,7 @@ class Helper:
             mdi = self.getMdi()
             win = mdi.activeSubWindow() if mdi else None
         if win:
+            self._isScrolling = True
             scrollAreas = win.findChildren(QAbstractScrollArea)
             for sa in scrollAreas:
                 if sa.objectName() == "" and type(sa) is QAbstractScrollArea:
@@ -312,15 +448,10 @@ class Helper:
                         vbar.setValue(y)
                     if hbar and x is not None:
                         hbar.setValue(x)
+            self._isScrolling = False
 
-    def isPrintSize(self, view: View) -> bool:
-        # NOTE This is set in tools.py
-        viewData = self.getViewData(view)
-        return (
-            viewData.get("printSize", False)
-            if isinstance(viewData, dict)
-            else False
-        )
+    def isZooming(self) -> bool:
+        return self._isZooming
 
     def getZoomLevel(self, canvas: Canvas | None = None, raw: bool = False):
         app = self.getApp()
@@ -366,10 +497,15 @@ class Helper:
         if not canvas:
             canvas = self.getCanvas()
         if canvas:
+            self._isZooming = True
             canvas.setZoomLevel(zoom)
+            self._isZooming = False
 
     def canvasPosition(
-        self, view: View | None = None, canvas: Canvas | None = None
+        self,
+        win: QMdiSubWindow,
+        view: View | None = None,
+        canvas: Canvas | None = None,
     ) -> CanvasPosition | None:
         if canvas:
             view = canvas.view()
@@ -382,13 +518,396 @@ class Helper:
         flakeToCanvas = view.flakeToCanvasTransform()
         flakeToImg = view.flakeToImageTransform()
         imgToFlake = flakeToImg.inverted()[0]
-        flakeRect = imgToFlake.mapRect(imgRect).toAlignedRect()
+        flakeRect = imgToFlake.mapRect(imgRect)
+        bbox = flakeToCanvas.mapRect(flakeRect)
+        flakeRect = flakeRect.toRect()
+        scroll = self.scrollOffset(win)
+        sx = scroll[0] if isinstance(scroll[0], int) else 0
+        sy = scroll[1] if isinstance(scroll[1], int) else 0
+        viewRect = win.contentsRect()
+        viewRect.moveTo(0, 0)
         return CanvasPosition(
+            # the unrotated image
             rect=QRect(
-                int(flakeToCanvas.dx()),
-                int(flakeToCanvas.dy()),
+                -sx,
+                -sy,
                 flakeRect.width(),
                 flakeRect.height(),
             ),
+            # the bounding box of the rotated img
+            bbox=bbox.toRect(),
             zoom=self.getZoomLevel(canvas, raw=True),
+            viewport=viewRect,
         )
+
+    def centerCanvas(
+        self,
+        win: QMdiSubWindow,
+        view: View | None = None,
+        canvas: Canvas | None = None,
+        axis: typing.Literal["x", "y"] | None = None,
+        centerY: int | None = None,
+        centerX: int | None = None,
+        intersected: bool = False,
+    ):
+        if not win:
+            return
+
+        if win:
+            pos = self.canvasPosition(win=win, canvas=canvas, view=view)
+            if pos:
+                rect = pos.bbox
+                splitRect = pos.viewport
+
+                if intersected:
+                    rect = splitRect.intersected(rect)
+
+                rectCenter = rect.center()
+                if centerY is None:
+                    centerY = rectCenter.y()
+
+                if centerX is None:
+                    centerX = rectCenter.x()
+
+                c = splitRect.center()
+                c = QPoint(int(c.x()), int(c.y()))
+                if axis == "x":
+                    rect.moveCenter(QPoint(c.x(), int(centerY)))
+                elif axis == "y":
+                    rect.moveCenter(QPoint(int(centerX), c.y()))
+                else:
+                    rect.moveCenter(c)
+                self.scrollTo(win=win, x=-int(rect.x()), y=-int(rect.y()))
+
+    def zoomToFit(
+        self,
+        win: QMdiSubWindow,
+        view: View | None = None,
+        canvas: Canvas | None = None,
+        zoomMax: float = math.inf,
+        axis: typing.Literal["x", "y"] | None = None,
+        keepScroll: bool = False,
+        bbox: bool = True,
+    ):
+        if not win:
+            return
+
+        if canvas:
+            view = canvas.view()
+        elif view:
+            canvas = view.canvas()
+
+        pos = self.canvasPosition(win=win, view=view, canvas=canvas)
+
+        if pos:
+            x, y = self.scrollOffset(win)
+            useRect = pos.bbox if bbox else pos.rect
+            splitRect = pos.viewport
+            _, _, cw, ch = useRect.getRect()
+            _, _, vw, vh = splitRect.getRect()
+            if vw == 0 or vh == 0:
+                return
+            sx = float(cw) / float(vw)
+            sy = float(ch) / float(vh)
+            if axis == "x":
+                s = sx
+            elif axis == "y":
+                s = sy
+            else:
+                s = max(sx, sy)
+            self.setZoomLevel(canvas, min(zoomMax, float(pos.zoom * (1 / s))))
+            if keepScroll:
+                if axis == "x":
+                    self.scrollTo(win, None, y)
+                elif axis == "y":
+                    self.scrollTo(win, x, None)
+                else:
+                    self.scrollTo(win, x, y)
+            else:
+                if axis == "x":
+                    self.centerCanvas(
+                        win=win,
+                        canvas=canvas,
+                        view=view,
+                        axis=axis,
+                        centerY=splitRect.center().y(),
+                    )
+                elif axis == "y":
+                    self.centerCanvas(
+                        win=win,
+                        canvas=canvas,
+                        view=view,
+                        axis=axis,
+                        centerX=splitRect.center().x(),
+                    )
+                else:
+                    self.centerCanvas(win=win, canvas=canvas, view=view)
+
+    def zoomToFitWidth(
+        self,
+        win: QMdiSubWindow,
+        view: View | None = None,
+        canvas: Canvas | None = None,
+    ):
+        self.zoomToFit(win=win, view=view, canvas=canvas, axis="x")
+
+    def zoomToFitHeight(
+        self,
+        win: QMdiSubWindow,
+        view: View | None = None,
+        canvas: Canvas | None = None,
+    ):
+        pos = self.canvasPosition(win=win, view=view)
+        self.zoomToFit(win=win, view=view, canvas=canvas, axis="y")
+
+    def scaleTo(
+        self,
+        win: QMdiSubWindow,
+        view: View,
+        oldPos: CanvasPosition,
+        newPos: CanvasPosition,
+        contain: bool = False,
+        mode: "SCALING_MODE | None" = None,
+    ):
+
+        from .split_pane.split_helpers import log as dbgLog
+        from .options import (
+            getOpt,
+        )
+
+        def getPos(pos: CanvasPosition | None = None, win=win, view=view):
+            if pos is None:
+                pos = self.canvasPosition(win=win, view=view)
+            assert pos is not None
+
+            r = QRectF(pos.bbox)
+            v = QRectF(pos.viewport)
+            rc = r.center()
+            vc = v.center()
+
+            return SimpleNamespace(
+                z=pos.zoom,
+                r=r,
+                v=v,
+                rc=rc,
+                vc=vc,
+                vw=v.width(),
+                vh=v.height(),
+                cx=r.x(),
+                cy=r.y(),
+                cw=r.width(),
+                ch=r.height(),
+                ocw=pos.rect.width(),  # the real width not the bbox
+                och=pos.rect.height(),  # the real height not the bbox
+            )
+
+        canvas = view.canvas()
+        pos = getPos(oldPos)
+        nw = newPos.viewport.width()
+        nh = newPos.viewport.height()
+        deltaX = nw - pos.vw
+        deltaY = nh - pos.vh
+        containDelta = 1.5
+
+        if 0 in (pos.vw, pos.vh, nw, nh):
+            return
+
+        if deltaX != 0 and deltaY != 0:
+            if nw <= nh:
+                deltaY = 0
+            else:
+                deltaX = 0
+
+        if mode == "anchored":
+            if deltaX != 0:
+                scale = nw / pos.vw
+                self.setZoomLevel(canvas, scale * pos.z)
+                newPos = getPos()
+                sy = pos.rc.y() - (newPos.ch * 0.5)
+                sx = scale * pos.cx
+                self.scrollTo(win, int(-sx), int(-sy))
+                pass
+
+            if deltaY != 0:
+                scale = nh / pos.vh
+                self.setZoomLevel(canvas, scale * pos.z)
+                newPos = getPos()
+                sx = pos.rc.x() - (newPos.cw * 0.5)
+                sy = scale * pos.cy
+                self.scrollTo(win, int(-sx), int(-sy))
+                pass
+
+        elif mode in ("contained", "expanded"):
+            contain = mode == "contained"
+            if deltaX < 0:
+                containDelta = 1 / containDelta
+                containWidth = pos.vw * containDelta
+                intersect = pos.r.intersected(pos.v)
+                iw = intersect.width()
+
+                if containWidth > iw:
+                    sw = iw / pos.vw
+                    containWidth = iw * sw if sw > 0.5 else iw * (1 - sw)
+
+                containHeight = pos.ch * (containWidth / pos.cw)
+
+                if containHeight > pos.vh:
+                    containWidth = pos.cw * (pos.vh / pos.ch)
+
+                if nw <= containWidth:
+                    containWidth = nw
+
+                delta = abs(deltaX)
+                deltaMax = abs(containWidth - pos.vw)
+                scale = delta / deltaMax
+
+                containZoom = pos.z * (containWidth / pos.cw)
+                currZoom = pos.z + (scale * (containZoom - pos.z))
+                self.setZoomLevel(canvas, currZoom)
+
+                newPos = getPos()
+                originCenter = pos.rc
+                coversHeight = pos.cy <= 0 and pos.cy + pos.ch >= pos.vh
+                containCenter = QPointF(
+                    containWidth * 0.5,
+                    pos.vc.y() if coversHeight else pos.rc.y(),
+                )
+                currCenter = originCenter + (
+                    scale * (containCenter - originCenter)
+                )
+
+                sy = currCenter.y() - (newPos.ch * 0.5)
+                sx = currCenter.x() - (newPos.cw * 0.5)
+                self.scrollTo(win, int(-sx), int(-sy))
+
+            if deltaX > 0:
+                containWidth = pos.vw * containDelta
+
+                if pos.cx + pos.cw > containWidth:
+                    containWidth = (pos.cx + pos.cw) * containDelta
+
+                if contain and containWidth < pos.cw:
+                    containWidth = pos.cw
+
+                containHeight = False
+                if contain:
+                    testHeight = pos.ch * (containWidth / pos.cw)
+                    containHeight = testHeight > pos.vh
+                    if containHeight:
+                        containWidth = max(pos.cw, pos.vw * containDelta)
+
+                delta = abs(deltaX)
+                deltaMax = abs(containWidth - pos.vw)
+                scale = delta / deltaMax
+
+                if scale >= 1:
+                    if containHeight:
+                        self.zoomToFit(win=win, view=view)
+                    else:
+                        self.zoomToFitWidth(win=win, view=view)
+                    self.centerCanvas(win=win, view=view)
+                else:
+                    containZoom = pos.z * (
+                        (pos.vh / pos.ch)
+                        if containHeight
+                        else (containWidth / pos.cw)
+                    )
+                    currZoom = pos.z + (scale * (containZoom - pos.z))
+                    self.setZoomLevel(canvas, currZoom)
+
+                    newPos = getPos()
+                    originCenter = pos.rc
+                    containCenter = QPointF(containWidth * 0.5, pos.vc.y())
+                    currCenter = originCenter + (
+                        scale * (containCenter - originCenter)
+                    )
+
+                    sy = currCenter.y() - (newPos.ch * 0.5)
+                    sx = currCenter.x() - (newPos.cw * 0.5)
+                    self.scrollTo(win, int(-sx), int(-sy))
+
+            if deltaY < 0:
+                containDelta = 1 / containDelta
+                containHeight = pos.vh * containDelta
+                intersect = pos.r.intersected(pos.v)
+                ih = intersect.height()
+
+                if containHeight > ih:
+                    sh = ih / pos.vh
+                    containHeight = ih * sh if sh > 0.5 else ih * (1 - sh)
+
+                containWidth = pos.cw * (containHeight / pos.ch)
+
+                if containWidth > pos.vw:
+                    containHeight = pos.ch * (pos.vw / pos.cw)
+
+                if nh <= containHeight:
+                    containHeight = nh
+
+                delta = abs(deltaY)
+                deltaMax = abs(containHeight - pos.vh)
+                scale = delta / deltaMax
+
+                containZoom = pos.z * (containHeight / pos.ch)
+                currZoom = pos.z + (scale * (containZoom - pos.z))
+                self.setZoomLevel(canvas, currZoom)
+
+                newPos = getPos()
+                originCenter = pos.rc
+                coversWidth = pos.cx <= 0 and pos.cx + pos.cw >= pos.vw
+                containCenter = QPointF(
+                    pos.vc.x() if coversWidth else pos.rc.x(),
+                    containHeight * 0.5,
+                )
+                currCenter = originCenter + (
+                    scale * (containCenter - originCenter)
+                )
+
+                sx = currCenter.x() - (newPos.cw * 0.5)
+                sy = currCenter.y() - (newPos.ch * 0.5)
+                self.scrollTo(win, int(-sx), int(-sy))
+
+            if deltaY > 0:
+                containHeight = pos.vh * containDelta
+
+                if pos.cy + pos.ch > containHeight:
+                    containHeight = (pos.cy + pos.ch) * containDelta
+
+                if contain and containHeight < pos.ch:
+                    containHeight = pos.ch
+
+                containWidth = False
+                if contain:
+                    testWidth = pos.cw * (containHeight / pos.ch)
+                    containWidth = testWidth > pos.vw
+
+                delta = abs(deltaY)
+                deltaMax = abs(containHeight - pos.vh)
+                scale = delta / deltaMax
+
+                if scale >= 1:
+                    if containWidth:
+                        self.zoomToFit(win=win, view=view)
+                    else:
+                        self.zoomToFitHeight(win=win, view=view)
+                    self.centerCanvas(win=win, view=view)
+                else:
+                    containZoom = pos.z * (
+                        (pos.vw / pos.cw)
+                        if containWidth
+                        else (containHeight / pos.ch)
+                    )
+                    currZoom = pos.z + (scale * (containZoom - pos.z))
+                    self.setZoomLevel(canvas, currZoom)
+
+                    newPos = getPos()
+                    originCenter = pos.rc
+                    containCenter = QPointF(pos.vc.x(), containHeight * 0.5)
+                    currCenter = originCenter + (
+                        scale * (containCenter - originCenter)
+                    )
+
+                    sx = currCenter.x() - (newPos.cw * 0.5)
+                    sy = currCenter.y() - (newPos.ch * 0.5)
+                    self.scrollTo(win, int(-sx), int(-sy))
+

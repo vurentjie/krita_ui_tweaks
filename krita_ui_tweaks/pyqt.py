@@ -25,11 +25,14 @@ except:
 
     QAction = QtWidgets.QAction
 
+
     def getEventPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
         return event.pos()
 
+
     def getEventGlobalPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
         return event.globalPos()
+
 
     def toPoint(pos: QtCore.QPoint):
         return pos
@@ -65,6 +68,7 @@ Qt = QtCore.Qt
 QTimer = QtCore.QTimer
 QUuid = QtCore.QUuid
 
+QGuiApplication = QtGui.QGuiApplication
 QBrush = QtGui.QBrush
 QColor = QtGui.QColor
 QCursor = QtGui.QCursor
@@ -116,6 +120,7 @@ QPushButton = QtWidgets.QPushButton
 QScrollArea = QtWidgets.QScrollArea
 QScrollBar = QtWidgets.QScrollBar
 QSizePolicy = QtWidgets.QSizePolicy
+QSlider = QtWidgets.QSlider
 QSpinBox = QtWidgets.QSpinBox
 QStackedWidget = QtWidgets.QStackedWidget
 QStyledItemDelegate = QtWidgets.QStyledItemDelegate
