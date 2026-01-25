@@ -1351,7 +1351,6 @@ class Split(QObject):
         )
 
         self.showOverlay()
-        qwin.setUpdatesEnabled(False)
         self._restoreSplits(layout, context)
 
         def closeOthers(context=context, keepOne=False):
@@ -1385,10 +1384,6 @@ class Split(QObject):
             splitTabs=splitTabs,
         ):
             try:
-                qwin = self._helper.getQwin()
-                if qwin:
-                    qwin.setUpdatesEnabled(True)
-
                 closeOthers(keepOne=True)
 
                 for f in context.splitFiles:
@@ -1453,9 +1448,6 @@ class Split(QObject):
                 else:
                     self.restoreSplitSizes(sizes)
             except:
-                qwin = self._helper.getQwin()
-                if qwin:
-                    qwin.setUpdatesEnabled(True)
                 self.hideOverlay()
                 splitTabs.setVisible(True)
 
