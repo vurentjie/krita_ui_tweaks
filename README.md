@@ -16,7 +16,9 @@ If the latest version has any issues, you can download an older version.
   - Bug Fixes:
     - Fixed issues with rotated views
     - Fixed issue where canvas floating messages disappear
-    - Correctly restore layout sizes. Layout needs to be re-saved for this fix.
+    - Correctly restore layout sizes. Layout needs to be re-saved for this fix
+  - Removed:
+    - Ctrl-drag resizing is replaced by scaling modes
 - [v1.0.6.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.6.zip)
   - Bug fixes:
     - Canvas alignment
