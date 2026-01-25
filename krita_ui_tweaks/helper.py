@@ -820,6 +820,9 @@ class Helper:
                         self.zoomToFit(win=win, view=view)
                     else:
                         self.zoomToFitWidth(win=win, view=view)
+                        if contain and getPos().nh >= pos.vh:
+                            self.zoomToFit(win=win, view=view)
+                            
                     self.centerCanvas(win=win, view=view)
                 else:
                     containZoom = pos.z * (
@@ -895,6 +898,8 @@ class Helper:
                 if contain:
                     testWidth = pos.cw * (containHeight / pos.ch)
                     containWidth = testWidth > pos.vw
+                    if containWidth:
+                        containHeight = max(pos.ch, pos.vh * containDelta)
 
                 delta = abs(deltaY)
                 deltaMax = abs(containHeight - pos.vh)
@@ -905,6 +910,9 @@ class Helper:
                         self.zoomToFit(win=win, view=view)
                     else:
                         self.zoomToFitHeight(win=win, view=view)
+                        if contain and getPos().nw >= pos.vw:
+                            self.zoomToFit(win=win, view=view)
+                            
                     self.centerCanvas(win=win, view=view)
                 else:
                     containZoom = pos.z * (
