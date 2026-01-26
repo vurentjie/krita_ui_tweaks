@@ -155,7 +155,7 @@ https://github.com/user-attachments/assets/8e54acf1-2aae-4602-bbc6-4744d1be5cf0
 
 
 <img width="603" height="836" alt="options" src="https://github.com/user-attachments/assets/73f2c058-d47d-49d2-82bf-56883c62c2a0" />
-<img width="560" height="840" alt="resizing" src="https://github.com/user-attachments/assets/79d100d6-87e3-45e2-849c-f74f585c553f" />
+<img width="560" height="839" alt="resizing" src="https://github.com/user-attachments/assets/df286fd3-9d14-4c43-9c05-187402a0d6d1" />
 <img width="603" height="836" alt="tabs" src="https://github.com/user-attachments/assets/b086140f-93b3-44a0-ab23-8934e63b4c05" />
 <img width="603" height="836" alt="colors" src="https://github.com/user-attachments/assets/88d1cc10-f3d3-4dd7-9938-7a00b654cf00" />
 <img width="603" height="836" alt="translations" src="https://github.com/user-attachments/assets/f320ee28-9cc5-4fe5-b251-65f4ec1a6c95" />
