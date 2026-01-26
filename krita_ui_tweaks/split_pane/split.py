@@ -148,7 +148,7 @@ class Split(QObject):
             self._overlay.setGeometry(rect)
 
     def hideOverlay(self):
-        if self._overlay:
+        if self._overlay and self._helper.isAlive(self._overlay, QWidget):
             self._overlay.deleteLater()
             self._overlay = None
 
@@ -522,6 +522,7 @@ class Split(QObject):
             self._second.clear(True)
             self._second = None
         if removeSelf and helper.isAlive(self, Split):
+            self.hideOverlay()
             self.hideCanvasBacking()
             parent = self.parent()
             if parent and isinstance(parent, Split):

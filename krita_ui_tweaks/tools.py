@@ -218,7 +218,7 @@ class Tools(Component):
                             btn.clicked.connect(cb)
         return False
 
-    def onConfigSave(self):
+    def onConfigSave(self, context):
         qwin = self._helper.getQwin()
         if not qwin:
             return
@@ -226,6 +226,9 @@ class Tools(Component):
         action = self._toolActions[self._activeTool]
         if not action:
             return
+            
+        if context.get("resize", "scaling_mode_per_view"):
+            self.viewActions()
 
         name = action.objectName()
         if getOpt("toggle", "toolbar_icons"):
@@ -426,9 +429,14 @@ class Tools(Component):
         if not (win and app and qwin and isinstance(data, dict)):
             return
 
-        currMode = data.get("fitMode", None)
-        if currMode is None:
-            data["fitMode"] = "zoom_to_fit"
+        data["fitMode"] = data.get("fitMode", "zoom_to_fit")
+
+        data["scalingMode"] = data.get(
+            "scalingMode",
+            self._scalingToAction.get(
+                getOpt("resize", "default_scaling_mode"), False
+            ),
+        )
 
         for actions in (self._fitActions, self._scalingActions):
             dataKey = (
@@ -440,7 +448,12 @@ class Tools(Component):
                 a.triggered.disconnect()
                 a.setCheckable(True)
                 if dataKey == "scalingMode":
-                    a.setChecked(name == self._globalScalingMode)
+                    val = (
+                        data[dataKey]
+                        if getOpt("resize", "scaling_mode_per_view")
+                        else self._globalScalingMode
+                    )
+                    a.setChecked(name == val)
                 else:
                     zoomToFit = data[dataKey] in (
                         "zoom_to_fit",
@@ -495,6 +508,7 @@ class Tools(Component):
                     self._fitActions["toggle_zoom_to_fit"].setChecked(False)
 
             if isScaling:
+                data[dataKey] = False
                 self._globalScalingMode = None
             else:
                 data[dataKey] = False
@@ -504,6 +518,7 @@ class Tools(Component):
 
         if isScaling:
             self._globalScalingMode = name
+            data[dataKey] = name
             for key in actions.keys():
                 actions[key].setChecked(key in self._globalScalingMode)
             if self._showToast:
@@ -585,7 +600,11 @@ class Tools(Component):
             helper.zoomToFitHeight(win=win, view=view)
         else:
             if splitPane.resizingEnabled():
-                name = self._globalScalingMode
+                name = (
+                    data["scalingMode"]
+                    if getOpt("resize", "scaling_mode_per_view")
+                    else self._globalScalingMode
+                )
 
                 if name in (
                     "krita_ui_tweaks_scaling_mode_anchored",

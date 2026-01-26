@@ -391,6 +391,11 @@ class SettingsDialog(QDialog):
                 section=sections.fitMode,
                 spaceBelow=10,
             ),
+            
+            "scaling_mode_per_view": ToggleItem(
+                input=QCheckBox(i18n("Scaling mode is enabled per view instead of globally")),
+                section=sections.scalingMode,
+            ),
             "default_scaling_mode": ComboItem(
                 input=QComboBox(),
                 label=QLabel(i18n("Default scaling mode")),
@@ -948,6 +953,7 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             "toggle_docking": ConfigVal(default=True),
         },
         "resize": {
+            "scaling_mode_per_view": ConfigVal(default=False),
             "default_scaling_mode": ConfigVal(
                 default="none",
                 options={
