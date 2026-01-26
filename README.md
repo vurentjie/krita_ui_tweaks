@@ -5,7 +5,8 @@
 If the latest version has any issues, you can download an older version.
 
 - [v1.0.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.7.zip)
-  - [update]: Patched the release to fix an issue with layout restoring. Please re-download.
+  - [update]: Patched the release to add a "scaling per view" config option.
+  - [update]: Patched the release to fix an issue with layout restoring.
   - New features:
     - Split handle size can be set in options.
     - Press ctrl when drag and dropping tabs to move all tabs
@@ -75,9 +76,10 @@ Plugin features:
 - _Custom colors_: You can set your own custom background colors
 
 - _Scaling modes_ (See video below for a demo):
-  - When resizing split panes you can set a global scaling mode that will scale
+  - When resizing split panes you can set a scaling mode that will scale
     the canvas as the view shrinks or expands.
-  - Global scaling mode can be set via toolbar buttons, keyboard shortcuts, or a
+  - Scaling mode is global but there is an option to make it per-view.
+  - Scaling mode can be set via toolbar buttons, keyboard shortcuts, or a
     default scaling mode can be set for when Krita starts.
   - Krita's "Fit-to-View" actions will override the scaling mode when resizing.
   - There are three types of scaling modes to choose from:
@@ -138,6 +140,8 @@ Scaling mode applies to all views being resized, whereas fit-to-view is set per 
 Note that fit-to-view actions are now also toggles, which differs from the default Krita behaviour.
 
 You can configure a default scaling mode to use in the options dialog.
+
+[update] There is now a config option to make scaling mode per-view instead of global.
 
 <img width="692" height="183" alt="scaling-modes" src="https://github.com/user-attachments/assets/5c8ae7ef-ffbc-438d-a48c-c87f140dd306" />
 <img width="314" height="277" alt="scaling-mode-tools" src="https://github.com/user-attachments/assets/38fcccfc-032a-43f2-8f2c-f8d9b69d9985" />
