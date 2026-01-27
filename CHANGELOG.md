@@ -116,6 +116,7 @@ _Initial release._
 - Fixed issues with rotated views
 - Fixed issue where canvas floating messages disappear
 - Correctly restore layout sizes. Layout needs to be re-saved for this fix.
+- Fix issue when toggling "Show Rulers" it should propagate to all windows
 
 ### Removed:
 
