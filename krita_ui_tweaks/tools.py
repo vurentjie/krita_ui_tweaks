@@ -191,14 +191,35 @@ class Tools(Component):
             self.centerCanvas,
             icon=QIcon(self._helper.getIconPath(f"{val}_center-canvas.png")),
         )
-
+        
+        # XXX
+        # need to poll for showrulers because changing 
+        # the ruler setting in the docker does not emit 
+        # notifier.configurationChanged signal
+        app = self._helper.getApp()
+        if app:
+            self._showRulers = app.readSetting("", "showrulers", "") == "true"
+            self._componentTimers.shortPoll.connect(self.onKritaConfigChanged)
+        
         OptionSignals.configSaved.connect(self.onConfigSave)
 
-        app = QApplication.instance()
-        app.installEventFilter(self)
+        qapp = QApplication.instance()
+        if qapp:
+            qapp.installEventFilter(self)
 
     def showOptions(self):
         showOptions(self._componentGroup["splitPane"])
+        
+    def onKritaConfigChanged(self):
+        app = self._helper.getApp()
+        mdi = self._helper.getMdi()
+        rulers = self._showRulers
+        self._showRulers = app.readSetting("", "showrulers", "") == "true"
+        if mdi and rulers != self._showRulers:
+            for w in mdi.subWindowList():
+                for r in w.findChildren(QWidget):
+                    if r.metaObject().className() == 'KoRuler':
+                        r.setVisible(self._showRulers)
 
     def eventFilter(self, obj, event):
         # NOTE
