@@ -5,6 +5,7 @@
 If the latest version has any issues, you can download an older version.
 
 - [v1.0.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.7.zip)
+  - [update]: Patched the release to fix toggling "Show Rulers" it should propagate to all windows
   - [update]: Patched the release to add a "scaling per view" config option.
   - [update]: Patched the release to fix an issue with layout restoring.
   - New features:
