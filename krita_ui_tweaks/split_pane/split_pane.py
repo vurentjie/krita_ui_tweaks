@@ -940,9 +940,12 @@ class SplitPane(Component):
 
         syncing = self._syncing
         self._syncing = True
+        updates = qwin.updatesEnabled()
+        qwin.setUpdatesEnabled(False)
         try:
             yield True
         finally:
+            qwin.setUpdatesEnabled(updates)
             self._syncing = syncing
 
     def isSyncing(self):
