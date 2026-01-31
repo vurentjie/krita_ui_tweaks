@@ -411,6 +411,7 @@ class Split(QObject):
                         closeSplit.close()
                     self._controller.setActiveToolbar()
             self._checkClosing = False
+            self._controller._doSaveLayout()
 
         if ts < 0:
             cb()

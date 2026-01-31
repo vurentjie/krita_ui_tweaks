@@ -336,7 +336,7 @@ class SplitPane(Component):
         savedTabText = data.doc.get("tabText", None)
         savedFileName = data.doc.get("fileName", None)
         savedTabModified = data.doc.get("tabModified", None)
-        
+
         if len(data.views) == 0:
             return (False, False)
 

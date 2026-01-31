@@ -127,3 +127,5 @@ _Initial release._
 ### Fixed:
 
 - Fixed issue with window flashing when splitting from the menu options
+- Fixed issue when "Restore layout" option is enabled, closing a tab does not
+  always remove the tab on next restart.
