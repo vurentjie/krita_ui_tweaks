@@ -1,4 +1,4 @@
- # Changelog
+# Changelog
 
 ## v1.0.0 - 2026-04-01
 
@@ -106,13 +106,13 @@ _Initial release._
 - _Drag and drop:_ Ctrl-drag to move all tabs
 - _Scaling modes:_ Apply scaling modes when resizing splits
 - _Action:_ Center canvas
-- _Fit to View:_ 
-   - Fit to view actions are now all toggles
-   - Fit to View Height now works correctly
+- _Fit to View:_
+  - Fit to view actions are now all toggles
+  - Fit to View Height now works correctly
 - _Restore defaults:_ Add buttons to restore default options
 
 ### Fixed:
-    
+
 - Fixed issues with rotated views
 - Fixed issue where canvas floating messages disappear
 - Correctly restore layout sizes. Layout needs to be re-saved for this fix.
@@ -121,3 +121,9 @@ _Initial release._
 ### Removed:
 
 - Removed ctrl-drag resizing (replaced by scaling modes).
+
+## v1.0.8 - 2026-31-01
+
+### Fixed:
+
+- Fixed issue with window flashing when splitting from the menu options
