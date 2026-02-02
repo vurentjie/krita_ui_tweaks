@@ -4,10 +4,6 @@
 
 If the latest version has any issues, you can download an older version.
 
-## v1.0.9 - 2026-02-01
-
-### Fixed:
-
 - [v1.0.9.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.9.zip)
   - On startup when recovering an autosave and recovering previous layout, don't
     show warning about modified documents
