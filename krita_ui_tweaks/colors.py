@@ -27,7 +27,8 @@ class HasColorScheme(Protocol):
     def colors(self) -> ColorScheme: ...
     def helper(self) -> Helper: ...
 
-def adjustColor(c, saturation=1.15, lightness=0.9):
+
+def adjustColor(c, lightness: float = 0.9, saturation: float | None = None):
     if saturation is None:
         saturation = 1.2 if lightness < 1 else 0.8
 
