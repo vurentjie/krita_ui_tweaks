@@ -130,7 +130,7 @@ _Initial release._
 - Fixed issue when "Restore layout" option is enabled, closing a tab does not
   always remove the tab on next restart.
 
-## v1.0.9 - 2026-02-01
+## v1.0.9 - 2026-02-02
 
 ### Fixed:
 
