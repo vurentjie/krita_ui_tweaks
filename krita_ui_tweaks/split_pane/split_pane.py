@@ -36,7 +36,7 @@ from ..options import (
 
 from ..helper import Helper
 from ..i18n import i18n
-from ..colors import ColorScheme
+from ..colors import ColorScheme, adjustColor
 
 from .split_drag import SplitDragRect
 from .split_tabs import SplitTabs
@@ -597,14 +597,14 @@ class SplitPane(Component):
             self.detachStyles()
 
     def detachStyles(self):
-        app = typing.cast(QApplication, QApplication.instance())
-        css = app.styleSheet()
+        qapp = typing.cast(QApplication, QApplication.instance())
+        css = qapp.styleSheet()
         match_first = r"/\*\s*KRITA_UI_TWEAKS_STYLESHEET_BEGIN\s*\*/"
         match_last = r"/\*\s*KRITA_UI_TWEAKS_STYLESHEET_END\s*\*/"
         css = re.sub(
             rf"{match_first}.*?{match_last}", "", css, flags=re.DOTALL
         )
-        app.setStyleSheet(css)
+        qapp.setStyleSheet(css)
 
     def attachStyles(self):
         if not getOpt("toggle", "split_panes"):
@@ -621,10 +621,10 @@ class SplitPane(Component):
 
         self._colors = (
             ColorScheme(
-                bar=winColor.darker(130).name(),
-                tab=winColor.darker(120).name(),
-                tabSeparator=winColor.darker(170).name(),
-                tabSelected=winColor.lighter(120).name(),
+                bar=adjustColor(winColor, lightness=0.7).name(),
+                tab=adjustColor(winColor, lightness=0.8).name(),
+                tabSeparator=adjustColor(winColor, lightness=0.3).name(),
+                tabSelected=adjustColor(winColor, lightness=1.2).name(),
                 tabActive=hlColor.name(),
                 tabText=textColor.name(),
                 tabClose=QColor("lightcoral").name(),
@@ -635,14 +635,14 @@ class SplitPane(Component):
             )
             if useDarkIcons
             else ColorScheme(
-                bar=winColor.darker(150).name(),
-                tab=winColor.darker(120).name(),
-                tabSeparator=winColor.lighter(140).name(),
-                tabSelected=winColor.lighter(130).name(),
+                bar=adjustColor(winColor, lightness=0.65).name(),
+                tab=adjustColor(winColor, lightness=0.85).name(),
+                tabSeparator=adjustColor(winColor, lightness=1.4).name(),
+                tabSelected=adjustColor(winColor, lightness=1.3).name(),
                 tabActive=hlColor.name(),
                 tabText=textColor.name(),
                 tabClose=QColor("darkred").name(),
-                menuSeparator=textColor.darker(150).name(),
+                menuSeparator=adjustColor(textColor, lightness=0.5).name(),
                 splitHandle=winColor.name(),
                 dropZone=hlColor.name(),
                 dragTab=hlColor.name(),
@@ -691,6 +691,9 @@ class SplitPane(Component):
                 QMdiArea QTabBar, QMdiArea QTabBar::tab {{
                     min-height: 0;   
                     max-height: 0;
+                }}
+                SplitToolbar {{
+                    background: {colors.bar};
                 }}
                 SplitToolbar QPushButton[class="menuButton"] {{
                     background: {colors.bar};
@@ -759,9 +762,9 @@ class SplitPane(Component):
         # needs to be attached on app at startup,
         # for config changes it should attach to mdi (faster and more stable)
 
-        app = typing.cast(QApplication, QApplication.instance())
+        qapp = typing.cast(QApplication, QApplication.instance())
         mdi = self._helper.getMdi()
-        widget = mdi if mdi else app
+        widget = mdi if mdi else qapp
 
         if widget:
             css = widget.styleSheet()
@@ -775,9 +778,9 @@ class SplitPane(Component):
     def onWindowShown(self):
         super().onWindowShown()
 
-        app = QApplication.instance()
+        qapp = QApplication.instance()
         self._modifiers = KeyModiferInterceptor()
-        app.installEventFilter(self._modifiers)
+        qapp.installEventFilter(self._modifiers)
 
         self.handleSplitter()
 
@@ -797,6 +800,14 @@ class SplitPane(Component):
         self.attachStyles()
         # just use resize to refresh the icons to avoid a second iteration
         topSplit.onResize(force=True, refreshIcons=True)
+        
+        qapp = QApplication.instance()
+        if qapp:
+            style = qapp.style()
+            for w in qapp.allWidgets():
+                style.unpolish(w)
+                style.polish(w)
+                w.update()
 
     def onViewChanged(self):
         super().onViewChanged()
