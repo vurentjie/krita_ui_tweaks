@@ -1269,7 +1269,10 @@ class Split(QObject):
             return splitLayout
 
     def restoreLayout(
-        self, layout: "CollapsedLayout | SplitLayout", silent: bool = False
+        self,
+        layout: "CollapsedLayout | SplitLayout",
+        silent: bool = False,
+        sessionRestore: bool = False,
     ):
         topSplit = self.topSplit()
         if self is not topSplit:
@@ -1287,29 +1290,30 @@ class Split(QObject):
         if not isinstance(layout, dict):
             return
 
-        for doc in app.documents():
-            if doc.modified():
-                if silent:
-                    return
+        if not sessionRestore:
+            for doc in app.documents():
+                if doc.modified():
+                    if silent:
+                        return
 
-                choice = QMessageBox.question(
-                    None,
-                    "Krita",
-                    i18n("You have unsaved changes.")
-                    + i18n(
-                        "If you continue the files will be kept open in your new layout."
+                    choice = QMessageBox.question(
+                        None,
+                        "Krita",
+                        i18n("You have unsaved changes.")
+                        + i18n(
+                            "If you continue the files will be kept open in your new layout."
+                        )
+                        + "\n\n"
+                        + i18n("Do you wish to continue?"),
+                        QMessageBox.StandardButton.No
+                        | QMessageBox.StandardButton.Yes,
+                        QMessageBox.StandardButton.No,
                     )
-                    + "\n\n"
-                    + i18n("Do you wish to continue?"),
-                    QMessageBox.StandardButton.No
-                    | QMessageBox.StandardButton.Yes,
-                    QMessageBox.StandardButton.No,
-                )
 
-                if choice == QMessageBox.StandardButton.No:
-                    return
-                else:
-                    break
+                    if choice == QMessageBox.StandardButton.No:
+                        return
+                    else:
+                        break
 
         assert topSplit is not None
         files, missing = getLayoutFiles(layout)

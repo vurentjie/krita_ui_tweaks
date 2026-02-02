@@ -479,7 +479,7 @@ class SplitPane(Component):
                             assert self._split is not None
                             topSplit = self._split.topSplit()
                             if topSplit:
-                                topSplit.restoreLayout(layout)
+                                topSplit.restoreLayout(layout, sessionRestore=True)
                         finally:
                             self._layoutRestored = True
 
