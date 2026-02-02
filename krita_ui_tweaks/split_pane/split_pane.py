@@ -722,7 +722,7 @@ class SplitPane(Component):
                     max-height: {tabBarHeight}px;
                     background: {colors.tab};
                     border-radius: 0;
-                    border: 1px solid {colors.tab};
+                    border: 0;
                     border-right: 1px solid {colors.tabSeparator};
                     padding: 0px 12px;
                 }}
@@ -731,7 +731,6 @@ class SplitPane(Component):
                 }}
                 QMdiArea SplitTabs::tab:selected {{
                     background: {colors.tabSelected}; 
-                    border: 1px solid {colors.tabSelected};
                     border-right: 1px solid {colors.tabSelected};
                 }}
                 QMdiArea SplitTabs::close-button {{
@@ -751,7 +750,6 @@ class SplitPane(Component):
                 }}
                 QMdiArea SplitTabs[class="active"]::tab:selected {{
                     background: {colors.tabActive}; 
-                    border: 1px solid {colors.tabActive};
                     border-right: 1px solid {colors.tabActive};
                 }}
                 /* KRITA_UI_TWEAKS_STYLESHEET_END */
@@ -1085,14 +1083,9 @@ class SplitPane(Component):
                                 topSplit.onResize(force=True)
 
                             if makeCurrent:
+                                self.setActiveToolbar(toolbar)
                                 data.win.raise_()
                                 data.win.show()
-                                ts = toolbar.split()
-                                tp = ts.parent()
-                                if isinstance(tp, Split):
-                                    self.setActiveToolbar(toolbar)
-                                else:
-                                    self.setActiveToolbar(toolbar)
 
     def getUid(self, index: int | None) -> int | None:
         if index is not None:

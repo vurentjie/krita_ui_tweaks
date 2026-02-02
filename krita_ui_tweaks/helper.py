@@ -314,7 +314,6 @@ class Helper:
         if widget:
             widget.style().unpolish(widget)
             widget.style().polish(widget)
-            widget.update()
 
     def paletteColor(self, key: str) -> QColor:
         role = getattr(QPalette.ColorRole, key, None)
