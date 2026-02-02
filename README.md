@@ -4,6 +4,18 @@
 
 If the latest version has any issues, you can download an older version.
 
+## v1.0.9 - 2026-02-01
+
+### Fixed:
+
+- [v1.0.9.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.9.zip)
+  - On startup when recovering an autosave and recovering previous layout, don't
+    show warning about modified documents
+  - CSS tweaks:
+    - The tab separator was short by 1px
+    - Take into account saturation and lightness for any default colors
+  - Fully refresh all widgets when switching themes so you don't have to restart
+    Krita.
 - [v1.0.8.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.8.zip)
   - Fixed issue with window flashing when splitting from the menu options
   - Fixed issue when "Restore layout" option is enabled, closing a tab does not

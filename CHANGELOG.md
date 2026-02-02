@@ -129,3 +129,15 @@ _Initial release._
 - Fixed issue with window flashing when splitting from the menu options
 - Fixed issue when "Restore layout" option is enabled, closing a tab does not
   always remove the tab on next restart.
+
+## v1.0.9 - 2026-02-01
+
+### Fixed:
+
+- On startup when recovering an autosave and recovering previous layout, don't
+  show warning about modified documents
+- CSS tweaks:
+  - The tab separator was short by 1px
+  - Take into account saturation and lightness for any default colors
+- Fully refresh all widgets when switching themes so you don't have to restart
+  Krita.
