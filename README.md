@@ -110,9 +110,27 @@ Plugin features:
 
 Screenshot of split panes:
 
-<img width="1760" height="1121" alt="Screenshot" src="https://github.com/user-attachments/assets/0bb37b33-3cf1-4b5f-b90b-92502b6a3da4" />
 
 
+<table>
+  <tr>
+    <td>
+      <img width="1760" height="1121" alt="Screenshot" src="https://github.com/user-attachments/assets/0bb37b33-3cf1-4b5f-b90b-92502b6a3da4" />
+    </td>
+    <td>
+      <img width="1881" height="1091" alt="preview-1" src="https://github.com/user-attachments/assets/342248bf-7f9e-4bb6-9dbc-be1a41fa4133" />
+    </td>
+    
+  </tr>
+  <tr>
+    <td>
+      <img width="1880" height="1094" alt="preview-2" src="https://github.com/user-attachments/assets/d0a67b55-40ce-42cc-ab96-729e67af5712" />
+    </td>
+    <td>
+      <img width="1882" height="1079" alt="preview-3" src="https://github.com/user-attachments/assets/1851f3aa-f6d2-40b3-971e-1c52db330477" />
+    </td>
+  </tr>
+</table>
 
 [Screencast.webm](https://github.com/user-attachments/assets/27f8b16b-b0a3-4d52-9b48-8a5ee166c891)
 
