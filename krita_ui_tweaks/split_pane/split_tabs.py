@@ -81,7 +81,11 @@ class SplitTabs(QTabBar):
         self.setMinimumWidth(0)
         self.attachStyle()
         self._helper.refreshWidget(self)
-        self.setStyle(RemoveBottomBorder(self.style()))
+        
+        self._customStyle = RemoveBottomBorder(self.style())
+        self._customStyle.setParent(self)
+        self.setStyle(self._customStyle)
+        
         self.currentChanged.connect(self.onCurrentChange)
 
     def attachStyle(self):
