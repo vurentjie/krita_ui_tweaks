@@ -646,7 +646,6 @@ class Split(QObject):
                     tabs = self.tabs()
                     if tabs:
                         tabs.setUsesScrollButtons(self._rect.width() > 100)
-                        self._helper.refreshWidget(tabs)
 
                 self.resized.emit()
 

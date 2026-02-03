@@ -3,6 +3,7 @@
 from ..pyqt import (
     toPoint,
     getEventGlobalPos,
+    Qt,
     QWidget,
     QMenu,
     QPushButton,
@@ -57,7 +58,6 @@ class SplitToolbar(QWidget):
         self._tabs: SplitTabs = SplitTabs(self, controller=controller)
         self._menu: QMenu | None = None
         self._menuBtn: QPushButton | None = None
-        self.setMouseTracking(True)
         if not SplitToolbar.MenuIcons:
             pix = QPixmap(":/dark_hamburger_menu_dots.svg")
             transform = QTransform().rotate(90)
@@ -70,6 +70,7 @@ class SplitToolbar(QWidget):
             SplitToolbar.MenuIcons["hamburger_light"] = QIcon(rotated)
 
         self.showMenuBtn()
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True) 
         self.setMouseTracking(True)
 
     def globalRect(self) -> QRect:
@@ -82,10 +83,6 @@ class SplitToolbar(QWidget):
                 rect.size(),
             )
         return QRect()
-
-    def paintEvent(self, _: QPaintEvent):
-        p = QPainter(self)
-        p.fillRect(self.rect(), QColor("#2c2c2c"))
         
     def showMenuBtn(self):
         if not self._menuBtn and not getOpt(

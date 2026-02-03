@@ -748,10 +748,10 @@ class SettingsDialog(QDialog):
         tab = QWidget()
         form = QFormLayout(tab)
         section = ""
-        for key, item in formItems.items():
+        for index, (key, item) in enumerate(formItems.items()):
             if item.section != section:
                 section = item.section
-                if item.separator or len(section) > 0:
+                if index > 0 and (item.separator or len(section) > 0):
                     spacer(form, 3)
                     line(form)
                     spacer(form, 3)
