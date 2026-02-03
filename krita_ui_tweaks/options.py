@@ -439,11 +439,11 @@ class SettingsDialog(QDialog):
         }
 
         colorLabels: dict[str, str] = {
-            "bar": i18n("Tab bar background"),
-            "tab": i18n("Tab background"),
+            "bar": i18n("Tab bar background *"),
+            "tab": i18n("Tab background *"),
             "tabSelected": i18n("Tab selected background"),
             "tabActive": i18n("Tab active background"),
-            "tabSeparator": i18n("Tab separator"),
+            "tabSeparator": i18n("Tab separator *"),
             "tabClose": i18n("Close button background when hovered"),
             "splitHandle": i18n("Split drag handle"),
             "dropZone": i18n("Drop zone"),
@@ -469,7 +469,7 @@ class SettingsDialog(QDialog):
         )
 
         self._colors: FormItems = {}
-        for k in colorLabels.keys():
+        for i, k in enumerate(colorLabels.keys()):
             color = configColors[k]
             resetColor = getattr(schemeColors, k, None)
             if not color:
@@ -480,6 +480,7 @@ class SettingsDialog(QDialog):
                     resetColor=resetColor,
                     customColors=customColors,
                 ),
+                subtitle=QLabel(i18n("Marked colors (*) are not applied when using Krita's default style for tabs") + "<br>") if i == 0 else None, 
                 label=QLabel(colorLabels[k]),
                 section=sections.colors,
             )
