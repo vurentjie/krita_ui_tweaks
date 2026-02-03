@@ -3,18 +3,21 @@ from ..pyqt import (
     getEventPos,
     getEventGlobalPos,
     Qt,
-    QObject,
-    QWidget,
-    QMainWindow,
     QColor,
-    QPaintEvent,
+    QGraphicsDropShadowEffect,
+    QMainWindow,
+    QMouseEvent,
+    QObject,
     QPainter,
+    QPaintEvent,
+    QPainterPath,
     QPen,
     QPoint,
-    QTimer,
-    QRect,
-    QMouseEvent,
     QPushButton,
+    QRect,
+    QRectF,
+    QTimer,
+    QWidget,
 )
 
 from types import SimpleNamespace
@@ -22,6 +25,7 @@ from typing import Protocol, TYPE_CHECKING
 import typing
 import math
 
+from ..colors import adjustColor
 from ..options import getOpt
 from ..i18n import i18n
 
@@ -76,6 +80,11 @@ class SplitDrag(QObject):
         ) = None
         self._allTabs = False
 
+    def defaultDragIndex(self) -> int:
+        if self._leftDragMode == "horizontal":
+            return self._leftDragIndex
+        return -1
+
     def reset(self):
         self._dragIndex = -1
         self._dropEdge = None
@@ -116,11 +125,20 @@ class SplitDrag(QObject):
             else:
                 text = parentWidget.tabText(self._dragIndex)
 
+            palette = self._controller.adjustedColors()
+            borderColor = adjustColor(QColor(palette.dropZone), lightness=0.7)
+            borderColor.setAlpha(180)
+            tabFontBold = getOpt("tab_behaviour", "tab_font_bold")
             self._dragPlaceHolder = SplitDragRect(
                 parent=qwin,
                 color=bg,
                 text=text,
                 textColor=fg,
+                shadow=True,
+                inset=True,
+                bold=tabFontBold,
+                borderRadius=3,
+                borderColor=borderColor,
             )
 
         self._dragPlaceHolder.show()
@@ -128,12 +146,7 @@ class SplitDrag(QObject):
         if self._allTabs:
             parent = parentWidget.parent()
             if parent:
-                self._dragPlaceHolder.setGeometry(
-                    pos.x(),
-                    pos.y(),
-                    100,
-                    100
-                )
+                self._dragPlaceHolder.setGeometry(pos.x(), pos.y(), 100, 100)
         else:
             self._dragPlaceHolder.setGeometry(
                 pos.x(),
@@ -491,8 +504,6 @@ class SplitDrag(QObject):
                     else:
                         self._leftDragMode = "horizontal"
                         self._leftDragStart = None
-                        self._leftDragIndex = -1
-                        self._leftDragMode = None
 
             elif self._leftDragMode == "vertical":
                 isDragging = True
@@ -537,6 +548,9 @@ class SplitDrag(QObject):
                     self._leftDragStart = toPoint(getEventGlobalPos(event))
                     self._leftDragIndex = index
                     self._leftDragMode = "detecting"
+                else:
+                    self._leftDragIndex = index
+                    self._leftDragMode = "horizontal"
             elif btn == Qt.MouseButton.MiddleButton:
                 self._controller.winClosed.connect(self.reset)
                 if getOpt("tab_behaviour", "tab_drag_middle_btn"):
@@ -595,6 +609,11 @@ class SplitDragRect(QWidget):
         altColor: QColor | None = None,
         text: str | None = None,
         textColor: QColor | None = None,
+        bold: bool = False,
+        shadow: bool = False,
+        inset: bool = False,
+        borderRadius: int = 0,
+        borderColor: QColor | None = None,
     ):
         super().__init__(parent)
 
@@ -603,6 +622,16 @@ class SplitDragRect(QWidget):
         self._text = text
         self._textColor = textColor if textColor else Qt.GlobalColor.white
         self._textAlign = Qt.AlignmentFlag.AlignCenter
+        self._borderRadius = borderRadius
+        self._borderColor = borderColor
+        self._inset = inset
+        self._bold = bold
+        if shadow:
+            self._shadow = QGraphicsDropShadowEffect()
+            self._shadow.setBlurRadius(16)
+            self._shadow.setOffset(2, 2)
+            self._shadow.setColor(QColor(0, 0, 0, 80))
+            self.setGraphicsEffect(self._shadow)
 
     def setText(self, text: str | None):
         self._text = text
@@ -618,8 +647,30 @@ class SplitDragRect(QWidget):
 
     def paintEvent(self, _: QPaintEvent):
         p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
         rect = self.rect()
-        p.fillRect(rect, self._color)
+        if self._borderRadius == 0:
+            p.fillRect(rect, self._color)
+        else:
+            p.setBrush(self._color)
+            p.setPen(Qt.NoPen)
+            p.drawRoundedRect(rect, self._borderRadius, self._borderRadius)
+
+            if self._inset:
+                p.setBrush(Qt.NoBrush)
+                p.setPen(QPen(QColor(255, 255, 255, 50), 1))
+                p.drawRoundedRect(
+                    rect.adjusted(1, 1, -1, -1),
+                    self._borderRadius,
+                    self._borderRadius,
+                )
+
+            if self._borderColor:
+                p.setBrush(Qt.NoBrush)
+                p.setPen(QPen(self._borderColor, 2))
+                p.drawRoundedRect(
+                    rect, self._borderRadius + 1, self._borderRadius + 1
+                )
 
         if self._altColor:
             stripe_width = 5
@@ -632,6 +683,10 @@ class SplitDragRect(QWidget):
 
         if self._text:
             p.setPen(self._textColor)
+            if self._bold:
+                font = p.font()
+                font.setBold(True)
+                p.setFont(font)
             p.drawText(
                 self.rect(),
                 self._textAlign

@@ -643,7 +643,10 @@ class Split(QObject):
                     if refreshIcons:
                         self._toolbar.updateMenuBtn()
 
-                    self.tabs().setUsesScrollButtons(self._rect.width() > 100)
+                    tabs = self.tabs()
+                    if tabs:
+                        tabs.setUsesScrollButtons(self._rect.width() > 100)
+                        self._helper.refreshWidget(tabs)
 
                 self.resized.emit()
 
@@ -1112,6 +1115,9 @@ class Split(QObject):
             else:
                 currSize = self._rect.height()
                 handle.moveTo(handle.y() + (delta * (size - currSize)))
+            tabs = self.tabs()
+            if tabs:
+                self._helper.refreshWidget(tabs)
 
     def restoreSplitSizes(
         self,
@@ -1456,6 +1462,10 @@ class Split(QObject):
             except:
                 self.hideOverlay()
                 splitTabs.setVisible(True)
+            finally:
+                topSplit = self.topSplit()
+                if topSplit:
+                    topSplit.onResize(force=True)
 
             QTimer.singleShot(100, completeLayout)
 

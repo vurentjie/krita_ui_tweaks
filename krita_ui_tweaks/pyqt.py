@@ -25,14 +25,11 @@ except:
 
     QAction = QtWidgets.QAction
 
-
     def getEventPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
         return event.pos()
 
-
     def getEventGlobalPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
         return event.globalPos()
-
 
     def toPoint(pos: QtCore.QPoint):
         return pos
@@ -73,6 +70,7 @@ QBrush = QtGui.QBrush
 QColor = QtGui.QColor
 QCursor = QtGui.QCursor
 QFont = QtGui.QFont
+QFontMetrics = QtGui.QFontMetrics
 QIcon = QtGui.QIcon
 QImage = QtGui.QImage
 QImageReader = QtGui.QImageReader
@@ -80,6 +78,7 @@ QMouseEvent = QtGui.QMouseEvent
 QMoveEvent = QtGui.QMoveEvent
 QResizeEvent = QtGui.QResizeEvent
 QPaintEvent = QtGui.QPaintEvent
+QPainterPath = QtGui.QPainterPath
 QPainter = QtGui.QPainter
 QPalette = QtGui.QPalette
 QPen = QtGui.QPen
@@ -125,7 +124,11 @@ QSpinBox = QtWidgets.QSpinBox
 QStackedWidget = QtWidgets.QStackedWidget
 QStyledItemDelegate = QtWidgets.QStyledItemDelegate
 QStyleOptionViewItem = QtWidgets.QStyleOptionViewItem
+QStyleOption = QtWidgets.QStyleOption
 QStyle = QtWidgets.QStyle
+QStylePainter = QtWidgets.QStylePainter
+QStyleOptionTab = QtWidgets.QStyleOptionTab
+QStyleOptionTabBarBase = QtWidgets.QStyleOptionTabBarBase
 QTabBar = QtWidgets.QTabBar
 QTabWidget = QtWidgets.QTabWidget
 QToolBar = QtWidgets.QToolBar

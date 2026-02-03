@@ -15,10 +15,12 @@ class ColorScheme:
     tabSeparator: str
     tabSelected: str
     tabActive: str
+    tabActiveBorder: str
     tabText: str
     tabClose: str
     menuSeparator: str
     splitHandle: str
+    splitHandleEdge: str
     dropZone: str
     dragTab: str
 

@@ -47,7 +47,7 @@ import json
 import typing
 import time
 
-VERSION = "1.0.9"
+VERSION = "1.1.0"
 
 
 @dataclass
@@ -293,6 +293,12 @@ class SettingsDialog(QDialog):
                         "<b>Requires restart. The menu can still be accessed by right-clicking tabs.</b>"
                     )
                 ),
+            ),
+            "tab_krita_style": ToggleItem(
+                input=QCheckBox(
+                    i18n("Use Krita's default style for tabs")
+                ),
+                section=sections.tabAppearance,
             ),
             "tab_drag_middle_btn": ToggleItem(
                 input=QCheckBox(
@@ -904,6 +910,7 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             "tab_font_bold": ConfigVal(default=True),
             "tab_hide_filesize": ConfigVal(default=False),
             "tab_ellipsis": ConfigVal(default=True),
+            "tab_krita_style": ConfigVal(default=True),
             "tab_drag_middle_btn": ConfigVal(default=True),
             "tab_drag_left_btn": ConfigVal(default=True),
             "tab_drag_deadzone": ConfigVal(default=10, clamp=(10, 50)),

@@ -59,12 +59,14 @@ class SplitHandle(QWidget):
             if isinstance(orient, Qt.Orientation)
             else Qt.Orientation.Vertical
         )
-        self.setCursor(
-            self._orient == Qt.Orientation.Vertical
-            and Qt.CursorShape.SizeHorCursor
-            or Qt.CursorShape.SizeVerCursor
-        )
-
+        if self._orient == Qt.Orientation.Vertical:
+            self.setCursor(Qt.CursorShape.SizeHorCursor)
+            self.setProperty("orient", "vertical")
+        else:
+            self.setCursor(Qt.CursorShape.SizeVerCursor)
+            self.setProperty("orient", "horizontal")
+            
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True) 
         self.reset()
         if isinstance(pos, int):
             self.moveTo(pos)
@@ -79,11 +81,6 @@ class SplitHandle(QWidget):
         from .split import Split
 
         return self._helper.isAlive(self._split, Split)
-
-    def paintEvent(self, _: QPaintEvent):
-        p = QPainter(self)
-        colors = self._controller.adjustedColors()
-        p.fillRect(self.rect(), QColor(colors.splitHandle))
 
     def globalRect(self):
         qwin = self._helper.getQwin()
@@ -104,12 +101,18 @@ class SplitHandle(QWidget):
             orient in (Qt.Orientation.Horizontal, Qt.Orientation.Vertical)
             and orient != self._orient
         ):
+            refresh = orient != self._orient
             self._orient = orient
-            self.setCursor(
-                self._orient == Qt.Orientation.Vertical
-                and Qt.CursorShape.SizeHorCursor
-                or Qt.CursorShape.SizeVerCursor
-            )
+            if self._orient == Qt.Orientation.Vertical:
+                self.setCursor(Qt.CursorShape.SizeHorCursor)
+                self.setProperty("orient", "vertical")
+            else:
+                self.setCursor(Qt.CursorShape.SizeVerCursor)
+                self.setProperty("orient", "horizontal")
+                
+            if refresh:
+                self._helper.refreshWidget(self)
+                
             if redraw:
                 self.reset()
                 self.clamp()

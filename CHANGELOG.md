@@ -141,3 +141,10 @@ _Initial release._
   - Take into account saturation and lightness for any default colors
 - Fully refresh all widgets when switching themes so you don't have to restart
   Krita.
+  
+## v1.1.0 - 2026-03-02
+
+### Added:
+  - Tabs can now render in the default Krita style (this is also the default option)
+  - Added a drop shadow to the drag 'n drop placeholder
+  - Added config option `Use Krita's default style for tabs` (disable this to revert to the original flat tab styles)

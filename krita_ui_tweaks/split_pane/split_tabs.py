@@ -6,22 +6,35 @@ from ..pyqt import (
     getEventPos,
     pyqtSignal,
     Qt,
-    QTabBar,
-    QMouseEvent,
-    QTimer,
-    QPoint,
-    QMdiSubWindow,
-    QWidget,
-    QEvent,
     QColor,
+    QEvent,
+    QFont,
+    QFontMetrics,
+    QMdiSubWindow,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QPalette,
+    QPoint,
+    QProxyStyle,
     QRect,
+    QStyle,
+    QStyleOption,
+    QStyleOptionTab,
+    QStyleOptionTabBarBase,
+    QStylePainter,
+    QTabBar,
+    QTimer,
     QWheelEvent,
+    QWidget,
 )
 
 from krita import View
 from typing import Any, TYPE_CHECKING
 
 import typing
+
+from ..options import getOpt
 
 from .split_helpers import SplitData
 from .split import Split
@@ -30,6 +43,19 @@ from .split_drag import SplitDrag
 if TYPE_CHECKING:
     from .split_toolbar import SplitToolbar
     from .split_pane import SplitPane
+
+
+class RemoveBottomBorder(QProxyStyle):
+    def drawPrimitive(
+        self,
+        element: QStyle.PrimitiveElement,
+        option: QStyleOption,
+        painter: QPainter,
+        widget: QWidget | None = None,
+    ) -> None:
+        if element == QStyle.PE_FrameTabBarBase:
+            return
+        super().drawPrimitive(element, option, painter, widget)
 
 
 class SplitTabs(QTabBar):
@@ -43,6 +69,7 @@ class SplitTabs(QTabBar):
         self._controller = controller
         self._helper = controller.helper()
         self._draggable = SplitDrag(self)
+        self._redrawDelay = False
 
         self.setExpanding(False)
         self.setMouseTracking(True)
@@ -52,8 +79,212 @@ class SplitTabs(QTabBar):
         self.tabCloseRequested.connect(self.purgeTab)
         self.setMinimumHeight(0)
         self.setMinimumWidth(0)
-
+        self.attachStyle()
+        self._helper.refreshWidget(self)
+        self.setStyle(RemoveBottomBorder(self.style()))
         self.currentChanged.connect(self.onCurrentChange)
+
+    def attachStyle(self):
+        helper = self._helper
+        useDarkIcons = helper.useDarkIcons()
+        winColor = helper.paletteColor("Window")
+        textColor = helper.paletteColor("Text")
+        hlColor = helper.paletteColor("Highlight")
+        closeIcon = (
+            ":/dark_close-tab.svg" if useDarkIcons else ":/light_close-tab.svg"
+        )
+
+        colors = self._controller.adjustedColors()
+
+        tabBarHeight = getOpt("tab_behaviour", "tab_height")
+        tabFontSize = getOpt("tab_behaviour", "tab_font_size")
+        tabFontBold = (
+            "bold" if getOpt("tab_behaviour", "tab_font_bold") else "normal"
+        )
+        useKritaStyle = getOpt("tab_behaviour", "tab_krita_style")
+
+        if useKritaStyle:
+            self.setStyleSheet(
+                f"""
+                QMdiArea SplitTabs {{
+                    background: {winColor.name()};
+                    min-height: {tabBarHeight + 2}px;   
+                    max-height: {tabBarHeight + 2}px;
+                    padding-right: 50px;
+                    border: 0;
+                }} 
+                QMdiArea SplitTabs::tab {{
+                    min-width: 1px; 
+                    max-width: 400px; 
+                    font-size: {tabFontSize}px;
+                    font-weight: {tabFontBold};
+                    height: {tabBarHeight + 2}px;     
+                    min-height: {tabBarHeight + 2}px;   
+                    max-height: {tabBarHeight + 2}px;
+                }}
+                
+                QMdiArea SplitTabs::close-button {{
+                    image: url({closeIcon});
+                    padding: 2px;
+                    background: none;
+                    margin: 0;
+                }}
+                QMdiArea SplitTabs QAbstractButton[hover="true"] {{
+                    background-color: {colors.tabClose};
+                }}
+                QMdiArea SplitTabs::close-button:pressed {{
+                    background-color: red;
+                }}
+                QMdiArea SplitTabs::tear {{
+                    width: 0px; 
+                    border: none;
+                }}
+            """
+            )
+
+        else:
+            self.setStyleSheet(
+                f"""
+                QMdiArea SplitTabs {{
+                    qproperty-drawBase: 0;
+                    background: {colors.bar};      
+                    min-height: {tabBarHeight}px;   
+                    max-height: {tabBarHeight}px;
+                    border: 0;
+                    margin: 0;
+                    padding: 0;
+                    padding-right: 50px;
+                }}
+                QMdiArea SplitTabs QToolButton {{
+                    border: none;
+                    background: {colors.bar};      
+                }}
+                QMdiArea SplitTabs::tab {{
+                    min-width: 1px; 
+                    max-width: 400px; 
+                    font-size: {tabFontSize}px;
+                    font-weight: {tabFontBold};
+                    height: {tabBarHeight}px;     
+                    min-height: {tabBarHeight}px;   
+                    max-height: {tabBarHeight}px;
+                    background: {colors.tab};
+                    border-radius: 0;
+                    border: 0;
+                    border-right: 1px solid {colors.tabSeparator};
+                    padding: 0px 12px;
+                }}
+                QMdiArea SplitTabs::tab:last {{
+                    border-right: 1px solid {colors.tabSeparator};
+                }}
+                QMdiArea SplitTabs::tab:selected {{
+                    background: {colors.tabSelected}; 
+                    border-right: 1px solid {colors.tabSeparator};
+                }}
+                QMdiArea SplitTabs::close-button {{
+                    image: url({closeIcon});
+                    padding: 2px;
+                    background: none;
+                }}
+                QMdiArea SplitTabs QAbstractButton[hover="true"] {{
+                    background-color: {colors.tabClose};
+                }}
+                QMdiArea SplitTabs::close-button:pressed {{
+                    background-color: red;
+                }}
+                QMdiArea SplitTabs::tear {{
+                    width: 0px; 
+                    border: none;
+                }}
+                QMdiArea SplitTabs[class="active"]::tab:selected {{
+                    background: {colors.tabActive}; 
+                    border-right: 1px solid {colors.tabActive};
+                }}
+            """
+            )
+
+    def tabSizeHint(self, index: int):
+        size = super().tabSizeHint(index)
+        tabBarHeight = getOpt("tab_behaviour", "tab_height")
+        tabFontSize = getOpt("tab_behaviour", "tab_font_size")
+        tabFontBold = getOpt("tab_behaviour", "tab_font_bold")
+        font = QFont(self.font())
+        font.setBold(tabFontBold)
+        font.setPixelSize(tabFontSize)
+        metrics = QFontMetrics(font)
+        text = self.tabText(index)
+        size.setWidth(
+            size.width()
+            + metrics.horizontalAdvance(text)
+            - metrics.horizontalAdvance(text)
+            + 6
+        )
+        return size
+
+    def paintEvent(self, event: QPaintEvent):
+        if not getOpt("tab_behaviour", "tab_krita_style"):
+            super().paintEvent(event)
+            return
+
+        painter = QStylePainter(self)
+        colors = self._controller.adjustedColors()
+        tabFontSize = getOpt("tab_behaviour", "tab_font_size")
+        tabFontBold = getOpt("tab_behaviour", "tab_font_bold")
+        active = self.property("class") == "active"
+
+        dragIndex = self._draggable.defaultDragIndex()
+
+        for i in range(self.count()):
+            if i == dragIndex or i == self.currentIndex():
+                continue
+
+            opt = QStyleOptionTab()
+            self.initStyleOption(opt, i)
+
+            font = painter.font()
+            font.setBold(tabFontBold)
+            font.setPixelSize(tabFontSize)
+            painter.setFont(font)
+            opt.fontMetrics = QFontMetrics(font)
+
+            if active and (opt.state & QStyle.State_Selected):
+                pal = QPalette(opt.palette)
+                pal.setColor(QPalette.Window, QColor(colors.tabActive))
+                opt.palette = pal
+
+            painter.drawControl(QStyle.CE_TabBarTab, opt)
+
+        super().paintEvent(event)
+
+        currentIndex = self.currentIndex()
+        if dragIndex == -1 and not self._redrawDelay:
+            opt = QStyleOptionTab()
+            self.initStyleOption(opt, currentIndex)
+
+            font = painter.font()
+            font.setBold(tabFontBold)
+            font.setPixelSize(tabFontSize)
+            painter.setFont(font)
+            opt.fontMetrics = QFontMetrics(font)
+
+            if opt.state & QStyle.State_Selected:
+                pal = QPalette(opt.palette)
+                pal.setColor(
+                    QPalette.Window,
+                    QColor(colors.tabActive if active else colors.tabSelected),
+                )
+                opt.palette = pal
+
+            painter.drawControl(QStyle.CE_TabBarTab, opt)
+        elif dragIndex != -1:
+            self._redrawDelay = True
+
+            def cb():
+                self._redrawDelay = False
+                self.update()
+
+            self._helper.debounceCallback(
+                f"repaintSplitTab{id(self)}", cb, timeout_seconds=0.4
+            )
 
     def _sync(self, index: int):
         helper = self._helper

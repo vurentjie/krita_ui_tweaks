@@ -236,6 +236,7 @@ class SplitPane(Component):
                 "tab_font_size",
                 "tab_font_bold",
                 "tab_height",
+                "tab_krita_style"
             )
         ) or context.get("colors", None):
             self.attachStyles()
@@ -479,7 +480,9 @@ class SplitPane(Component):
                             assert self._split is not None
                             topSplit = self._split.topSplit()
                             if topSplit:
-                                topSplit.restoreLayout(layout, sessionRestore=True)
+                                topSplit.restoreLayout(
+                                    layout, sessionRestore=True
+                                )
                         finally:
                             self._layoutRestored = True
 
@@ -623,13 +626,15 @@ class SplitPane(Component):
             ColorScheme(
                 bar=adjustColor(winColor, lightness=0.7).name(),
                 tab=adjustColor(winColor, lightness=0.8).name(),
-                tabSeparator=adjustColor(winColor, lightness=0.3).name(),
+                tabSeparator=adjustColor(winColor, lightness=0.6).name(),
                 tabSelected=adjustColor(winColor, lightness=1.2).name(),
                 tabActive=hlColor.name(),
+                tabActiveBorder=adjustColor(hlColor, lightness=0.7).name(),
                 tabText=textColor.name(),
                 tabClose=QColor("lightcoral").name(),
                 menuSeparator=textColor.name(),
                 splitHandle=winColor.name(),
+                splitHandleEdge=adjustColor(winColor, lightness=0.90).name(),
                 dropZone=hlColor.name(),
                 dragTab=hlColor.name(),
             )
@@ -640,10 +645,12 @@ class SplitPane(Component):
                 tabSeparator=adjustColor(winColor, lightness=1.4).name(),
                 tabSelected=adjustColor(winColor, lightness=1.3).name(),
                 tabActive=hlColor.name(),
+                tabActiveBorder=adjustColor(hlColor, lightness=0.7).name(),
                 tabText=textColor.name(),
                 tabClose=QColor("darkred").name(),
                 menuSeparator=adjustColor(textColor, lightness=0.5).name(),
                 splitHandle=winColor.name(),
+                splitHandleEdge=adjustColor(winColor, lightness=0.80).name(),
                 dropZone=hlColor.name(),
                 dragTab=hlColor.name(),
             )
@@ -668,13 +675,7 @@ class SplitPane(Component):
                 }
             """
 
-        tabBarHeight = getOpt("tab_behaviour", "tab_height")
-        tabFontSize = getOpt("tab_behaviour", "tab_font_size")
-        tabFontBold = (
-            "bold" if getOpt("tab_behaviour", "tab_font_bold") else "normal"
-        )
         style = f"""
-                /* KRITA_UI_TWEAKS_STYLESHEET_BEGIN */
                 QMainWindow::separator:vertical {{
                     background: transparent;
                 }}
@@ -692,6 +693,44 @@ class SplitPane(Component):
                     min-height: 0;   
                     max-height: 0;
                 }}
+        """
+                
+        tabBarHeight = getOpt("tab_behaviour", "tab_height")
+        tabFontSize = getOpt("tab_behaviour", "tab_font_size")
+        tabFontBold = (
+            "bold" if getOpt("tab_behaviour", "tab_font_bold") else "normal"
+        )
+        useKritaStyle = getOpt("tab_behaviour", "tab_krita_style") 
+
+        if useKritaStyle:
+            tabStyle = f"""
+                SplitToolbar {{
+                    background: {winColor.name()};
+                }}
+                SplitToolbar QPushButton[class="menuButton"] {{
+                    background: {winColor.name()};
+                    border: none;
+                    min-height: {tabBarHeight}px;   
+                    max-height: {tabBarHeight}px;
+                }}
+                SplitHandle {{
+                    background: {colors.splitHandle};
+                }}
+                SplitHandle[orient="vertical"] {{
+                    border-left: 1px solid {colors.splitHandleEdge};
+                }}
+                SplitHandle[orient="horizontal"] {{
+                    border-left: 10px solid {colors.splitHandle};
+                    border-right: 10px solid {colors.splitHandle};
+                    border-bottom: 1px solid {colors.splitHandleEdge};
+                }}
+            """
+        
+        else:
+            tabStyle = f"""
+                SplitHandle {{
+                    background: {colors.splitHandle};
+                }}
                 SplitToolbar {{
                     background: {colors.bar};
                 }}
@@ -701,67 +740,16 @@ class SplitPane(Component):
                     min-height: {tabBarHeight}px;   
                     max-height: {tabBarHeight}px;
                 }}
-                QMdiArea SplitTabs {{
-                    qproperty-drawBase: 0;
-                    background: {colors.bar};      
-                    min-height: {tabBarHeight}px;   
-                    max-height: {tabBarHeight}px;
-                    border: 0;
-                    margin: 0;
-                    padding: 0;
-                    padding-right: 50px;
-                }}
-                QMdiArea SplitTabs QToolButton {{
-                    border: none;
-                    background: {colors.bar};      
-                }}
-                QMdiArea SplitTabs::tab {{
-                    min-width: 1px; 
-                    max-width: 400px; 
-                    font-size: {tabFontSize}px;
-                    font-weight: {tabFontBold};
-                    height: {tabBarHeight}px;     
-                    min-height: {tabBarHeight}px;   
-                    max-height: {tabBarHeight}px;
-                    background: {colors.tab};
-                    border-radius: 0;
-                    border: 0;
-                    border-right: 1px solid {colors.tabSeparator};
-                    padding: 0px 12px;
-                }}
-                QMdiArea SplitTabs::tab:last {{
-                    border-right: 1px solid {colors.tabSeparator};
-                }}
-                QMdiArea SplitTabs::tab:selected {{
-                    background: {colors.tabSelected}; 
-                    border-right: 1px solid {colors.tabSelected};
-                }}
-                QMdiArea SplitTabs::close-button {{
-                    image: url({closeIcon});
-                    padding: 2px;
-                    background: none;
-                }}
-                QMdiArea SplitTabs QAbstractButton[hover="true"] {{
-                    background-color: {colors.tabClose};
-                }}
-                QMdiArea SplitTabs::close-button:pressed {{
-                    background-color: red;
-                }}
-                QMdiArea SplitTabs::tear {{
-                    width: 0px; 
-                    border: none;
-                }}
-                QMdiArea SplitTabs[class="active"]::tab:selected {{
-                    background: {colors.tabActive}; 
-                    border-right: 1px solid {colors.tabActive};
-                }}
-                /* KRITA_UI_TWEAKS_STYLESHEET_END */
             """
 
-        # NOTE
-        # needs to be attached on app at startup,
-        # for config changes it should attach to mdi (faster and more stable)
-
+        topSplit = self.topSplit()
+        if topSplit:
+            def cb(split: "Split"):
+                tabs = split.tabs()
+                if tabs:
+                    tabs.attachStyle()
+            topSplit.eachCollapsedSplit(cb)
+            
         qapp = typing.cast(QApplication, QApplication.instance())
         mdi = self._helper.getMdi()
         widget = mdi if mdi else qapp
@@ -773,7 +761,14 @@ class SplitPane(Component):
             css = re.sub(
                 rf"{match_first}.*?{match_last}", "", css, flags=re.DOTALL
             )
-            widget.setStyleSheet(css + style)
+            widget.setStyleSheet(
+                css 
+                + "/* KRITA_UI_TWEAKS_STYLESHEET_BEGIN */"
+                + style
+                + tabStyle
+                + "/* KRITA_UI_TWEAKS_STYLESHEET_END */"
+            )
+                
 
     def onWindowShown(self):
         super().onWindowShown()
@@ -800,7 +795,7 @@ class SplitPane(Component):
         self.attachStyles()
         # just use resize to refresh the icons to avoid a second iteration
         topSplit.onResize(force=True, refreshIcons=True)
-        
+
         qapp = QApplication.instance()
         if qapp:
             style = qapp.style()
