@@ -4,12 +4,7 @@
 
 If the latest version has any issues, you can download an older version.
 
-- [v1.1.0.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.0.zip)
-  - Tabs can now render in the default Krita style (this is also the default option)
-  - Added a drop shadow to the drag 'n drop placeholder
-  - Added config option `Use Krita's default style for tabs` (disable this to revert to the original flat tab styles)
-  - Fix the issue where the tab bar is unfilled on startup
-  - Fix issue with section separator in the options dialog
+
 - [v1.0.9.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.0.9.zip)
   - On startup when recovering an autosave and recovering previous layout, don't
     show warning about modified documents
