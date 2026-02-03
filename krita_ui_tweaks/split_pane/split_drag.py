@@ -81,7 +81,7 @@ class SplitDrag(QObject):
         self._allTabs = False
 
     def defaultDragIndex(self) -> int:
-        if self._leftDragMode == "horizontal":
+        if self._leftDragMode == "horizontal" and isinstance(self._leftDragIndex, int):
             return self._leftDragIndex
         return -1
 
