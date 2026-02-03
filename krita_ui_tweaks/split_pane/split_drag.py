@@ -125,19 +125,28 @@ class SplitDrag(QObject):
             else:
                 text = parentWidget.tabText(self._dragIndex)
 
-            palette = self._controller.adjustedColors()
-            borderColor = adjustColor(QColor(palette.dropZone), lightness=0.7)
-            borderColor.setAlpha(180)
             tabFontBold = getOpt("tab_behaviour", "tab_font_bold")
+            
+            if getOpt("tab_behaviour", "tab_krita_style"):
+                inset=True
+                borderRadius=3
+                palette = self._controller.adjustedColors()
+                borderColor = adjustColor(QColor(palette.dropZone), lightness=0.7)
+                borderColor.setAlpha(180)
+            else:
+                inset=False
+                borderRadius=0
+                borderColor=None
+                
             self._dragPlaceHolder = SplitDragRect(
                 parent=qwin,
                 color=bg,
                 text=text,
                 textColor=fg,
                 shadow=True,
-                inset=True,
+                inset=inset,
                 bold=tabFontBold,
-                borderRadius=3,
+                borderRadius=borderRadius,
                 borderColor=borderColor,
             )
 
