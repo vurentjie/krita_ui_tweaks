@@ -254,6 +254,10 @@ class SplitPane(Component):
             if app:
                 for doc in app.documents():
                     _, f = self.updateDocumentTabs(doc)
+        
+        mdi = self._helper.getMdi()
+        if mdi:
+            self.updateRulerBackground(mdi.subWindowList())
 
     def savePreviousLayout(self):
         self._helper.debounceCallback(
