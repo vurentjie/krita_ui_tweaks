@@ -221,7 +221,9 @@ class Tools(Component):
                     if r.metaObject().className() == 'KoRuler':
                         r.setVisible(self._showRulers)
                         
-            self.updateRulerBackground(mdi.subWindowList())
+            splitPane = self._componentGroup["splitPane"]
+            if splitPane:
+                splitPane.updateRulerBackground(mdi.subWindowList())
 
     def eventFilter(self, obj, event):
         # NOTE
