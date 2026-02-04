@@ -626,9 +626,10 @@ class Split(QObject):
                     self._toolbar.setGeometry(
                         self._rect.x(),
                         self._rect.y(),
-                        self._rect.width(),
+                        self._rect.width() + 1,
                         tabBarHeight,
                     )
+                    self._toolbar.raise_()
                     self.syncSubWindow(
                         wasResized=self._rect.size() != old_rect.size(),
                     )

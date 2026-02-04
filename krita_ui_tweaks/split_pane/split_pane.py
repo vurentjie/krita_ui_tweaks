@@ -718,6 +718,10 @@ class SplitPane(Component):
                 SplitHandle {{
                     background: {colors.splitHandle};
                 }}
+                SplitHandle[orient="vertical"] {{
+                    border-top: {tabBarHeight * 2}px solid {colors.splitHandle};
+                    border-left: 1px solid {colors.splitHandleEdge};
+                }}
                 SplitHandle[orient="horizontal"] {{
                     border-left: 10px solid {colors.splitHandle};
                     border-right: 10px solid {colors.splitHandle};
@@ -739,6 +743,10 @@ class SplitPane(Component):
                     min-height: {tabBarHeight}px;   
                     max-height: {tabBarHeight}px;
                 }}
+                SplitHandle[orient="vertical"] {{
+                    border-top: {tabBarHeight * 2}px solid {colors.splitHandle};
+                    border-left: 1px solid {colors.splitHandleEdge};
+                }}
             """
 
         topSplit = self.topSplit()
@@ -748,6 +756,9 @@ class SplitPane(Component):
                 tabs = split.tabs()
                 if tabs:
                     tabs.attachStyle()
+                handle = split.handle()
+                if handle:
+                    self._helper.refreshWidget(handle)
 
             topSplit.eachCollapsedSplit(cb)
 
@@ -786,20 +797,20 @@ class SplitPane(Component):
     def onHomeScreenToggled(self, visible: bool = False):
         super().onHomeScreenToggled(visible)
         self.handleSplitter()
-        
+
     def updateRulerBackground(self, subWindows: list[QMdiSubWindow]):
         mdi = self._helper.getMdi()
         if mdi:
             color = self._helper.paletteColor("Mid")
-            
+
             for sw in subWindows:
                 for r in sw.findChildren(QWidget):
-                    if r.metaObject().className() == 'KoRuler':
+                    if r.metaObject().className() == "KoRuler":
                         rulerColor = self._helper.paletteColor("Mid", r)
                         if rulerColor:
                             color = rulerColor
                         break
-                        
+
             for sw in subWindows:
                 pal = sw.palette()
                 pal.setColor(
@@ -807,7 +818,6 @@ class SplitPane(Component):
                     color,
                 )
                 sw.setPalette(pal)
-
 
     def onThemeChanged(self):
         topSplit = self.topSplit()
@@ -827,7 +837,7 @@ class SplitPane(Component):
                 w.update()
 
         mdi = self._helper.getMdi()
-        if mdi:              
+        if mdi:
             self.updateRulerBackground(mdi.subWindowList())
 
     def onViewChanged(self):
