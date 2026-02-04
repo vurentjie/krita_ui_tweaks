@@ -716,9 +716,6 @@ class SplitPane(Component):
                 SplitHandle {{
                     background: {colors.splitHandle};
                 }}
-                SplitHandle[orient="vertical"] {{
-                    border-left: 1px solid {colors.splitHandleEdge};
-                }}
                 SplitHandle[orient="horizontal"] {{
                     border-left: 10px solid {colors.splitHandle};
                     border-right: 10px solid {colors.splitHandle};
