@@ -252,7 +252,7 @@ class SplitTabs(QTabBar):
 
             if active and (opt.state & QStyle.State_Selected):
                 pal = QPalette(opt.palette)
-                pal.setColor(QPalette.Window, QColor(colors.tabActive))
+                pal.setColor(QPalette.ColorRole.Window, QColor(colors.tabActive))
                 opt.palette = pal
 
             painter.drawControl(QStyle.CE_TabBarTab, opt)
@@ -273,7 +273,7 @@ class SplitTabs(QTabBar):
             if opt.state & QStyle.State_Selected:
                 pal = QPalette(opt.palette)
                 pal.setColor(
-                    QPalette.Window,
+                    QPalette.ColorRole.Window,
                     QColor(colors.tabActive if active else colors.tabSelected),
                 )
                 opt.palette = pal

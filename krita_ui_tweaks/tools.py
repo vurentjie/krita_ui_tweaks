@@ -220,6 +220,8 @@ class Tools(Component):
                 for r in w.findChildren(QWidget):
                     if r.metaObject().className() == 'KoRuler':
                         r.setVisible(self._showRulers)
+                        
+            self.updateRulerBackground(mdi.subWindowList())
 
     def eventFilter(self, obj, event):
         # NOTE

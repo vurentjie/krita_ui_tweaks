@@ -315,10 +315,13 @@ class Helper:
             widget.style().unpolish(widget)
             widget.style().polish(widget)
 
-    def paletteColor(self, key: str) -> QColor:
+    def paletteColor(self, key: str, widget: QWidget|None = None) -> QColor:
         role = getattr(QPalette.ColorRole, key, None)
         if role:
-            return QApplication.palette().color(role)
+            if widget:
+                return widget.palette().color(role)
+            else:
+                return QApplication.palette().color(role)
         return QColor(0, 0, 0, 0)
 
     def settingColor(self, *args: str) -> QColor:

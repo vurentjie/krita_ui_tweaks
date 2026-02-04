@@ -2,18 +2,20 @@
 
 from ..pyqt import (
     pyqtSignal,
-    Qt,
-    QTimer,
-    QApplication,
     pyqtBoundSignal,
-    QMdiArea,
     QWIDGETSIZE_MAX,
-    QColor,
-    QMdiSubWindow,
+    Qt,
     QAbstractScrollArea,
+    QApplication,
+    QColor,
+    QMdiArea,
+    QMdiSubWindow,
+    QMessageBox,
+    QPalette,
     QScrollBar,
     QTabBar,
-    QMessageBox,
+    QTimer,
+    QWidget,
 )
 
 from krita import Window, Document, View
@@ -236,7 +238,7 @@ class SplitPane(Component):
                 "tab_font_size",
                 "tab_font_bold",
                 "tab_height",
-                "tab_krita_style"
+                "tab_krita_style",
             )
         ) or context.get("colors", None):
             self.attachStyles()
@@ -694,13 +696,13 @@ class SplitPane(Component):
                     max-height: 0;
                 }}
         """
-                
+
         tabBarHeight = getOpt("tab_behaviour", "tab_height")
         tabFontSize = getOpt("tab_behaviour", "tab_font_size")
         tabFontBold = (
             "bold" if getOpt("tab_behaviour", "tab_font_bold") else "normal"
         )
-        useKritaStyle = getOpt("tab_behaviour", "tab_krita_style") 
+        useKritaStyle = getOpt("tab_behaviour", "tab_krita_style")
 
         if useKritaStyle:
             tabStyle = f"""
@@ -722,7 +724,7 @@ class SplitPane(Component):
                     border-bottom: 1px solid {colors.splitHandleEdge};
                 }}
             """
-        
+
         else:
             tabStyle = f"""
                 SplitHandle {{
@@ -741,12 +743,14 @@ class SplitPane(Component):
 
         topSplit = self.topSplit()
         if topSplit:
+
             def cb(split: "Split"):
                 tabs = split.tabs()
                 if tabs:
                     tabs.attachStyle()
+
             topSplit.eachCollapsedSplit(cb)
-            
+
         qapp = typing.cast(QApplication, QApplication.instance())
         mdi = self._helper.getMdi()
         widget = mdi if mdi else qapp
@@ -759,13 +763,12 @@ class SplitPane(Component):
                 rf"{match_first}.*?{match_last}", "", css, flags=re.DOTALL
             )
             widget.setStyleSheet(
-                css 
+                css
                 + "/* KRITA_UI_TWEAKS_STYLESHEET_BEGIN */"
                 + style
                 + tabStyle
                 + "/* KRITA_UI_TWEAKS_STYLESHEET_END */"
             )
-                
 
     def onWindowShown(self):
         super().onWindowShown()
@@ -783,6 +786,28 @@ class SplitPane(Component):
     def onHomeScreenToggled(self, visible: bool = False):
         super().onHomeScreenToggled(visible)
         self.handleSplitter()
+        
+    def updateRulerBackground(self, subWindows: list[QMdiSubWindow]):
+        mdi = self._helper.getMdi()
+        if mdi:
+            color = self._helper.paletteColor("Mid")
+            
+            for sw in subWindows:
+                for r in sw.findChildren(QWidget):
+                    if r.metaObject().className() == 'KoRuler':
+                        rulerColor = self._helper.paletteColor("Mid", r)
+                        if rulerColor:
+                            color = rulerColor
+                        break
+                        
+            for sw in subWindows:
+                pal = sw.palette()
+                pal.setColor(
+                    QPalette.ColorRole.Window,
+                    color,
+                )
+                sw.setPalette(pal)
+
 
     def onThemeChanged(self):
         topSplit = self.topSplit()
@@ -800,6 +825,10 @@ class SplitPane(Component):
                 style.unpolish(w)
                 style.polish(w)
                 w.update()
+
+        mdi = self._helper.getMdi()
+        if mdi:              
+            self.updateRulerBackground(mdi.subWindowList())
 
     def onViewChanged(self):
         super().onViewChanged()
@@ -819,6 +848,8 @@ class SplitPane(Component):
                 if not uid:
                     uid = helper.uid()
                     activeWin.setProperty("uiTweaksId", uid)
+                    self.updateRulerBackground([activeWin])
+
                 helper.setViewData(view, "uiTweaksId", uid)
 
                 self.initSubWindow(activeWin)
