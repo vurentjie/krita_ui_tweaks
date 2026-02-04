@@ -131,7 +131,7 @@ class SplitHandle(QWidget):
             self.setGeometry(
                 x,
                 y + int((h - SplitHandle.SIZE) / 2),
-                w,
+                w + 1,
                 SplitHandle.SIZE,
             )
 
@@ -155,6 +155,7 @@ class SplitHandle(QWidget):
             if ph < SPLIT_MIN_SIZE:
                 self.reset()
                 return
+            pw = pw + 1
             if w != pw:
                 self.resize(pw, h)
                 w = pw
