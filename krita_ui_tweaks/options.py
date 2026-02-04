@@ -295,9 +295,7 @@ class SettingsDialog(QDialog):
                 ),
             ),
             "tab_krita_style": ToggleItem(
-                input=QCheckBox(
-                    i18n("Use Krita's default style for tabs")
-                ),
+                input=QCheckBox(i18n("Use Krita's default style for tabs")),
                 section=sections.tabAppearance,
             ),
             "tab_drag_middle_btn": ToggleItem(
@@ -375,6 +373,13 @@ class SettingsDialog(QDialog):
             "toggle_docking": ToggleItem(
                 input=QCheckBox(i18n("Toggle docking on and off")),
                 section=sections.dockers,
+                extra=QLabel(
+                    i18n(
+                        "<b>Allows assigning a shortcut key to enable or disable docking.</b>"
+                    )
+                    + "<br>"
+                    + i18n("<b>Useful when moving floating dockers.</b>")
+                ),
             ),
         }
 
@@ -397,9 +402,12 @@ class SettingsDialog(QDialog):
                 section=sections.fitMode,
                 spaceBelow=10,
             ),
-            
             "scaling_mode_per_view": ToggleItem(
-                input=QCheckBox(i18n("Scaling mode is enabled per view instead of globally")),
+                input=QCheckBox(
+                    i18n(
+                        "Scaling mode is enabled per view instead of globally"
+                    )
+                ),
                 section=sections.scalingMode,
             ),
             "default_scaling_mode": ComboItem(
@@ -480,7 +488,16 @@ class SettingsDialog(QDialog):
                     resetColor=resetColor,
                     customColors=customColors,
                 ),
-                subtitle=QLabel(i18n("Marked colors (*) are not applied when using Krita's default style for tabs") + "<br>") if i == 0 else None, 
+                subtitle=(
+                    QLabel(
+                        i18n(
+                            "Marked colors (*) are not applied when using Krita's default style for tabs"
+                        )
+                        + "<br>"
+                    )
+                    if i == 0
+                    else None
+                ),
                 label=QLabel(colorLabels[k]),
                 section=sections.colors,
             )
