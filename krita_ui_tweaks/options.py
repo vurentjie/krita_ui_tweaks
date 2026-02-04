@@ -84,7 +84,7 @@ class ColorButton(QWidget):
         rect = self.rect()
 
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing, False)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         p.fillRect(rect, self._color)
 
         borderColor = self._color.darker(120)
@@ -115,7 +115,7 @@ class ColorButton(QWidget):
             for k, v in enumerate(self._customColors):
                 dlg.setCustomColor(k, QColor(v))
 
-            dlg.setOption(QColorDialog.ShowAlphaChannel, False)
+            dlg.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, False)
             dlg.adjustSize()
             button_rect = self.rect()
             global_pos = self.mapToGlobal(button_rect.topRight())
@@ -518,7 +518,8 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self.aboutTab, i18n("About"))
 
         buttons = QDialogButtonBox(
-            QDialogButtonBox.Save | QDialogButtonBox.Cancel
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -1098,5 +1099,5 @@ def showOptions(
     tabIndex: int | None = None,
 ):
     dlg = SettingsDialog(controller=controller, pos=pos, tabIndex=tabIndex)
-    if dlg.exec() == QDialog.Accepted:
+    if dlg.exec() == QDialog.DialogCode.Accepted:
         dlg.onAccepted()

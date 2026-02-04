@@ -53,7 +53,7 @@ class RemoveBottomBorder(QProxyStyle):
         painter: QPainter,
         widget: QWidget | None = None,
     ) -> None:
-        if element == QStyle.PE_FrameTabBarBase:
+        if element == QStyle.PrimitiveElement.PE_FrameTabBarBase:
             return
         super().drawPrimitive(element, option, painter, widget)
 
@@ -126,7 +126,6 @@ class SplitTabs(QTabBar):
                     min-height: {tabBarHeight + 2}px;   
                     max-height: {tabBarHeight + 2}px;
                 }}
-                
                 QMdiArea SplitTabs::close-button {{
                     image: url({closeIcon});
                     padding: 2px;
@@ -250,12 +249,12 @@ class SplitTabs(QTabBar):
             painter.setFont(font)
             opt.fontMetrics = QFontMetrics(font)
 
-            if active and (opt.state & QStyle.State_Selected):
+            if active and (opt.state & QStyle.StateFlag.State_Selected):
                 pal = QPalette(opt.palette)
                 pal.setColor(QPalette.ColorRole.Window, QColor(colors.tabActive))
                 opt.palette = pal
 
-            painter.drawControl(QStyle.CE_TabBarTab, opt)
+            painter.drawControl(QStyle.ControlElement.CE_TabBarTab, opt)
 
         super().paintEvent(event)
 
@@ -270,7 +269,7 @@ class SplitTabs(QTabBar):
             painter.setFont(font)
             opt.fontMetrics = QFontMetrics(font)
 
-            if opt.state & QStyle.State_Selected:
+            if opt.state & QStyle.StateFlag.State_Selected:
                 pal = QPalette(opt.palette)
                 pal.setColor(
                     QPalette.ColorRole.Window,
@@ -278,7 +277,7 @@ class SplitTabs(QTabBar):
                 )
                 opt.palette = pal
 
-            painter.drawControl(QStyle.CE_TabBarTab, opt)
+            painter.drawControl(QStyle.ControlElement.CE_TabBarTab, opt)
         elif dragIndex != -1:
             self._redrawDelay = True
 

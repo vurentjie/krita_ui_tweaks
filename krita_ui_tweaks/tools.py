@@ -231,7 +231,7 @@ class Tools(Component):
         # just every time toolbars are configured
         # highlights mysteriously vanish
         if isinstance(obj, QDialog):
-            if event.type() == QEvent.Show:
+            if event.type() == QEvent.Type.Show:
                 if obj.windowTitle() == Krita.krita_i18n("Configure Toolbars"):
                     box = obj.findChild(QDialogButtonBox)
                     if box:

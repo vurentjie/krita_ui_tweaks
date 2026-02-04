@@ -656,17 +656,17 @@ class SplitDragRect(QWidget):
 
     def paintEvent(self, _: QPaintEvent):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = self.rect()
         if self._borderRadius == 0:
             p.fillRect(rect, self._color)
         else:
             p.setBrush(self._color)
-            p.setPen(Qt.NoPen)
+            p.setPen(Qt.PenStyle.NoPen)
             p.drawRoundedRect(rect, self._borderRadius, self._borderRadius)
 
             if self._inset:
-                p.setBrush(Qt.NoBrush)
+                p.setBrush(Qt.BrushStyle.NoBrush)
                 p.setPen(QPen(QColor(255, 255, 255, 50), 1))
                 p.drawRoundedRect(
                     rect.adjusted(1, 1, -1, -1),
@@ -675,7 +675,7 @@ class SplitDragRect(QWidget):
                 )
 
             if self._borderColor:
-                p.setBrush(Qt.NoBrush)
+                p.setBrush(Qt.BrushStyle.NoBrush)
                 p.setPen(QPen(self._borderColor, 2))
                 p.drawRoundedRect(
                     rect, self._borderRadius + 1, self._borderRadius + 1
