@@ -156,3 +156,10 @@ _Initial release._
 
 - Fix the issue where the tab bar is unfilled on startup
 - Fix issue with section separator in the options dialog
+
+## v1.1.1 - 2026-05-02
+
+### Fixed:
+
+- Drag and drop files into Krita: Fix edge case dropping onto empty split areas, and opening dropped images in the correct split pane. 
+- Qt6 compatibility
