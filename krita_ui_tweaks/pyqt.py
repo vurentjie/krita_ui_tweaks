@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: CC0-1.0
-
 try:
-    from PyQt6 import QtCore, QtGui, QtWidgets, sip as QtSip
+    from PyQt6 import QtCore, QtGui, QtWidgets, QtNetwork, sip as QtSip
 
     QAction = QtGui.QAction
 
@@ -21,7 +20,7 @@ try:
         return pos.toPoint()
 
 except:
-    from PyQt5 import QtCore, QtGui, QtWidgets, sip as QtSip
+    from PyQt5 import QtCore, QtGui, QtWidgets, QtNetwork, sip as QtSip
 
     QAction = QtWidgets.QAction
 
@@ -63,6 +62,7 @@ QSize = QtCore.QSize
 QStandardPaths = QtCore.QStandardPaths
 Qt = QtCore.Qt
 QTimer = QtCore.QTimer
+QUrl = QtCore.QUrl
 QUuid = QtCore.QUuid
 
 QGuiApplication = QtGui.QGuiApplication
@@ -89,6 +89,10 @@ QTransform = QtGui.QTransform
 QWheelEvent = QtGui.QWheelEvent
 QWindow = QtGui.QWindow
 
+QNetworkAccessManager = QtNetwork.QNetworkAccessManager
+QNetworkRequest = QtNetwork.QNetworkRequest
+QNetworkReply = QtNetwork.QNetworkReply
+
 QAbstractScrollArea = QtWidgets.QAbstractScrollArea
 QApplication = QtWidgets.QApplication
 QCheckBox = QtWidgets.QCheckBox
@@ -114,6 +118,7 @@ QMdiArea = QtWidgets.QMdiArea
 QMdiSubWindow = QtWidgets.QMdiSubWindow
 QMenu = QtWidgets.QMenu
 QMessageBox = QtWidgets.QMessageBox
+QProgressDialog = QtWidgets.QProgressDialog
 QProxyStyle = QtWidgets.QProxyStyle
 QPushButton = QtWidgets.QPushButton
 QScrollArea = QtWidgets.QScrollArea

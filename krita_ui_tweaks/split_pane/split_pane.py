@@ -1,15 +1,20 @@
 # SPDX-License-Identifier: CC0-1.0
 
 from ..pyqt import (
+    toPoint,
+    getEventPos,
     pyqtSignal,
     pyqtBoundSignal,
+    toPoint,
     QWIDGETSIZE_MAX,
     Qt,
     QAbstractScrollArea,
     QApplication,
     QColor,
+    QEvent,
     QMdiArea,
     QMdiSubWindow,
+    QMenu,
     QMessageBox,
     QPalette,
     QScrollBar,
@@ -51,6 +56,7 @@ from .split_helpers import (
     EventInterceptor,
     KeyModiferInterceptor,
     getLayoutFiles,
+    Downloader,
 )
 
 
@@ -254,7 +260,7 @@ class SplitPane(Component):
             if app:
                 for doc in app.documents():
                     _, f = self.updateDocumentTabs(doc)
-        
+
         mdi = self._helper.getMdi()
         if mdi:
             self.updateRulerBackground(mdi.subWindowList())
@@ -787,12 +793,138 @@ class SplitPane(Component):
 
     def onWindowShown(self):
         super().onWindowShown()
-
         qapp = QApplication.instance()
         self._modifiers = KeyModiferInterceptor()
         qapp.installEventFilter(self._modifiers)
-
+        qapp.installEventFilter(self)
         self.handleSplitter()
+
+    def eventFilter(self, obj: QWidget, event: QEvent):
+        t = event.type()
+        if t == QEvent.Type.Show:
+            if isinstance(obj, QMenu) and obj.objectName() == "drop_popup":
+                topSplit = self.topSplit()
+                qwin = self._helper.getQwin()
+                if topSplit and qwin:
+                    menuPos = obj.pos()
+                    pos = qwin.mapFromGlobal(menuPos)
+                    targetSplit, _ = topSplit.splitAt(pos)
+                    if targetSplit:
+                        toolbar = targetSplit.toolbar()
+                        if toolbar:
+                            self.setActiveToolbar(curr=toolbar)
+        elif t in (
+            QEvent.Type.DragEnter,
+            QEvent.Type.DragMove,
+            QEvent.Type.Drop,
+        ):
+            qwin = self._helper.getQwin()
+            globalPos = obj.mapToGlobal(toPoint(getEventPos(event)))
+            pos = qwin.mapFromGlobal(globalPos)
+            accepts = False
+            data = event.mimeData()
+
+            topSplit = self.topSplit()
+            targetSplit = None
+
+            if topSplit:
+                targetSplit, _ = topSplit.splitAt(pos)
+
+            if targetSplit:
+                toolbar = targetSplit.toolbar()
+                tabs = targetSplit.tabs()
+
+                if (
+                    toolbar is not None
+                    and tabs is not None
+                    and tabs.count() == 0
+                ):
+                    if t == QEvent.Type.Drop:
+                        self.setActiveToolbar(curr=toolbar)
+
+                    if data.hasImage() or data.hasUrls():
+                        accepts = True
+
+            if accepts:
+                event.acceptProposedAction()
+                if t == QEvent.Type.Drop:
+                    try:
+                        files = []
+                        urls = []
+                        if data.hasUrls():
+                            for url in data.urls():
+                                if url.isLocalFile():
+                                    files.append(url.toLocalFile())
+                                else:
+                                    urls.append(url.toString())
+
+                        app = self._helper.getApp()
+                        docs = self._helper.docsByFile()
+
+                        def processFile(
+                            filePath, docs=docs, targetSplit=targetSplit
+                        ):
+                            helper = self._helper
+                            handled = False
+                            if filePath in docs:
+                                doc = docs[filePath]
+                                if helper.isAlive(doc, Document):
+                                    handled = True
+                                    self.syncView(
+                                        addView=True,
+                                        document=doc,
+                                        split=targetSplit,
+                                    )
+
+                            if not handled:
+                                if os.path.exists(typing.cast(str, filePath)):
+                                    doc = app.openDocument(filePath)
+                                    if doc:
+                                        doc.setModified(True)
+                                        docs[filePath] = doc
+                                        self.syncView(
+                                            addView=True,
+                                            document=doc,
+                                            split=targetSplit,
+                                        )
+
+                        def processDownload(success, tmpFile, url, errorString):
+                            if success:
+                                processFile(tmpFile)
+                                try:
+                                    os.remove(tmpFile)
+                                except:
+                                    pass
+                            else:
+                                _ = QMessageBox.warning(
+                                    None, i18n("Download Failed"), errorString
+                                )
+                            pass
+
+                        for f in files:
+                            processFile(f)
+
+                        if urls:
+                            choice = QMessageBox.question(
+                                None,
+                                "Krita",
+                                i18n("Download the following urls?")
+                                + "\n\n"
+                                + "\n".join(urls),
+                                QMessageBox.StandardButton.No
+                                | QMessageBox.StandardButton.Yes,
+                                QMessageBox.StandardButton.No,
+                            )
+
+                            if choice == QMessageBox.StandardButton.Yes:
+                                dl = Downloader(callback=processDownload)
+                                dl.download(urls)
+                    finally:
+                        return True
+            else:
+                event.ignore()
+
+        return False
 
     def onViewModeChanged(self):
         super().onViewModeChanged()
