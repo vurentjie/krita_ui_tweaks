@@ -4,6 +4,9 @@
 
 If the latest version has any issues, you can download an older version.
 
+- [v1.1.1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.1.zip)
+  - Qt6 compatibility
+  - Drag and drop files into Krita: Fix edge case dropping onto empty split areas, and opening dropped images in the correct split pane.
 - [v1.1.0.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.0.zip)
   - Tabs can now render in the default Krita style (this is also the default option)
   - Added a drop shadow to the drag 'n drop placeholder
