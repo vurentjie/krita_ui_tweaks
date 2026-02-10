@@ -163,3 +163,14 @@ _Initial release._
 
 - Drag and drop files into Krita: Fix edge case dropping onto empty split areas, and opening dropped images in the correct split pane. 
 - Qt6 compatibility
+
+## v1.1.2 - 2026-10-02
+
+### Fixed:
+
+- Fix crash when opening multiple windows
+
+### Added:
+
+- Tab menu option: new option to open a tab in another window. 
+

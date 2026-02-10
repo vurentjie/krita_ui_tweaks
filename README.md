@@ -4,6 +4,9 @@
 
 If the latest version has any issues, you can download an older version.
 
+- [v1.1.2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.2.zip)
+  - Fix crash when opening multiple windows
+  - Tab menu option: new option to open a tab in another window. 
 - [v1.1.1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.1.zip)
   - Qt6 compatibility
   - Drag and drop files into Krita: Fix edge case dropping onto empty split areas, and opening dropped images in the correct split pane.

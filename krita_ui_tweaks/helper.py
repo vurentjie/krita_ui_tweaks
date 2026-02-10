@@ -254,6 +254,17 @@ class Helper:
     def getQwin(self):
         win = self.getWin()
         return self.isAlive(win.qwindow(), QMainWindow) if win else None
+        
+    def focusQwin(self, qwin: QMainWindow|None = None):
+        if not qwin:
+            qwin = self.getQwin()
+        if not qwin:
+            return
+        if qwin.isMinimized():
+            qwin.showNormal()
+        qwin.show()          
+        qwin.raise_()        
+        qwin.activateWindow()
 
     def getCentral(self):
         qwin = self.getQwin()

@@ -108,6 +108,12 @@ class SplitDrag(QObject):
 
         if not qwin:
             return
+            
+        central = helper.getCentral()
+        topSplit = self._controller.topSplit()
+        if not topSplit:
+            return
+        parent = central and qwin or topSplit.parent()
 
         if self._dragPlaceHolder is None:
             colors = self._controller.adjustedColors()
@@ -139,7 +145,7 @@ class SplitDrag(QObject):
                 borderColor=None
                 
             self._dragPlaceHolder = SplitDragRect(
-                parent=qwin,
+                parent=parent,
                 color=bg,
                 text=text,
                 textColor=fg,
@@ -176,6 +182,12 @@ class SplitDrag(QObject):
 
         if not qwin:
             return
+            
+        central = helper.getCentral()
+        topSplit = self._controller.topSplit()
+        if not topSplit:
+            return
+        parent = central and qwin or topSplit.parent()
 
         if self._dropPlaceHolder is None:
             palette = self._controller.adjustedColors()
@@ -185,7 +197,7 @@ class SplitDrag(QObject):
             altColor = QColor(palette.dropZone).darker(150)
             altColor.setAlpha(100)
             self._dropPlaceHolder = SplitDragRect(
-                qwin, color=color, altColor=altColor
+                parent, color=color, altColor=altColor
             )
 
         self._dropPlaceHolder.show()

@@ -13,6 +13,7 @@ from ..pyqt import (
     QNetworkAccessManager,
     QNetworkRequest,
     QNetworkReply,
+    QMenu,
     QUrl,
 )
 
@@ -77,11 +78,12 @@ class FitViewState:
 
 @dataclass
 class MenuAction:
-    text: str
-    callback: typing.Callable[..., Any]
+    text: str|None = None
+    callback: typing.Callable[..., Any]|None = None
     separator: bool = False
     enabled: bool = True
     visible: bool = True
+    menu: QMenu|None = None
 
 
 @dataclass

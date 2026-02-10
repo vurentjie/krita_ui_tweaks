@@ -131,8 +131,54 @@ class SplitToolbar(QWidget):
         layoutName = os.path.basename(layoutPath) if layoutPath else None
         if layoutName and layoutName.endswith(".json"):
             layoutName = layoutName[:-5]
+            
+
+        windowSubMenu = None
+        if hasTabIndex:
+            factory = self._controller._pluginFactory
+            factory.validateComponents()
+
+            windowSubMenu = QMenu(i18n("Open in window…"), self)
+            sortedInstances = sorted(
+                factory._components, key=lambda obj: obj["createdTime"]
+            )
+            
+            winPrefix = i18n("Window")
+            view = self._split.getTabView(tabIndex)
+            for k,v in enumerate(sortedInstances):
+                if v == self._controller._componentGroup:
+                    continue
+                splitPane = v["splitPane"]
+                action = QAction(f"{winPrefix} {k + 1}", self)
+                action.triggered.connect(lambda _, splitPane=splitPane, view=view: splitPane.openExternalView(view) )
+                action.setEnabled(True)
+                windowSubMenu.addAction(action)
+                 
+            def newWindow(_, view=view):
+                app = self._helper.getApp()
+                currWindows = app.windows()
+                app.action('view_newwindow').trigger()
+                for w in app.windows():
+                    if w not in currWindows:
+                        w.activate()
+                        w.addView(view.document())
+                        self._helper.focusQwin(w.qwindow())
+                        break
+
+            action = QAction(i18n("+ New window"), self)
+            action.triggered.connect(newWindow)
+            action.setEnabled(True)
+            windowSubMenu.addAction(action)
+                 
+                 
+
 
         actions: list[MenuAction] = [
+            MenuAction(
+                text="",
+                menu=windowSubMenu,
+                visible=hasTabIndex,
+            ),
             MenuAction(
                 text=i18n("Duplicate Tab"),
                 callback=lambda: self._controller.syncView(
@@ -274,15 +320,18 @@ class SplitToolbar(QWidget):
             self._menu = QMenu(self)
             self._menu.setProperty("class", "splitPaneMenu")
         self._menu.clear()
-
+        
         for a in actions:
             if a.visible:
-                action = QAction(a.text, self)
-                action.triggered.connect(a.callback)
-                action.setEnabled(a.enabled)
-                self._menu.addAction(action)
-                if a.separator:
-                    self._menu.addSeparator()
+                if a.menu:
+                    self._menu.addMenu(a.menu)
+                elif a.text:
+                    action = QAction(a.text, self)
+                    action.triggered.connect(a.callback)
+                    action.setEnabled(a.enabled)
+                    self._menu.addAction(action)
+                    if a.separator:
+                        self._menu.addSeparator()
 
         self._menu.adjustSize()
 

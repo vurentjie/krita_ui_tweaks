@@ -47,7 +47,7 @@ import json
 import typing
 import time
 
-VERSION = "1.1.0"
+VERSION = "1.1.2"
 
 
 @dataclass
@@ -935,6 +935,9 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             "tab_drag_deadzone": ConfigVal(default=10, clamp=(10, 50)),
         },
         "translated": {
+            "Open in window…": ConfigVal(default="Open in window…"),
+            "+ New window": ConfigVal(default="+ New window"),
+            "Window": ConfigVal(default="Window"),
             "Duplicate Tab": ConfigVal(default="Duplicate Tab"),
             "Split && Move Left": ConfigVal(default="Split && Move Left"),
             "Split && Move Right": ConfigVal(default="Split && Move Right"),

@@ -70,9 +70,14 @@ class SplitPane(Component):
         window: Window,
         pluginGroup: COMPONENT_GROUP | None = None,
         helper: Helper | None = None,
+        hasOtherWindows: bool = False,
+        pluginFactory: "Plugin" = None,
     ):
         super().__init__(window, pluginGroup=pluginGroup, helper=helper)
+
         self.setObjectName("SplitPane")
+        self._pluginFactory = pluginFactory
+        self._hasOtherWindows = hasOtherWindows
         self._quit: bool = False
         self._syncing: bool = False
         self._splitData: dict[int, SplitData] = {}
@@ -157,6 +162,42 @@ class SplitPane(Component):
             typing.cast(pyqtBoundSignal, notifier.imageSaved).connect(
                 self._doSaveLayout
             )
+
+    def openExternalView(self, view: View | None = None):
+        view = self._helper.isAlive(view, View)
+        if not view:
+            return
+
+        topSplit = self.topSplit()
+        if topSplit:
+            controller = topSplit.controller()
+            handled = False
+
+            def cb(split: "Split", view=view):
+                nonlocal handled
+
+                if not handled:
+                    tabs = split.tabs()
+                    if not tabs:
+                        return
+                    index = tabs.getTabByDocument(view.document())
+                    if index != -1:
+                        view = tabs.getView(index)
+                        kritaTab = controller.getIndexByView(view)
+                        if kritaTab != -1:
+                            handled = True
+                            controller.syncView(index=kritaTab, split=split)
+
+            topSplit.eachCollapsedSplit(cb)
+
+            if not handled:
+                controller.syncView(
+                    addView=True,
+                    document=view.document(),
+                    split=controller.defaultSplit(),
+                )
+                
+            self._helper.focusQwin()
 
     def resizingEnabled(self):
         return self._resizingEnabled
@@ -276,6 +317,20 @@ class SplitPane(Component):
         app = self._helper.getApp()
         if not app:
             return
+
+        if self._pluginFactory:
+            self._pluginFactory.validateComponents()
+
+            allInstances = self._pluginFactory._components
+            sortedInstances = sorted(
+                allInstances, key=lambda obj: obj["createdTime"]
+            )
+
+            if len(allInstances) == 0:
+                return
+
+            if allInstances[0]["splitPane"] != self:
+                return
 
         isEnabled = getOpt("toggle", "restore_layout")
         if isEnabled:
@@ -411,6 +466,7 @@ class SplitPane(Component):
 
         if (
             app
+            and len(app.windows()) == 1
             and win
             and central
             and mdi
@@ -772,8 +828,13 @@ class SplitPane(Component):
 
             topSplit.eachCollapsedSplit(cb)
 
+        app = self._helper.getApp()
         qapp = typing.cast(QApplication, QApplication.instance())
         mdi = self._helper.getMdi()
+
+        if self._hasOtherWindows and not mdi:
+            return
+
         widget = mdi if mdi else qapp
 
         if widget:
@@ -888,7 +949,9 @@ class SplitPane(Component):
                                             split=targetSplit,
                                         )
 
-                        def processDownload(success, tmpFile, url, errorString):
+                        def processDownload(
+                            success, tmpFile, url, errorString
+                        ):
                             if success:
                                 processFile(tmpFile)
                                 try:
@@ -1032,6 +1095,11 @@ class SplitPane(Component):
         central = self._helper.getCentral()
         if central:
             return central.findChild(Split)
+        else:
+            # bugfix, cockpit mode has no central widget
+            qwin = self._helper.getQwin()
+            if qwin:
+                return qwin.findChild(Split)
 
     def defaultSplit(self, checkToolbar: bool = True) -> "Split | None":
         if checkToolbar:

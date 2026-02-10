@@ -29,7 +29,7 @@ from ..pyqt import (
     QWidget,
 )
 
-from krita import View
+from krita import View, Document
 from typing import Any, TYPE_CHECKING
 
 import typing
@@ -540,6 +540,24 @@ class SplitTabs(QTabBar):
     def setUid(self, index: int, uid: int):
         if index >= 0 and index < self.count():
             self.setTabData(index, {"uiTweaksId": uid})
+            
+    def getTabByDocument(self, doc: Document) -> int:
+        if self._helper.isAlive(doc, Document):
+            for i in range(self.count()):
+                uid = self.getUid(i)
+                data = self._controller.getSplitData(uid)
+                if data and data.view and data.view.document() == doc:
+                    return i
+
+            fname = doc.fileName()
+            for i in range(self.count()):
+                uid = self.getUid(i)
+                data = self._controller.getSplitData(uid)
+                if data and data.view:
+                    f = data.view.document().fileName()
+                    if f and f == fname:
+                        return i
+        return -1
 
     def getTabByView(self, view: View) -> int:
         data = self._helper.getViewData(view)

@@ -346,6 +346,13 @@ class Split(QObject):
             if self._handle.setOrientation(orient, redraw=redraw) and redraw:
                 self.equalize()
                 return True
+                
+    def getTabByDocument(self, doc: Document) -> QMdiSubWindow | None:
+        from .split_tabs import SplitTabs
+
+        tabs = self._helper.isAlive(self.tabs(), SplitTabs)
+        if tabs:
+            return tabs.getTabByDocument(doc)
 
     def getTabWindow(self, index: int) -> QMdiSubWindow | None:
         from .split_tabs import SplitTabs
@@ -683,8 +690,15 @@ class Split(QObject):
         qwin = helper.getQwin()
         mdi = helper.getMdi()
         if qwin and mdi:
+            central = helper.getCentral()
+            topSplit = self._controller.topSplit()
+            if not topSplit:
+                return QRect()
+                
+            parent = central and qwin or topSplit.parent()
+
             rect = QRect(
-                mdi.mapTo(qwin, QPoint(self._rect.x(), self._rect.y())),
+                mdi.mapTo(parent, QPoint(self._rect.x(), self._rect.y())),
                 self._rect.size(),
             )
             if not withToolBar:
