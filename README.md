@@ -10,6 +10,7 @@ If the latest version has any issues, you can download an older version.
   - Fix issue with tool actions with multiple windows open
   - Added new option: `Do not change the active tool when switching windows`.
     Disabled by default.
+  - Fix issue with tool not syncing when clicked from the toolbox docker
 - [v1.1.1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.1.zip)
   - Qt6 compatibility
   - Drag and drop files into Krita: Fix edge case dropping onto empty split areas, and opening dropped images in the correct split pane.

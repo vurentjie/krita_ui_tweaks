@@ -170,6 +170,7 @@ _Initial release._
 
 - Fix crash when opening multiple windows
 - Fix issue with tool actions with multiple windows open
+- Fix issue with tool not syncing when clicked from the toolbox docker
 
 ### Added:
 
