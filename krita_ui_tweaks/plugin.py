@@ -16,6 +16,8 @@ class Plugin(Extension):
     def __init__(self, parent: QObject):
         super().__init__(parent)
         self._components: list[COMPONENT_GROUP | Helper] = []
+        self._globalTool = None
+        self._syncingGlobalTool = False
 
     def setup(self):
         pass
@@ -24,6 +26,18 @@ class Plugin(Extension):
         for item in self._components[:]:
             if not (item and item["helper"] and item["helper"].getQwin()):
                 self._components.remove(item)
+
+    def syncGlobalTool(self):
+        if self._syncingGlobalTool:
+            return
+        self._syncingGlobalTool = True
+        self.validateComponents()
+        for c in self._components:
+            tools = c["tools"]
+            if tools:
+                tools.onToolAction(self._globalTool, silent = True)
+
+        self._syncingGlobalTool = False
 
     def createActions(self, window: Window | None):
         if not window:
@@ -43,17 +57,22 @@ class Plugin(Extension):
             qwin=window.qwindow(), pluginGroup=group
         )
         group["tools"]: Tools = Tools(
-            window, pluginGroup=group, helper=group["helper"]
+            window,
+            pluginGroup=group,
+            helper=group["helper"],
+            pluginFactory=self,
         )
         group["splitPane"]: SplitPane = SplitPane(
             window,
             pluginGroup=group,
             helper=group["helper"],
-            pluginFactory = self,
-            hasOtherWindows=len(self._components) > 0, # hack
+            pluginFactory=self,
+            hasOtherWindows=len(self._components) > 0,  # hack
         )
         group["dockers"]: Dockers = Dockers(
-            window, pluginGroup=group, helper=group["helper"]
+            window,
+            pluginGroup=group,
+            helper=group["helper"],
         )
 
         self._components.append(group)

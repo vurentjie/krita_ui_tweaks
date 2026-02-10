@@ -169,8 +169,11 @@ _Initial release._
 ### Fixed:
 
 - Fix crash when opening multiple windows
+- Fix issue with tool actions with multiple windows open
 
 ### Added:
 
 - Tab menu option: new option to open a tab in another window. 
+- Added new option: `Do not change the active tool when switching windows`.
+  Disabled by default.
 

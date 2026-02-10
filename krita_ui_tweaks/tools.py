@@ -12,6 +12,7 @@ from .pyqt import (
     QToolBar,
     QToolButton,
     QWidget,
+    QMainWindow,
     QMdiSubWindow,
     QMessageBox,
     QTimer,
@@ -54,6 +55,7 @@ class Tools(Component):
         window: Window,
         pluginGroup: COMPONENT_GROUP | None = None,
         helper: Helper | None = None,
+        pluginFactory: "Plugin" = None,
     ):
         super().__init__(window, pluginGroup=pluginGroup, helper=helper)
 
@@ -67,8 +69,15 @@ class Tools(Component):
 
         view = self._helper.getView()
 
+        self._pluginFactory = pluginFactory
+
         self._showToast = True
         self._defaultTool: str = "KritaShape/KisToolBrush"
+
+        if not self._pluginFactory._globalTool:
+            self._pluginFactory._globalTool = self._defaultTool
+
+        self._syncingTool = False
         self._activeTool: str = self._defaultTool
         self._toolActions: dict[str, QAction | None] = {
             "InteractionTool": None,
@@ -191,16 +200,16 @@ class Tools(Component):
             self.centerCanvas,
             icon=QIcon(self._helper.getIconPath(f"{val}_center-canvas.png")),
         )
-        
+
         # XXX
-        # need to poll for showrulers because changing 
-        # the ruler setting in the docker does not emit 
+        # need to poll for showrulers because changing
+        # the ruler setting in the docker does not emit
         # notifier.configurationChanged signal
         app = self._helper.getApp()
         if app:
             self._showRulers = app.readSetting("", "showrulers", "") == "true"
             self._componentTimers.shortPoll.connect(self.onKritaConfigChanged)
-        
+
         OptionSignals.configSaved.connect(self.onConfigSave)
 
         qapp = QApplication.instance()
@@ -209,7 +218,7 @@ class Tools(Component):
 
     def showOptions(self):
         showOptions(self._componentGroup["splitPane"])
-        
+
     def onKritaConfigChanged(self):
         app = self._helper.getApp()
         mdi = self._helper.getMdi()
@@ -218,9 +227,9 @@ class Tools(Component):
         if mdi and rulers != self._showRulers:
             for w in mdi.subWindowList():
                 for r in w.findChildren(QWidget):
-                    if r.metaObject().className() == 'KoRuler':
+                    if r.metaObject().className() == "KoRuler":
                         r.setVisible(self._showRulers)
-                        
+
             splitPane = self._componentGroup["splitPane"]
             if splitPane:
                 splitPane.updateRulerBackground(mdi.subWindowList())
@@ -243,15 +252,26 @@ class Tools(Component):
                             btn.clicked.connect(cb)
         return False
 
+    def getActiveTool(self):
+        if getOpt("toggle", "global_tool"):
+            return self._pluginFactory._globalTool
+        return self._activeTool
+
+    def setActiveTool(self, name):
+        self._pluginFactory._globalTool = name
+        self._activeTool = name
+
     def onConfigSave(self, context):
         qwin = self._helper.getQwin()
         if not qwin:
             return
 
-        action = self._toolActions[self._activeTool]
+        useTool = self.getActiveTool()
+
+        action = self._toolActions[useTool]
         if not action:
             return
-            
+
         if context.get("resize", "scaling_mode_per_view"):
             self.viewActions()
 
@@ -299,6 +319,12 @@ class Tools(Component):
         if not qwin:
             return
 
+        if not self._helper.isActiveWin():
+            # hack because cannot do app.action(name) without focus
+            # and cannot force the focus at this point
+            QTimer.singleShot(100, self.onWindowShown)
+            return
+
         splitPane = self._componentGroup["splitPane"]
         splitPane.winScrolled.connect(self.onSubWindowScrolled)
         splitPane.winResized.connect(self.onSubWindowResized)
@@ -317,7 +343,10 @@ class Tools(Component):
                 )
             )
 
-            if name == self._activeTool and getOpt("toggle", "shared_tool"):
+            if name == self.getActiveTool() and (
+                getOpt("toggle", "shared_tool")
+                or getOpt("toggle", "global_tool")
+            ):
                 action.trigger()
 
     def onViewChanged(self):
@@ -335,10 +364,12 @@ class Tools(Component):
         self.viewActions()
 
         action = None
-        isSharedTool = getOpt("toggle", "shared_tool")
+        isSharedTool = getOpt("toggle", "shared_tool") or getOpt(
+            "toggle", "global_tool"
+        )
 
         if isSharedTool:
-            action = self._toolActions[self._activeTool]
+            action = self._toolActions[self.getActiveTool()]
         else:
             name = data.get("viewTool", self._defaultTool)
             action = self._toolActions.get(name)
@@ -348,13 +379,20 @@ class Tools(Component):
             action.trigger()
             self._showToast = True
 
-    def onToolAction(self, action: QAction | None):
-        if not action:
+    def onToolAction(self, action: QAction | str | None, silent: bool = False):
+        if isinstance(action, str):
+            if action not in self._toolActions:
+                return
+            action = self._toolActions[action]
+
+        if not action or self._syncingTool:
             return
 
         qwin = self._helper.getQwin()
         if not qwin:
             return
+
+        self._syncingTool = True
 
         name = action.objectName()
         msg = action.text()
@@ -363,10 +401,10 @@ class Tools(Component):
 
         splitPane = self._componentGroup.get("splitPane", None)
         if not splitPane or not splitPane.isSyncing():
-            if self._showToast:
+            if self._showToast and not silent:
                 self._helper.showToast(f"{msg}")
             if isTool:
-                self._activeTool = name
+                self.setActiveTool(name)
 
         if isTool:
             view = self._helper.getView()
@@ -382,6 +420,11 @@ class Tools(Component):
                         if objName in self._toolActions:
                             ta.setCheckable(True)
                             ta.setChecked(objName == name)
+
+        if getOpt("toggle", "global_tool"):
+            self._pluginFactory.syncGlobalTool()
+
+        self._syncingTool = False
 
     def initPrintSizeActions(self):
         app = self._helper.getApp()

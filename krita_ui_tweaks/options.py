@@ -361,6 +361,14 @@ class SettingsDialog(QDialog):
                 ),
                 section=sections.tools,
             ),
+            "global_tool": ToggleItem(
+                input=QCheckBox(
+                    i18n(
+                        "Do not change the active tool when switching windows"
+                    )
+                ),
+                section=sections.tools,
+            ),
             "hide_floating_message": ToggleItem(
                 input=QCheckBox(
                     i18n(
@@ -978,6 +986,7 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             "restore_layout": ConfigVal(default=False),
             "toolbar_icons": ConfigVal(default=True),
             "shared_tool": ConfigVal(default=True),
+            "global_tool": ConfigVal(default=False),
             "hide_floating_message": ConfigVal(default=False),
             "toggle_docking": ConfigVal(default=True),
         },
