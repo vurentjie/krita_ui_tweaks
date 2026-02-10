@@ -331,6 +331,16 @@ class Tools(Component):
 
         self.initPrintSizeActions()
 
+        for d in app.dockers():
+            if d.objectName() == "ToolBox":
+                for tb in d.findChildren(QToolButton):
+                    tb.clicked.connect(
+                        lambda _, action=tb.objectName(): self.onToolAction(
+                            action, silent = True
+                        )
+                    )
+                break
+
         for name in self._toolActions.keys():
             action = app.action(name)
             self._toolActions[name] = action
