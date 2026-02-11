@@ -54,7 +54,7 @@ class Dockers(Component):
             )
             dock.topLevelChanged.connect(dock.property("onDockMoved"))
             if not self._dockingEnabled and dock.isFloating():
-                dock.setAllowedAreas(Qt.NoDockWidgetArea)
+                dock.setAllowedAreas(Qt.DockWidgetArea.NoDockWidgetArea)
 
     def onConfigSave(self):
         isEnabled = getOpt("toggle", "toggle_docking")
@@ -76,9 +76,9 @@ class Dockers(Component):
             return
         if dock.isFloating():
             dock.setAllowedAreas(
-                Qt.AllDockWidgetAreas
+                Qt.DockWidgetArea.AllDockWidgetAreas
                 if self._dockingEnabled
-                else Qt.NoDockWidgetArea
+                else Qt.DockWidgetArea.NoDockWidgetArea
             )
 
     def toggleDocking(self):
@@ -104,10 +104,10 @@ class Dockers(Component):
             self._helper.showToast(i18n("Docking enabled"))
             for dock in window.dockers():
                 if dock.isFloating():
-                    dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+                    dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
         else:
             self._helper.showToast(i18n("Docking disabled"))
             for dock in window.dockers():
                 if dock.isFloating():
-                    dock.setAllowedAreas(Qt.NoDockWidgetArea)
+                    dock.setAllowedAreas(Qt.DockWidgetArea.NoDockWidgetArea)
 
