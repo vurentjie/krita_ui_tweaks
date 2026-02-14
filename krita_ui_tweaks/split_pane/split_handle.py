@@ -48,10 +48,10 @@ class SplitHandle(QWidget):
         self._controller: "SplitPane" = controller
         self._helper: "Helper" = controller._helper
         self._split: "Split" = split
-        self._lastMousePos: QPoint = QPoint()
+        self._startPos: QPoint = QPoint()
+        self._dragCurrPos: QPoint = QPoint()
+        self._dragStartPos: QPoint = QPoint()
         self._dragging: bool = False
-        self._dragDelta: int = 0
-        self._lastDragDelta: int = 0
         self._dragTimer: QTimer | None = None
         self._ctrlDown: bool = False
         self._orient: Qt.Orientation = (
@@ -216,8 +216,10 @@ class SplitHandle(QWidget):
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             self._dragging = True
-            self._dragDelta = 0
-            self._lastMousePos = toPoint(getEventGlobalPos(event))
+            
+            self._startPos = self.pos()
+            self._dragCurrPos = toPoint(getEventGlobalPos(event))
+            self._dragStartPos = self._dragCurrPos
             self._controller.setDragSplit(self._split)
             self._ctrlDown = self._controller.modifiers().ctrlDown
             self._storeDragPos()
@@ -244,14 +246,13 @@ class SplitHandle(QWidget):
 
     def handleMove(self):
         self._checkCtrlModifier()
-        if self._dragDelta == 0:
+        if not self._dragging:
             return
+            
         if self._orient == Qt.Orientation.Vertical:
-            self.moveTo(self.x() + self._dragDelta)
+            self.moveTo(self._startPos.x() + self._dragCurrPos.x() - self._dragStartPos.x());
         else:
-            self.moveTo(self.y() + self._dragDelta)
-        self._lastDragDelta = self._dragDelta
-        self._dragDelta = 0
+            self.moveTo(self._startPos.y() + self._dragCurrPos.y() - self._dragStartPos.y());
 
     def mouseMoveEvent(self, event: QMouseEvent):
         if self._dragging:
@@ -261,17 +262,9 @@ class SplitHandle(QWidget):
                 self._dragTimer.timeout.connect(self.handleMove)
                 self._dragTimer.start(10)
 
-            pos = toPoint(getEventGlobalPos(event))
-            if self._orient == Qt.Orientation.Vertical:
-                self._dragDelta += pos.x() - self._lastMousePos.x()
-            else:
-                self._dragDelta += pos.y() - self._lastMousePos.y()
-            self._lastMousePos = pos
+            self._dragCurrPos = toPoint(getEventGlobalPos(event))
             event.accept()
-
             self._helper.hideToast()
-
-            event.accept()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -279,7 +272,6 @@ class SplitHandle(QWidget):
                 self._dragTimer.stop()
                 self._dragTimer = None
 
-            self._lastDragDelta = 0
             first = self._split.first()
             second = self._split.second()
             if first:
