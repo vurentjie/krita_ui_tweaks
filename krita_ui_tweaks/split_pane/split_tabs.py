@@ -81,11 +81,11 @@ class SplitTabs(QTabBar):
         self.setMinimumWidth(0)
         self.attachStyle()
         self._helper.refreshWidget(self)
-        
+
         self._customStyle = RemoveBottomBorder(self.style())
         self._customStyle.setParent(self)
         self.setStyle(self._customStyle)
-        
+
         self.currentChanged.connect(self.onCurrentChange)
 
     def attachStyle(self):
@@ -224,6 +224,7 @@ class SplitTabs(QTabBar):
         return size
 
     def paintEvent(self, event: QPaintEvent):
+
         if not getOpt("tab_behaviour", "tab_krita_style"):
             super().paintEvent(event)
             return
@@ -235,51 +236,41 @@ class SplitTabs(QTabBar):
         active = self.property("class") == "active"
 
         dragIndex = self._draggable.defaultDragIndex()
+        
+            
+        if not self._redrawDelay:
+            for i in range(self.count()):
+                if i == dragIndex or (
+                    dragIndex != -1 and i == self.currentIndex()
+                ):
+                    continue
+                opt = QStyleOptionTab()
+                self.initStyleOption(opt, i)
 
-        for i in range(self.count()):
-            if i == dragIndex or i == self.currentIndex():
-                continue
+                font = painter.font()
+                font.setBold(tabFontBold)
+                font.setPixelSize(tabFontSize)
+                painter.setFont(font)
+                opt.fontMetrics = QFontMetrics(font)
 
-            opt = QStyleOptionTab()
-            self.initStyleOption(opt, i)
+                if (
+                    active
+                    and (opt.state & QStyle.StateFlag.State_Selected)
+                    and dragIndex == -1
+                    and not self._redrawDelay
+                ):
+                    pal = QPalette(opt.palette)
+                    pal.setColor(
+                        QPalette.ColorRole.Window, QColor(colors.tabActive)
+                    )
+                    opt.palette = pal
 
-            font = painter.font()
-            font.setBold(tabFontBold)
-            font.setPixelSize(tabFontSize)
-            painter.setFont(font)
-            opt.fontMetrics = QFontMetrics(font)
+                painter.drawControl(QStyle.ControlElement.CE_TabBarTab, opt)
 
-            if active and (opt.state & QStyle.StateFlag.State_Selected):
-                pal = QPalette(opt.palette)
-                pal.setColor(QPalette.ColorRole.Window, QColor(colors.tabActive))
-                opt.palette = pal
-
-            painter.drawControl(QStyle.ControlElement.CE_TabBarTab, opt)
-
-        super().paintEvent(event)
-
-        currentIndex = self.currentIndex()
-        if dragIndex == -1 and not self._redrawDelay:
-            opt = QStyleOptionTab()
-            self.initStyleOption(opt, currentIndex)
-
-            font = painter.font()
-            font.setBold(tabFontBold)
-            font.setPixelSize(tabFontSize)
-            painter.setFont(font)
-            opt.fontMetrics = QFontMetrics(font)
-
-            if opt.state & QStyle.StateFlag.State_Selected:
-                pal = QPalette(opt.palette)
-                pal.setColor(
-                    QPalette.ColorRole.Window,
-                    QColor(colors.tabActive if active else colors.tabSelected),
-                )
-                opt.palette = pal
-
-            painter.drawControl(QStyle.ControlElement.CE_TabBarTab, opt)
-        elif dragIndex != -1:
+        if dragIndex != -1 or self._redrawDelay:
             self._redrawDelay = True
+            
+            super().paintEvent(event)
 
             def cb():
                 self._redrawDelay = False
@@ -540,7 +531,7 @@ class SplitTabs(QTabBar):
     def setUid(self, index: int, uid: int):
         if index >= 0 and index < self.count():
             self.setTabData(index, {"uiTweaksId": uid})
-            
+
     def getTabByDocument(self, doc: Document) -> int:
         if self._helper.isAlive(doc, Document):
             for i in range(self.count()):
