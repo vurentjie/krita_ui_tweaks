@@ -47,7 +47,7 @@ import json
 import typing
 import time
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 
 
 @dataclass

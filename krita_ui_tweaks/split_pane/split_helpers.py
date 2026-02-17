@@ -2,6 +2,9 @@
 
 from ..pyqt import (
     Qt,
+    toPoint,
+    getEventGlobalPos,
+    QApplication,
     QRect,
     QPoint,
     QObject,
@@ -25,7 +28,7 @@ import typing
 import os
 import tempfile
 
-from ..helper import CanvasPosition
+from ..helper import CanvasPosition, Helper
 from ..i18n import i18n
 
 if TYPE_CHECKING:
@@ -78,12 +81,12 @@ class FitViewState:
 
 @dataclass
 class MenuAction:
-    text: str|None = None
-    callback: typing.Callable[..., Any]|None = None
+    text: str | None = None
+    callback: typing.Callable[..., Any] | None = None
     separator: bool = False
     enabled: bool = True
     visible: bool = True
-    menu: QMenu|None = None
+    menu: QMenu | None = None
 
 
 @dataclass
@@ -115,7 +118,10 @@ def log(msg):
 
 
 class EventInterceptor(QObject):
-    def __init__(self, callbacks: dict[str, typing.Callable[..., Any]]):
+    def __init__(
+        self,
+        callbacks: dict[str, typing.Callable[..., Any]],
+    ):
         super().__init__()
         self._callbacks = callbacks
 
@@ -129,6 +135,114 @@ class EventInterceptor(QObject):
             cb = self._callbacks.get("resized", None)
             if cb:
                 cb()
+
+        return False
+
+
+# Some hacks from 5.3+ beta
+# Detecting canvas scroll has become much harder
+class ScrollInterceptor(QObject):
+    def __init__(
+        self,
+        helper: "Helper",
+    ):
+        super().__init__()
+        self._helper = helper
+        self._btns = {
+            Qt.MouseButton.MiddleButton: False,
+            Qt.MouseButton.RightButton: False,
+        }
+        self._uidBtn = {}
+        self._keys = {}
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        # TODO can write this better, but for now just need to get it working again
+
+        t = event.type()
+
+        if t not in (
+            QEvent.Type.Wheel,
+            QEvent.Type.MouseButtonPress,
+            QEvent.Type.MouseButtonRelease,
+            QEvent.Type.TabletMove,
+            QEvent.Type.KeyPress,
+            QEvent.Type.KeyRelease,
+        ):
+            return False
+
+        helper = self._helper
+        if not helper.isActiveWin():
+            return False
+
+        mdi = helper.getMdi()
+        sw = mdi.activeSubWindow() if mdi else None
+
+        if not sw:
+            return False
+
+        qwin = helper.getQwin()
+        splitPane = self._helper._componentGroup["splitPane"]
+        cls = obj.metaObject().className()
+        uid = sw.property("uiTweaksId")
+
+        if t == QEvent.Type.KeyPress:
+            self._keys[event.key()] = f"{self._helper.scrollOffset(sw)}"
+            return False
+
+        if t == QEvent.Type.KeyRelease:
+            k = event.key()
+            s = self._keys.get(k)
+            uid = sw.property("uiTweaksId")
+            if s:
+                del self._keys[k]
+                if s != f"{self._helper.scrollOffset(sw)}":
+                    splitPane.onSubWindowScrolled(uid)
+            return False
+
+        if cls == "QWidgetWindow":
+            if t == QEvent.Type.TabletMove:
+                buttons = event.buttons()
+                middleWasDown = self._btns[Qt.MouseButton.MiddleButton]
+                rightWasDown = self._btns[Qt.MouseButton.RightButton]
+                middle = buttons & Qt.MouseButton.MiddleButton
+                right = buttons & Qt.MouseButton.RightButton
+                self._btns[Qt.MouseButton.MiddleButton] = middle
+                self._btns[Qt.MouseButton.RightButton] = right
+                s = f"{self._helper.scrollOffset(sw)}"
+
+                if middle and not middleWasDown:
+                    sw.setProperty("scrollInterceptorMiddle", s)
+                elif right and not rightWasDown:
+                    sw.setProperty("scrollInterceptorRight", s)
+                elif not middle and middleWasDown:
+                    m = sw.property("scrollInterceptorMiddle")
+                    sw.setProperty("scrollInterceptorMiddle", None)
+                    if m and m != s:
+                        splitPane.onSubWindowScrolled(uid)
+                elif not right and rightWasDown:
+                    r = sw.property("scrollInterceptorRight")
+                    sw.setProperty("scrollInterceptorRight", None)
+                    if r and r != s:
+                        splitPane.onSubWindowScrolled(uid)
+
+        elif cls == "KisOpenGLCanvas2":
+            if t == QEvent.Type.Wheel:
+                def cb(uid=uid, obj=obj, sw=sw):
+                    if helper.isChildOfSubWindow(obj, sw):
+                        splitPane.onSubWindowScrolled(uid)
+                self._helper.debounceCallback(
+                    f"canvasWheel{uid}", cb, timeout_seconds=0.5
+                )
+                    
+            elif t == QEvent.Type.MouseButtonPress:
+                self._uidBtn = { uid: f"{self._helper.scrollOffset(sw)}" }
+
+            elif t == QEvent.Type.MouseButtonRelease:
+                s = self._uidBtn.get(uid) 
+                if s:
+                    self._uidBtn = {}
+                    if s != f"{self._helper.scrollOffset(sw)}":
+                        splitPane.onSubWindowScrolled(uid)
 
         return False
 
@@ -252,7 +366,7 @@ class Downloader:
         if self._dialog:
             self._dialog.close()
             self._dialog = None
-        
+
         err = reply.error()
         if err == QNetworkReply.NetworkError.NoError:
             data = reply.readAll()

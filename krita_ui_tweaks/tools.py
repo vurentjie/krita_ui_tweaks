@@ -336,7 +336,7 @@ class Tools(Component):
                 for tb in d.findChildren(QToolButton):
                     tb.clicked.connect(
                         lambda _, action=tb.objectName(): self.onToolAction(
-                            action, silent = True
+                            action, silent=True
                         )
                     )
                 break
@@ -630,6 +630,7 @@ class Tools(Component):
     def onSubWindowScrolled(self, uid: int):
         helper = self._helper
         splitPane = self._componentGroup["splitPane"]
+
         if helper.isScrolling() or helper.isZooming() or splitPane.isSyncing():
             return
 

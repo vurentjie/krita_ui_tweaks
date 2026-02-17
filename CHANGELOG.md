@@ -178,3 +178,9 @@ _Initial release._
 - Added new option: `Do not change the active tool when switching windows`.
   Disabled by default.
 
+## v1.1.3 - 2026-17-02
+
+### Fixed:
+
+- Only drag resize split handles when the mouse position coincides
+- Fixes (hacks) for the beta versions

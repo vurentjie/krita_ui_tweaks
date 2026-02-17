@@ -39,6 +39,7 @@ import typing
 import math
 import os
 import time
+import re
 
 
 if TYPE_CHECKING:
@@ -90,6 +91,17 @@ class Helper:
         typing.cast(pyqtBoundSignal, self.getNotifier().viewClosed).connect(
             lambda: QTimer.singleShot(10, self.refreshDocData)
         )
+
+    def version(self) -> tuple[int, int]:
+        version = self.getApp().version()
+        num = re.search(r"^(\d+)\.(\d+)", version)
+        if num:
+            return int(num.group(1)), int(num.group(2))
+        return (5, 2)
+
+    def isNewApi(self):
+        major, minor = self.version()
+        return (major == 5 and minor >= 3) or major > 5
 
     def noop(self) -> None:
         pass
@@ -254,16 +266,16 @@ class Helper:
     def getQwin(self):
         win = self.getWin()
         return self.isAlive(win.qwindow(), QMainWindow) if win else None
-        
-    def focusQwin(self, qwin: QMainWindow|None = None):
+
+    def focusQwin(self, qwin: QMainWindow | None = None):
         if not qwin:
             qwin = self.getQwin()
         if not qwin:
             return
         if qwin.isMinimized():
             qwin.showNormal()
-        qwin.show()          
-        qwin.raise_()        
+        qwin.show()
+        qwin.raise_()
         qwin.activateWindow()
 
     def getCentral(self):
@@ -282,7 +294,7 @@ class Helper:
 
     def getViewSubWindow(
         self, uid: int | None = None
-    ) -> (QMdiSubWindow | None, View | None, dict[Any, Any] | None):
+    ) -> tuple[QMdiSubWindow | None, View | None, dict[Any, Any] | None]:
         subwin, view, data = None, None, None
         if isinstance(uid, int):
             win = self.getWin()
@@ -306,6 +318,13 @@ class Helper:
 
         return (subwin, view, data)
 
+    def isChildOfSubWindow(self, child: QWidget, win: QMdiSubWindow) -> bool:
+        while child is not None:
+            if child is win:
+                return True
+            child = child.parent()
+        return False
+
     def getTabBar(self):
         cached = self.isAlive(self._cached.get("tabs", None), QTabBar)
         if cached:
@@ -326,7 +345,7 @@ class Helper:
             widget.style().unpolish(widget)
             widget.style().polish(widget)
 
-    def paletteColor(self, key: str, widget: QWidget|None = None) -> QColor:
+    def paletteColor(self, key: str, widget: QWidget | None = None) -> QColor:
         role = getattr(QPalette.ColorRole, key, None)
         if role:
             if widget:
@@ -467,6 +486,7 @@ class Helper:
         return self._isZooming
 
     def getZoomLevel(self, canvas: Canvas | None = None, raw: bool = False):
+
         app = self.getApp()
         qwin = self.getQwin()
         if not canvas:
@@ -477,6 +497,12 @@ class Helper:
 
         if not (app and qwin and canvas and doc):
             return 1
+
+        if self.isNewApi():
+            val = canvas.zoomLevel()
+            if raw:
+                return val
+            return math.ceil(val * 1000) / 1000
 
         view = canvas.view()
         zoom = canvas.zoomLevel()
@@ -681,13 +707,14 @@ class Helper:
         newPos: CanvasPosition,
         contain: bool = False,
         mode: "SCALING_MODE | None" = None,
-        splitPane=None
+        splitPane=None,
     ):
 
         from .split_pane.split_helpers import log as dbgLog
         from .options import (
             getOpt,
         )
+
         def getPos(pos: CanvasPosition | None = None, win=win, view=view):
             if pos is None:
                 pos = self.canvasPosition(win=win, view=view)
@@ -735,7 +762,7 @@ class Helper:
             pos.r
         ):
             return
-            
+
         if getOpt("resize", "scaling_contained_partial") and not (
             pos.vw >= pos.cw and pos.vh >= pos.ch
         ):
@@ -835,7 +862,7 @@ class Helper:
                         self.zoomToFitWidth(win=win, view=view)
                         if contain and getPos().nh >= pos.vh:
                             self.zoomToFit(win=win, view=view)
-                            
+
                     self.centerCanvas(win=win, view=view)
                 else:
                     containZoom = pos.z * (
@@ -925,7 +952,7 @@ class Helper:
                         self.zoomToFitHeight(win=win, view=view)
                         if contain and getPos().nw >= pos.vw:
                             self.zoomToFit(win=win, view=view)
-                            
+
                     self.centerCanvas(win=win, view=view)
                 else:
                     containZoom = pos.z * (
@@ -946,4 +973,3 @@ class Helper:
                     sx = currCenter.x() - (newPos.cw * 0.5)
                     sy = currCenter.y() - (newPos.ch * 0.5)
                     self.scrollTo(win, int(-sx), int(-sy))
-

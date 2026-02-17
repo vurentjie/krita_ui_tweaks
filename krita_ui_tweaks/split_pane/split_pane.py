@@ -54,6 +54,7 @@ from .split_helpers import (
     SavedLayout,
     SplitData,
     EventInterceptor,
+    ScrollInterceptor,
     KeyModiferInterceptor,
     getLayoutFiles,
     Downloader,
@@ -98,6 +99,9 @@ class SplitPane(Component):
         self._resizingEnabled = True
         self._debugMsg = None
         self._debugId = 0
+
+        self._scrollInterceptor: ScrollInterceptor | None = None
+        self._checkScrollHack = self._helper.isNewApi()
 
         app = self._helper.getApp()
         if app:
@@ -196,7 +200,7 @@ class SplitPane(Component):
                     document=view.document(),
                     split=controller.defaultSplit(),
                 )
-                
+
             self._helper.focusQwin()
 
     def resizingEnabled(self):
@@ -643,7 +647,7 @@ class SplitPane(Component):
                 callbacks={
                     "destroyed": callbacks.get("destroyed"),
                     "resized": callbacks.get("resized"),
-                }
+                },
             )
 
             helper.setViewData(view, "viewInterceptor", interceptor)
@@ -858,6 +862,11 @@ class SplitPane(Component):
         self._modifiers = KeyModiferInterceptor()
         qapp.installEventFilter(self._modifiers)
         qapp.installEventFilter(self)
+
+        if self._checkScrollHack and not self._scrollInterceptor:
+            self._scrollInterceptor = ScrollInterceptor(helper=self._helper)
+            qapp.installEventFilter(self._scrollInterceptor)
+
         self.handleSplitter()
 
     def eventFilter(self, obj: QWidget, event: QEvent):
