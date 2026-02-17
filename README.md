@@ -4,6 +4,10 @@
 
 If the latest version has any issues, you can download an older version.
 
+- [v1.1.3.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.3.zip)
+  - Fix crash when applying stylesheet that affects the custom QTabBar [#9](https://github.com/vurentjie/krita_ui_tweaks/issues/9)
+  - Only drag resize split handles when the mouse position coincides
+  - Fixes for new beta versions
 - [v1.1.2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.2.zip)
   - Fix crash when opening multiple windows
   - Tab menu option: new option to open a tab in another window. 
