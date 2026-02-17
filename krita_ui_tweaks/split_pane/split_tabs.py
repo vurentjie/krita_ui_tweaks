@@ -248,6 +248,19 @@ class SplitTabs(QTabBar):
                 font.setPixelSize(tabFontSize)
                 painter.setFont(font)
                 opt.fontMetrics = QFontMetrics(font)
+                painter.drawControl(QStyle.ControlElement.CE_TabBarTab, opt)
+
+            if dragIndex == -1:
+                i = self.currentIndex()
+                
+                opt = QStyleOptionTab()
+                self.initStyleOption(opt, i)
+
+                font = painter.font()
+                font.setBold(tabFontBold)
+                font.setPixelSize(tabFontSize)
+                painter.setFont(font)
+                opt.fontMetrics = QFontMetrics(font)
 
                 pal = QPalette(opt.palette)
 
@@ -257,6 +270,7 @@ class SplitTabs(QTabBar):
                     and dragIndex == -1
                     and not self._redrawDelay
                 ):
+                    
                     pal.setColor(
                         QPalette.ColorRole.Window, QColor(colors.tabActive)
                     )
