@@ -82,10 +82,6 @@ class SplitTabs(QTabBar):
         self.attachStyle()
         self._helper.refreshWidget(self)
 
-        self._customStyle = RemoveBottomBorder(self.style())
-        self._customStyle.setParent(self)
-        self.setStyle(self._customStyle)
-
         self.currentChanged.connect(self.onCurrentChange)
 
     def attachStyle(self):
@@ -253,13 +249,14 @@ class SplitTabs(QTabBar):
                 painter.setFont(font)
                 opt.fontMetrics = QFontMetrics(font)
 
+                pal = QPalette(opt.palette)
+
                 if (
                     active
                     and (opt.state & QStyle.StateFlag.State_Selected)
                     and dragIndex == -1
                     and not self._redrawDelay
                 ):
-                    pal = QPalette(opt.palette)
                     pal.setColor(
                         QPalette.ColorRole.Window, QColor(colors.tabActive)
                     )
