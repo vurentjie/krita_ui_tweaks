@@ -5,6 +5,7 @@
 If the latest version has any issues, you can download an older version.
 
 - [v1.1.3.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.3.zip)
+  - Fix issue causing options menu to stop working
   - Fix MacOS tab style
   - Fix crash when applying stylesheet that affects the custom QTabBar [#9](https://github.com/vurentjie/krita_ui_tweaks/issues/9)
   - Only drag resize split handles when the mouse position coincides
