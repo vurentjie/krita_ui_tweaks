@@ -232,8 +232,7 @@ class SplitTabs(QTabBar):
         active = self.property("class") == "active"
 
         dragIndex = self._draggable.defaultDragIndex()
-        
-            
+
         if not self._redrawDelay:
             for i in range(self.count()):
                 if i == dragIndex or (
@@ -252,7 +251,7 @@ class SplitTabs(QTabBar):
 
             if dragIndex == -1:
                 i = self.currentIndex()
-                
+
                 opt = QStyleOptionTab()
                 self.initStyleOption(opt, i)
 
@@ -264,15 +263,12 @@ class SplitTabs(QTabBar):
 
                 pal = QPalette(opt.palette)
 
-                if (
-                    active
-                    and (opt.state & QStyle.StateFlag.State_Selected)
-                    and dragIndex == -1
-                    and not self._redrawDelay
-                ):
-                    
+                if opt.state & QStyle.StateFlag.State_Selected:
                     pal.setColor(
-                        QPalette.ColorRole.Window, QColor(colors.tabActive)
+                        QPalette.ColorRole.Window,
+                        QColor(
+                            colors.tabActive if active else colors.tabSelected
+                        ),
                     )
                     opt.palette = pal
 
@@ -280,7 +276,7 @@ class SplitTabs(QTabBar):
 
         if dragIndex != -1 or self._redrawDelay:
             self._redrawDelay = True
-            
+
             super().paintEvent(event)
 
             def cb():
