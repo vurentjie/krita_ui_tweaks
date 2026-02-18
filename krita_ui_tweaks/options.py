@@ -470,6 +470,7 @@ class SettingsDialog(QDialog):
         customColors = [
             getattr(schemeColors, f.name) for f in fields(schemeColors)
         ]
+
         # fill update the empty slots
         customColors.extend(
             [

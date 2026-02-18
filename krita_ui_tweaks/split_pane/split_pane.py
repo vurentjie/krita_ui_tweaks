@@ -660,7 +660,51 @@ class SplitPane(Component):
                 bar.valueChanged.connect(callbacks["scrolled"])
 
     def colors(self):
+        if self._colors is None:
+            helper = self._helper
+            useDarkIcons = helper.useDarkIcons()
+            winColor = helper.paletteColor("Window")
+            textColor = helper.paletteColor("Text")
+            hlColor = helper.paletteColor("Highlight")
+            
+            self._colors = (
+                ColorScheme(
+                    bar=adjustColor(winColor, lightness=0.7).name(),
+                    tab=adjustColor(winColor, lightness=0.8).name(),
+                    tabSeparator=adjustColor(winColor, lightness=0.6).name(),
+                    tabSelected=adjustColor(winColor, lightness=1.2).name(),
+                    tabActive=hlColor.name(),
+                    tabActiveBorder=adjustColor(hlColor, lightness=0.7).name(),
+                    tabText=textColor.name(),
+                    tabClose=QColor("lightcoral").name(),
+                    menuSeparator=textColor.name(),
+                    splitHandle=winColor.name(),
+                    splitHandleEdge=adjustColor(winColor, lightness=0.90).name(),
+                    dropZone=hlColor.name(),
+                    dragTab=hlColor.name(),
+                )
+                if useDarkIcons
+                else ColorScheme(
+                    bar=adjustColor(winColor, lightness=0.65).name(),
+                    tab=adjustColor(winColor, lightness=0.85).name(),
+                    tabSeparator=adjustColor(winColor, lightness=1.4).name(),
+                    tabSelected=adjustColor(winColor, lightness=1.3).name(),
+                    tabActive=hlColor.name(),
+                    tabActiveBorder=adjustColor(hlColor, lightness=0.7).name(),
+                    tabText=textColor.name(),
+                    tabClose=QColor("darkred").name(),
+                    menuSeparator=adjustColor(textColor, lightness=0.5).name(),
+                    splitHandle=winColor.name(),
+                    splitHandleEdge=adjustColor(winColor, lightness=0.80).name(),
+                    dropZone=hlColor.name(),
+                    dragTab=hlColor.name(),
+                )
+            )
+        
         return self._colors
+        
+
+
 
     def adjustedColors(self):
         return self._adjustedColors
@@ -693,40 +737,7 @@ class SplitPane(Component):
         closeIcon = (
             ":/dark_close-tab.svg" if useDarkIcons else ":/light_close-tab.svg"
         )
-
-        self._colors = (
-            ColorScheme(
-                bar=adjustColor(winColor, lightness=0.7).name(),
-                tab=adjustColor(winColor, lightness=0.8).name(),
-                tabSeparator=adjustColor(winColor, lightness=0.6).name(),
-                tabSelected=adjustColor(winColor, lightness=1.2).name(),
-                tabActive=hlColor.name(),
-                tabActiveBorder=adjustColor(hlColor, lightness=0.7).name(),
-                tabText=textColor.name(),
-                tabClose=QColor("lightcoral").name(),
-                menuSeparator=textColor.name(),
-                splitHandle=winColor.name(),
-                splitHandleEdge=adjustColor(winColor, lightness=0.90).name(),
-                dropZone=hlColor.name(),
-                dragTab=hlColor.name(),
-            )
-            if useDarkIcons
-            else ColorScheme(
-                bar=adjustColor(winColor, lightness=0.65).name(),
-                tab=adjustColor(winColor, lightness=0.85).name(),
-                tabSeparator=adjustColor(winColor, lightness=1.4).name(),
-                tabSelected=adjustColor(winColor, lightness=1.3).name(),
-                tabActive=hlColor.name(),
-                tabActiveBorder=adjustColor(hlColor, lightness=0.7).name(),
-                tabText=textColor.name(),
-                tabClose=QColor("darkred").name(),
-                menuSeparator=adjustColor(textColor, lightness=0.5).name(),
-                splitHandle=winColor.name(),
-                splitHandleEdge=adjustColor(winColor, lightness=0.80).name(),
-                dropZone=hlColor.name(),
-                dragTab=hlColor.name(),
-            )
-        )
+        self._colors = self.colors()
 
         colors = replace(self._colors)
         for f in fields(colors):
