@@ -659,8 +659,8 @@ class SplitPane(Component):
             if isinstance(bar, QScrollBar):
                 bar.valueChanged.connect(callbacks["scrolled"])
 
-    def colors(self):
-        if self._colors is None:
+    def colors(self, refresh = False):
+        if self._colors is None or refresh:
             helper = self._helper
             useDarkIcons = helper.useDarkIcons()
             winColor = helper.paletteColor("Window")
@@ -737,7 +737,7 @@ class SplitPane(Component):
         closeIcon = (
             ":/dark_close-tab.svg" if useDarkIcons else ":/light_close-tab.svg"
         )
-        self._colors = self.colors()
+        self._colors = self.colors(True)
 
         colors = replace(self._colors)
         for f in fields(colors):
