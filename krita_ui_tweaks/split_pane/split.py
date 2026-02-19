@@ -1376,7 +1376,6 @@ class Split(QObject):
             splitFiles=[],
         )
 
-        self.showOverlay()
         self._restoreSplits(layout, context)
 
         def closeOthers(context=context, keepOne=False):
@@ -1440,7 +1439,6 @@ class Split(QObject):
                                     index=kritaTab, split=split
                                 )
                     finally:
-                        self.hideOverlay()
                         splitTabs.setVisible(True)
 
                 QTimer.singleShot(100, setActive)
@@ -1458,7 +1456,6 @@ class Split(QObject):
 
                     QTimer.singleShot(0, cb)
             except:
-                self.hideOverlay()
                 splitTabs.setVisible(True)
 
         def restoreSizes(
@@ -1474,7 +1471,6 @@ class Split(QObject):
                 else:
                     self.restoreSplitSizes(sizes)
             except:
-                self.hideOverlay()
                 splitTabs.setVisible(True)
             finally:
                 topSplit = self.topSplit()
