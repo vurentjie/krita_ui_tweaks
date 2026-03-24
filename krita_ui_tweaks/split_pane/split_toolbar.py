@@ -362,12 +362,14 @@ class SplitToolbar(QWidget):
 
         if not self._helper.isAlive(self._split, Split):
             return
+            
+        if self._controller.activeToolBar() == self:
+            return 
 
-        controller = self._controller
-        controller.setActiveToolbar(self)
+        self._controller.setActiveToolbar(self)
         view = self._split.getActiveTabView()
         if view:
-            kritaTab = controller.getIndexByView(view)
+            kritaTab = self._controller.getIndexByView(view)
             if kritaTab != -1:
-                controller.syncView(index=kritaTab, split=self._split)
+                self._controller.syncView(index=kritaTab, split=self._split)
 

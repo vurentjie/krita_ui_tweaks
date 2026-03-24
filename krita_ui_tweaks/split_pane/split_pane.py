@@ -1163,6 +1163,9 @@ class SplitPane(Component):
             ellipsis = "…" if getOpt("tab_behaviour", "tab_ellipsis") else ""
             tabText = f"{ellipsis}{tabText[-maxChars:]}"
         return tabText
+        
+    def setActiveToolbar(self):
+        return self._activeToolbar
 
     def setActiveToolbar(self, curr: SplitToolbar | None = None):
         top = self.topSplit()
