@@ -193,3 +193,9 @@ _Initial release._
 ### Fixed:
 
 - Fix minor issue, only call setActiveToolbar when needed
+
+## v1.1.5 - 2026-03-04
+
+### Fixed:
+
+- Fix bug refreshing on theme change
