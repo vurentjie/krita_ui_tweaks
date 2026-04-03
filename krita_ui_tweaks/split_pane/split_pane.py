@@ -659,14 +659,14 @@ class SplitPane(Component):
             if isinstance(bar, QScrollBar):
                 bar.valueChanged.connect(callbacks["scrolled"])
 
-    def colors(self, refresh = False):
+    def colors(self, refresh=False):
         if self._colors is None or refresh:
             helper = self._helper
             useDarkIcons = helper.useDarkIcons()
             winColor = helper.paletteColor("Window")
             textColor = helper.paletteColor("Text")
             hlColor = helper.paletteColor("Highlight")
-            
+
             self._colors = (
                 ColorScheme(
                     bar=adjustColor(winColor, lightness=0.7).name(),
@@ -679,7 +679,9 @@ class SplitPane(Component):
                     tabClose=QColor("lightcoral").name(),
                     menuSeparator=textColor.name(),
                     splitHandle=winColor.name(),
-                    splitHandleEdge=adjustColor(winColor, lightness=0.90).name(),
+                    splitHandleEdge=adjustColor(
+                        winColor, lightness=0.90
+                    ).name(),
                     dropZone=hlColor.name(),
                     dragTab=hlColor.name(),
                 )
@@ -695,16 +697,15 @@ class SplitPane(Component):
                     tabClose=QColor("darkred").name(),
                     menuSeparator=adjustColor(textColor, lightness=0.5).name(),
                     splitHandle=winColor.name(),
-                    splitHandleEdge=adjustColor(winColor, lightness=0.80).name(),
+                    splitHandleEdge=adjustColor(
+                        winColor, lightness=0.80
+                    ).name(),
                     dropZone=hlColor.name(),
                     dragTab=hlColor.name(),
                 )
             )
-        
+
         return self._colors
-        
-
-
 
     def adjustedColors(self):
         return self._adjustedColors
@@ -1051,9 +1052,13 @@ class SplitPane(Component):
         if qapp:
             style = qapp.style()
             for w in qapp.allWidgets():
-                style.unpolish(w)
-                style.polish(w)
-                w.update()
+                if self._helper.isAlive(w, QWidget):
+                    try:
+                        style.unpolish(w)
+                        style.polish(w)
+                        w.update()
+                    except:
+                        pass
 
         mdi = self._helper.getMdi()
         if mdi:
@@ -1163,7 +1168,7 @@ class SplitPane(Component):
             ellipsis = "…" if getOpt("tab_behaviour", "tab_ellipsis") else ""
             tabText = f"{ellipsis}{tabText[-maxChars:]}"
         return tabText
-        
+
     def setActiveToolbar(self):
         return self._activeToolbar
 
