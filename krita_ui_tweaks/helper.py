@@ -3,6 +3,7 @@
 from .pyqt import (
     pyqtBoundSignal,
     sip,
+    Qt,
     QAbstractScrollArea,
     QApplication,
     QColor,
@@ -26,6 +27,9 @@ from .pyqt import (
     QUuid,
     QWidget,
     QWidgetAction,
+    QModelIndex,
+    QItemSelectionModel,
+    QTreeView,
 )
 
 from krita import Krita, Window, Document, Canvas, View, Notifier
@@ -40,7 +44,6 @@ import math
 import os
 import time
 import re
-
 
 if TYPE_CHECKING:
     from .component import Component
@@ -973,3 +976,120 @@ class Helper:
                     sx = currCenter.x() - (newPos.cw * 0.5)
                     sy = currCenter.y() - (newPos.ch * 0.5)
                     self.scrollTo(win, int(-sx), int(-sy))
+
+    def getDockerByName(self, name):
+        if not self.isAlive(self._cached.get(name, None), QWidget):
+            app = self.getApp()
+            docker = next(
+                (d for d in app.dockers() if d.objectName() == name), None
+            )
+            if docker:
+                self._cached[name] = docker
+
+        return self.isAlive(self._cached.get(name, None), QWidget)
+
+    # Layer utils derived from:
+    # https://krita-artists.org/t/setactivenode-does-not-change-active-node/47753/3
+
+    def layerModels(self):
+        layers = self.getDockerByName("KisLayerBox")
+        if layers:
+            view = layers.findChild(QTreeView, "listLayers")
+            return view, view.model(), view.selectionModel()
+
+    def layerToIndex(self, node, model):
+        path = list()
+        while node and (node.index() >= 0):
+            path.insert(0, node.index())
+            node = node.parentNode()
+
+        index = QModelIndex()
+        for i in path:
+            last_row = model.rowCount(index) - 1
+            index = model.index(last_row - i, 0, index)
+        return index
+
+    def indexToLayer(self, index, document):
+        if not index.isValid():
+            return
+
+        model = index.model()
+        path = list()
+        while index.isValid():
+            last_row = model.rowCount(index.parent()) - 1
+            path.insert(0, last_row - index.row())
+            index = index.parent()
+
+        node = None
+        children = document.topLevelNodes()
+        for i in path:
+            node = children[i]
+            children = node.childNodes()
+        return node
+
+    def uidToLayer(self, uid, document):
+        root = document.rootNode()
+        nodes = root.findChildNodes("", True)
+        for n in nodes:
+            if n.uniqueId() == uid:
+                return n
+
+    def getLayerState(self, view, currentOnly=False):
+        doc = view.document()
+        layerView, layerModel, layerSelection = self.layerModels()
+
+        selected = (
+            [layerSelection.currentIndex()]
+            if currentOnly
+            else layerSelection.selectedIndexes()
+        )
+
+        activated = None
+        ids = []
+
+        for i in selected:
+            active = i.data(Qt.ItemDataRole.UserRole + 1)
+            layer = self.indexToLayer(i, doc)
+            if layer:
+                uid = layer.uniqueId()
+                if active:
+                    activated = uid
+                ids.append(uid)
+
+        if activated:
+            ids.remove(activated)
+            ids.append(activated)
+        return ids
+
+    def setLayerState(self, view, state):
+        if not state:
+            return
+
+        doc = view.document()
+        layerView, layerModel, layerSelection = self.layerModels()
+        wasSelected = False
+        curr = state[-1]
+        if curr:
+            layer = self.uidToLayer(curr, doc)
+            if layer:
+                currIndex = self.layerToIndex(layer, layerModel)
+                layerView.setCurrentIndex(currIndex)
+
+        for i in state:
+            layer = self.uidToLayer(i, doc)
+            if layer:
+                idx = self.layerToIndex(layer, layerModel)
+                if idx:
+                    if wasSelected:
+                        layerSelection.select(
+                            idx,
+                            QItemSelectionModel.SelectionFlag.Select
+                            | QItemSelectionModel.SelectionFlag.Rows,
+                        )
+                    else:
+                        wasSelected = True
+                        layerSelection.select(
+                            idx,
+                            QItemSelectionModel.SelectionFlag.ClearAndSelect
+                            | QItemSelectionModel.SelectionFlag.Rows,
+                        )
