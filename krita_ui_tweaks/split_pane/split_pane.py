@@ -868,9 +868,43 @@ class SplitPane(Component):
                 + "/* KRITA_UI_TWEAKS_STYLESHEET_END */"
             )
 
+    # https://bugs.kde.org/show_bug.cgi?id=518465
+    def _trackLayer(self):
+        try:
+            view = self._helper.getView()
+            doc = self._helper.getDoc()
+            data = self._helper.getDocData(doc)
+            if view and doc and data:
+                state = self._helper.getLayerState(view, True)
+                if state:
+                    data.doc["trackLayer"] = state
+        except:
+            pass
+
+    # https://bugs.kde.org/show_bug.cgi?id=518465
+    def _restoreLayer(self):
+        try:
+            view = self._helper.getView()
+            doc = self._helper.getDoc()
+            data = self._helper.getDocData(doc)
+            if view and doc and data:
+                trackState = data.doc.get("trackLayer", None)
+                state = self._helper.getLayerState(view)
+                if not state and trackState:
+                    self._helper.setLayerState(view, trackState)
+                    
+                self._trackLayer()
+        except:
+            pass
+
     def onWindowShown(self):
         super().onWindowShown()
         qapp = QApplication.instance()
+
+        win = self._helper.getWin()
+        if win is None:
+            return
+
         self._modifiers = KeyModiferInterceptor()
         qapp.installEventFilter(self._modifiers)
         qapp.installEventFilter(self)
@@ -880,6 +914,16 @@ class SplitPane(Component):
             qapp.installEventFilter(self._scrollInterceptor)
 
         self.handleSplitter()
+
+        # https://bugs.kde.org/show_bug.cgi?id=518465
+        try:
+            if self._helper.isNewApi():
+                _, _, layerSelectionModel = self._helper.layerModels()
+                if layerSelectionModel:
+                    layerSelectionModel.currentChanged.connect(self._trackLayer)
+                    win.activeViewChanged.connect(self._restoreLayer)
+        except:
+            pass
 
     def eventFilter(self, obj: QWidget, event: QEvent):
         t = event.type()

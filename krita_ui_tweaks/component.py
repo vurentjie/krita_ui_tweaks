@@ -81,6 +81,7 @@ class Component(QObject):
         helper: Helper | None = None,
     ):
         super().__init__()
+        self._init = False
         self._qwin: QMainWindow | None = window.qwindow()
         self._componentGroup = pluginGroup
 
@@ -118,7 +119,11 @@ class Component(QObject):
         return self._helper
 
     def onWindowShown(self):
+        if self._init:
+            return
+        self._init = True
         filters = self._componentFilters
+        
         if self._qwin and filters.windowShow:
             self._qwin.removeEventFilter(filters.windowShow)
             filters.windowShow = None

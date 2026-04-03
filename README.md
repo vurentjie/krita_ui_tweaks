@@ -6,6 +6,7 @@ If the latest version has any issues, you can download an older version.
 
 - [v1.1.5.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.5.zip)
   - Fix error on theme change
+  - Fix for [518465](https://bugs.kde.org/show_bug.cgi?id=518465)
 - [v1.1.4.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.4.zip)
   - Some minor refactoring
 - [v1.1.3.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.3.zip)

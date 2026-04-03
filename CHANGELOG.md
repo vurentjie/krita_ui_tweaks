@@ -199,3 +199,5 @@ _Initial release._
 ### Fixed:
 
 - Fix bug refreshing on theme change
+- Fix for https://bugs.kde.org/show_bug.cgi?id=518465
+

@@ -64,6 +64,8 @@ Qt = QtCore.Qt
 QTimer = QtCore.QTimer
 QUrl = QtCore.QUrl
 QUuid = QtCore.QUuid
+QItemSelectionModel = QtCore.QItemSelectionModel
+QModelIndex = QtCore.QModelIndex
 
 QGuiApplication = QtGui.QGuiApplication
 QBrush = QtGui.QBrush
