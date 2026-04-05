@@ -1010,22 +1010,27 @@ class Helper:
         return index
 
     def indexToLayer(self, index, document):
-        if not index.isValid():
-            return
+        try:
+            if not index.isValid():
+                return
 
-        model = index.model()
-        path = list()
-        while index.isValid():
-            last_row = model.rowCount(index.parent()) - 1
-            path.insert(0, last_row - index.row())
-            index = index.parent()
+            model = index.model()
+            path = list()
+            while index.isValid():
+                last_row = model.rowCount(index.parent()) - 1
+                path.insert(0, last_row - index.row())
+                index = index.parent()
 
-        node = None
-        children = document.topLevelNodes()
-        for i in path:
-            node = children[i]
-            children = node.childNodes()
-        return node
+            node = None
+            children = document.topLevelNodes()
+            for i in path:
+                if i >= len(children):
+                    return None
+                node = children[i]
+                children = node.childNodes()
+            return node
+        except:
+            return None
 
     def uidToLayer(self, uid, document):
         root = document.rootNode()
