@@ -120,15 +120,19 @@ class Helper:
     def runDebounceCallbacks(self):
         now = time.monotonic()
         removeKeys = []
+        runCallbacks = []
         for k in list(self._debounceCallbacks.keys()):
             v = self._debounceCallbacks.get(k, None)
             if v and now - v[1] >= v[2]:
-                v[0]()
+                runCallbacks.append(v[0])
                 removeKeys.append(k)
 
         for k in removeKeys:
             if k in self._debounceCallbacks:
                 del self._debounceCallbacks[k]
+
+        for cb in runCallbacks:
+            cb()
 
         if not self._debounceCallbacks:
             self._debounceTimer.stop()
