@@ -363,7 +363,7 @@ class SplitToolbar(QWidget):
         if not self._helper.isAlive(self._split, Split):
             return
             
-        if self._controller.activeToolBar() == self:
+        if self._controller._activeToolbar == self:
             return 
 
         self._controller.setActiveToolbar(self)
