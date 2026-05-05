@@ -49,7 +49,7 @@ Krita is a free and open source digital painting program. More info here:
 
 ## Downloads
 
-Latest version: [v1.1.5.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.5.zip)
+Latest version: [v1.1.6.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.6.zip)
 
 Development version: [main.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/main.zip)
 
