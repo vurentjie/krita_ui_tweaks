@@ -201,3 +201,10 @@ _Initial release._
 - Fix bug refreshing on theme change
 - Fix for https://bugs.kde.org/show_bug.cgi?id=518465
 
+
+## v1.1.6 - 2026-05-05
+
+### Fixed:
+
+- Fix bug for undefined reference caused by typo
+
