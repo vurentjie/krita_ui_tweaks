@@ -14,6 +14,7 @@ Various tweaks for Krita's interface:
 Krita is a free and open source digital painting program. More info here:
 [https://krita.org](https://krita.org)
 
+There's a thread related to this plugin on [krita-artists.org](https://krita-artists.org/t/krita-split-panes-and-other-tweaks/157491)
 
 ### Basic interactions:
 
