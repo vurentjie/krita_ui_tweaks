@@ -822,6 +822,7 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             ),
         },
         "translated": {
+            "Loading…": ConfigVal(default="Loading…"),
             "Open in window…": ConfigVal(default="Open in window…"),
             "+ New window": ConfigVal(default="+ New window"),
             "Window": ConfigVal(default="Window"),

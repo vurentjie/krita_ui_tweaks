@@ -30,6 +30,9 @@ from ..pyqt import (
     QUrl,
     QDir,
     QDialog,
+    QRect,
+    QPaintEvent,
+    QPainter,
 )
 
 from krita import Window, Document, View
@@ -65,6 +68,105 @@ from .mdi_split_pane import MdiSplitPane
 
 if TYPE_CHECKING:
     from ..plugin import Plugin
+
+
+class MdiMessageBox(QWidget):
+
+    def __init__(
+        self,
+        parent: QWidget | QMainWindow,
+        color: QColor | None = None,
+        altColor: QColor | None = None,
+        text: str | None = None,
+        textColor: QColor | None = None,
+        bold: bool = False,
+        shadow: bool = False,
+        inset: bool = False,
+        borderRadius: int = 0,
+        borderColor: QColor | None = None,
+    ):
+        super().__init__(parent)
+
+        self._color = QColor(10, 10, 100, 100) if color is None else color
+        self._altColor = altColor
+        self._text = text
+        self._textColor = textColor if textColor else Qt.GlobalColor.white
+        self._textAlign = Qt.AlignmentFlag.AlignCenter
+        self._borderRadius = borderRadius
+        self._borderColor = borderColor
+        self._inset = inset
+        self._bold = bold
+        if shadow:
+            self._shadow = QGraphicsDropShadowEffect()
+            self._shadow.setBlurRadius(16)
+            self._shadow.setOffset(2, 2)
+            self._shadow.setColor(QColor(0, 0, 0, 80))
+            self.setGraphicsEffect(self._shadow)
+
+    def setText(self, text: str | None):
+        self._text = text
+        self.update()
+
+    def setTextAlign(self, align: Qt.AlignmentFlag):
+        self._textAlign = align
+        self.update()
+
+    def setColor(self, color: QColor):
+        self._color = color
+        self.update()
+
+    def paintEvent(self, _: QPaintEvent):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect()
+        if self._borderRadius == 0:
+            p.fillRect(rect, self._color)
+        else:
+            p.setBrush(self._color)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(rect, self._borderRadius, self._borderRadius)
+
+            if self._inset:
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.setPen(QPen(QColor(255, 255, 255, 50), 1))
+                p.drawRoundedRect(
+                    rect.adjusted(1, 1, -1, -1),
+                    self._borderRadius,
+                    self._borderRadius,
+                )
+
+            if self._borderColor:
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.setPen(QPen(self._borderColor, 2))
+                p.drawRoundedRect(
+                    rect, self._borderRadius + 1, self._borderRadius + 1
+                )
+
+        if self._altColor:
+            stripe_width = 5
+            pen = QPen(self._altColor, stripe_width * 2)
+            p.setPen(pen)
+
+            w, h = rect.width(), rect.height()
+            for x in range(-h, w, stripe_width * 2):
+                p.drawLine(x, 0, x + h, h)
+
+        if self._text:
+            p.setPen(self._textColor)
+            font = p.font()
+
+            if self._bold:
+                font.setBold(True)
+
+            font.setPixelSize(16)
+            p.setFont(font)
+            p.drawText(
+                self.rect(),
+                self._textAlign
+                | Qt.AlignmentFlag.AlignTop
+                | Qt.TextFlag.TextWordWrap,
+                self._text,
+            )
 
 
 class MdiController(Component):
@@ -1296,6 +1398,20 @@ class MdiController(Component):
             tabs.setVisible(False)
             callbacks = context.get("callbacks", None)
 
+            msg = MdiMessageBox(
+                central,
+                text=i18n("Loading…"),
+                color=QColor(0, 0, 0),
+                borderRadius=5,
+            )
+            msg.show()
+
+            rect = QRect(0, 0, 120, 40)
+            rect.moveCenter(central.rect().center())
+            rect.moveBottom(central.rect().bottom() - 20)
+            msg.setGeometry(rect)
+            msg.raise_()
+
             def runCallbacks(
                 needsUpdate=False,
                 locked=locked,
@@ -1303,7 +1419,9 @@ class MdiController(Component):
                 version=version,
                 callbacks=callbacks,
                 qwin=qwin,
+                mdi=mdi,
                 rootSplit=rootSplit,
+                msg=msg,
             ):
                 if not self._helper.isAlive(qwin, QMainWindow):
                     return
@@ -1330,6 +1448,10 @@ class MdiController(Component):
                 else:
                     self.setLayoutLocked(locked)
 
+                    qwin.setUpdatesEnabled(False)
+                    for sw in oldSubWins:
+                        sw.close()
+
                     if not version:
                         self.slotEqualizeLayout()
 
@@ -1344,10 +1466,8 @@ class MdiController(Component):
                     for cb in callbacks.activate:
                         cb()
 
-                    for sw in oldSubWins:
-                        sw.close()
-
                     qwin.setUpdatesEnabled(True)
+                    msg.deleteLater()
 
             QTimer.singleShot(0, runCallbacks)
 
