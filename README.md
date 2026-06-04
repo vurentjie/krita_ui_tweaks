@@ -48,7 +48,7 @@ There's a thread related to this plugin on [krita-artists.org](https://krita-art
 
 ## Downloads
 
-Latest version: [v1.1.6.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.6.zip)
+Latest version: [v1.1.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.7.zip)
 
 Development version: [main.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/main.zip)
 
