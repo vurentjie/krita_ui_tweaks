@@ -53,6 +53,7 @@ Latest version: [v1.1.6.zip](https://github.com/vurentjie/krita_ui_tweaks/archiv
 Development version: [main.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/main.zip)
 
 Download v2.0 beta version: [v2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
+***Note: v2 is meant to fix issues for Krita 5.3 (5.3.2 or later).***
 
 
 ### Configuration
