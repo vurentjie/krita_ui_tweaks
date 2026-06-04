@@ -571,10 +571,10 @@ class MdiController(Component):
             mdi.setActiveSubWindow(sw)
 
     def setActiveSplitPane(
-        self, 
-        pane: MdiSplitPane | None, 
+        self,
+        pane: MdiSplitPane | None,
         focusSubWindow: bool = False,
-        redraw: bool = True
+        redraw: bool = True,
     ):
         oldPane = self._helper.isAlive(self._activeSplitPane, MdiSplitPane)
         newPane = self._helper.isAlive(pane, MdiSplitPane)
@@ -582,7 +582,6 @@ class MdiController(Component):
         if oldPane == newPane:
             return
 
-            
         if oldPane is not None:
             oldPane.setProperty("active", None)
             if redraw:

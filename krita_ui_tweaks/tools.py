@@ -231,14 +231,21 @@ class ToolManager(Component):
         isTool = name in self._toolActions
 
         if isTool:
+            activeTool = self._activeTool
             self.setActiveTool(name)
-            for tb in qwin.findChildren(QToolButton):
-                ta = tb.defaultAction()
-                if ta:
-                    objName = ta.objectName()
-                    if objName in self._toolActions:
-                        ta.setCheckable(True)
-                        ta.setChecked(objName == name)
+            if activeTool != name:
+                def restore(qwin=qwin):
+                    for tb in qwin.findChildren(QToolButton):
+                        ta = tb.defaultAction()
+                        if ta:
+                            objName = ta.objectName()
+                            if objName in self._toolActions:
+                                ta.setCheckable(True)
+                                ta.setChecked(objName == self._activeTool)
+                            
+                self._helper.debounceCallback(
+                    "toolbarButtons", restore, timeout_seconds=0.5
+                )
 
         self._syncingTool = False
 
