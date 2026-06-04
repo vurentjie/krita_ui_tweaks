@@ -231,7 +231,7 @@ class ToolManager(Component):
         isTool = name in self._toolActions
 
         if isTool:
-            activeTool = self._activeTool
+            activeTool = self.getActiveTool()
             self.setActiveTool(name)
             if activeTool != name:
                 def restore(qwin=qwin):
@@ -306,4 +306,3 @@ class ToolManager(Component):
         if action:
             action.triggered.connect(self._updatePrintSize)
             win.activeViewChanged.connect(viewChanged)
-
