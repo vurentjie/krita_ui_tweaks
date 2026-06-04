@@ -671,12 +671,21 @@ class MdiSplit(QWidget):
             )
             self.equalizeLayout(rootOrient)
 
-            for off in restoreHandleOffsets:
-                if off[0].orientation() != rootOrient:
-                    off[0].moveTo(off[1])
+            def cb(
+                restoreHandleOffsets=restoreHandleOffsets,
+                rootOrient=rootOrient,
+            ):
+                for off in restoreHandleOffsets:
+                    if off[0].orientation() != rootOrient:
+                        off[0].moveTo(off[1])
+
+            QTimer.singleShot(0, cb)
         else:
-            for off in restoreHandleOffsets:
-                off[0].moveTo(off[1])
+            def cb(restoreHandleOffsets=restoreHandleOffsets):
+                for off in restoreHandleOffsets:
+                    off[0].moveTo(off[1])
+
+            QTimer.singleShot(0, cb)
 
         if rootSplit is not None:
             rootSplit.refreshSplitSizes()
