@@ -14,6 +14,7 @@ Various tweaks for Krita's interface:
 Krita is a free and open source digital painting program. More info here:
 [https://krita.org](https://krita.org)
 
+There's a thread related to this plugin on [krita-artists.org](https://krita-artists.org/t/krita-split-panes-and-other-tweaks/157491)
 
 ### Basic interactions:
 
@@ -45,13 +46,15 @@ Krita is a free and open source digital painting program. More info here:
 </table>
 
 
-
-
 ## Downloads
 
-Latest version: [v1.1.5.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.5.zip)
+Latest version: [v1.1.6.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.6.zip)
 
 Development version: [main.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/main.zip)
+
+Download v2.0 beta version: [v2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
+***Note: v2 is meant to fix issues for Krita 5.3 (5.3.2 or later).***
+
 
 ### Configuration
 
