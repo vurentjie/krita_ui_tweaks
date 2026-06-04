@@ -571,7 +571,10 @@ class MdiController(Component):
             mdi.setActiveSubWindow(sw)
 
     def setActiveSplitPane(
-        self, pane: MdiSplitPane | None, focusSubWindow: bool = False
+        self, 
+        pane: MdiSplitPane | None, 
+        focusSubWindow: bool = False,
+        redraw: bool = True
     ):
         oldPane = self._helper.isAlive(self._activeSplitPane, MdiSplitPane)
         newPane = self._helper.isAlive(pane, MdiSplitPane)
@@ -579,21 +582,24 @@ class MdiController(Component):
         if oldPane == newPane:
             return
 
+            
         if oldPane is not None:
             oldPane.setProperty("active", None)
-            tabs = oldPane.tabs()
-            if tabs is not None:
-                tabs.attachStyleSheet()
-            oldPane.updateFrameBorder()
+            if redraw:
+                tabs = oldPane.tabs()
+                if tabs is not None:
+                    tabs.attachStyleSheet()
+                oldPane.updateFrameBorder()
 
         if newPane is not None:
             root = self.rootSplit()
             if root is not None and root.isSplitState():
                 newPane.setProperty("active", True)
             newPane.activateCurrentSubWindow(focusSubWindow)
-            tabs = newPane.tabs()
-            if tabs is not None:
-                tabs.attachStyleSheet()
+            if redraw:
+                tabs = newPane.tabs()
+                if tabs is not None:
+                    tabs.attachStyleSheet()
 
         self._activeSplitPane = newPane
         self.activePaneChanged.emit()
@@ -625,11 +631,13 @@ class MdiController(Component):
         win = self._helper.getWin()
         if win is not None and isinstance(doc, Document):
             if pane is not None:
-                self.setActiveSplitPane(pane)
+                self.setActiveSplitPane(pane, False, False)
+
             view = win.addView(doc)
             path = doc.fileName()
             if path and os.path.exists(path):
                 self._recentFiles[path] = datetime.now()
+
             return view
 
     # From python plugin Krita only updates the recent files on restart
@@ -1323,9 +1331,6 @@ class MdiController(Component):
                 else:
                     self.setLayoutLocked(locked)
 
-                    for sw in oldSubWins:
-                        sw.close()
-
                     if not version:
                         self.slotEqualizeLayout()
 
@@ -1339,6 +1344,9 @@ class MdiController(Component):
 
                     for cb in callbacks.activate:
                         cb()
+
+                    for sw in oldSubWins:
+                        sw.close()
 
                     qwin.setUpdatesEnabled(True)
 
@@ -1450,4 +1458,14 @@ class MdiController(Component):
             return
         self.openView(view.document())
         self._helper.focusQwin()
+
+    def profile(self, msg="Profile"):
+        import time
+
+        if not hasattr(self, "_profile_time"):
+            self._profile_time = time.perf_counter()
+            self._profiled = []
+
+        elapsed_time = time.perf_counter() - self._profile_time
+        self._profiled.append(f"[{elapsed_time:.4f}s] {msg}")
 
