@@ -10,9 +10,17 @@ try:
         return event.position()
 
     def getEventGlobalPos(  # pyright: ignore[reportRedeclaration]
-        event: QtGui.QMouseEvent,
+        event: QtGui.QMouseEvent | QtGui.QTouchEvent,
     ) -> QtCore.QPointF:
-        return event.globalPosition()
+        if event.type() in (
+            QtCore.QEvent.Type.TouchBegin,
+            QtCore.QEvent.Type.TouchUpdate,
+            QtCore.QEvent.Type.TouchEnd,
+        ):
+            points = event.points()
+            return points[0].globalPos() if points else QPoint()
+        else:
+            return event.globalPosition()
 
     def toPoint(  # pyright: ignore[reportRedeclaration]
         pos: QtCore.QPointF,
@@ -27,8 +35,18 @@ except:
     def getEventPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
         return event.pos()
 
-    def getEventGlobalPos(event: QtGui.QMouseEvent) -> QtCore.QPoint:
-        return event.globalPos()
+    def getEventGlobalPos(
+        event: QtGui.QMouseEvent | QtGui.QTouchEvent,
+    ) -> QtCore.QPoint:
+        if event.type() in (
+            QtCore.QEvent.Type.TouchBegin,
+            QtCore.QEvent.Type.TouchUpdate,
+            QtCore.QEvent.Type.TouchEnd,
+        ):
+            points = event.touchPoints()
+            return points[0].screenPos() if points else QPoint()
+        else:
+            return event.globalPos()
 
     def toPoint(pos: QtCore.QPoint):
         return pos
@@ -57,6 +75,7 @@ QPoint = QtCore.QPoint
 QPointF = QtCore.QPointF
 QRect = QtCore.QRect
 QRectF = QtCore.QRectF
+QLineF = QtCore.QLineF
 QSettings = QtCore.QSettings
 QSize = QtCore.QSize
 QStandardPaths = QtCore.QStandardPaths
@@ -64,6 +83,9 @@ Qt = QtCore.Qt
 QTimer = QtCore.QTimer
 QUrl = QtCore.QUrl
 QUuid = QtCore.QUuid
+QDataStream = QtCore.QDataStream
+QIODevice = QtCore.QIODevice
+qChecksum = QtCore.qChecksum
 QItemSelectionModel = QtCore.QItemSelectionModel
 QModelIndex = QtCore.QModelIndex
 
@@ -131,6 +153,7 @@ QSpinBox = QtWidgets.QSpinBox
 QStackedWidget = QtWidgets.QStackedWidget
 QStyledItemDelegate = QtWidgets.QStyledItemDelegate
 QStyleOptionViewItem = QtWidgets.QStyleOptionViewItem
+QStyleOptionToolButton = QtWidgets.QStyleOptionToolButton
 QStyleOption = QtWidgets.QStyleOption
 QStyle = QtWidgets.QStyle
 QStylePainter = QtWidgets.QStylePainter

@@ -1,85 +1,58 @@
-# SPDX-License-Identifier: CC0-1.0
-
 from .pyqt import (
-    PYQT_SLOT,
-    pyqtBoundSignal,
-    QApplication,
-    QIcon,
+    QtCore,
+    QtGui,
+    QtWidgets,
+    QAction,
+    QTimer,
     QEvent,
+    QObject,
+    QToolButton,
+    QMessageBox,
     QDialog,
     QDialogButtonBox,
-    QAction,
-    QToolBar,
-    QToolButton,
+    QApplication,
     QWidget,
     QMainWindow,
-    QMdiSubWindow,
-    QMessageBox,
-    QTimer,
-    QRect,
 )
 
-from krita import Window, Krita
-from .component import Component, COMPONENT_GROUP
-from .options import showOptions, getOpt, signals as OptionSignals
-from .i18n import i18n
-from .helper import Helper, CanvasPosition
+from krita import Window, Document, View
+from dataclasses import dataclass, replace, fields
+from contextlib import contextmanager
+from typing import Any, TYPE_CHECKING
+from datetime import datetime
+from types import SimpleNamespace
 
-import time
 import typing
+import re
+import json
+import os
+import time
+
+from .options import getOpt
+from .component import Component, COMPONENT_GROUP
+
+from .helper import Helper
+from .i18n import i18n
+
+if TYPE_CHECKING:
+    from .plugin import Plugin
 
 
-FIT_ACTION = typing.Literal[
-    "zoom_to_fit",
-    "zoom_to_fit_height",
-    "zoom_to_fit_width",
-    "toggle_zoom_to_fit",
-]
+class ToolManager(Component):
 
-SCALING_ACTION = typing.Literal[
-    "krita_ui_tweaks_scaling_mode_anchored",
-    "krita_ui_tweaks_scaling_mode_contained",
-    "krita_ui_tweaks_scaling_mode_expanded",
-]
-
-SCALING_MODE = typing.Literal[
-    "anchored",
-    "contained",
-    "expanded",
-]
-
-
-class Tools(Component):
     def __init__(
         self,
         window: Window,
+        plugin: "Plugin",
         pluginGroup: COMPONENT_GROUP | None = None,
         helper: Helper | None = None,
-        pluginFactory: "Plugin" = None,
     ):
         super().__init__(window, pluginGroup=pluginGroup, helper=helper)
 
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks",
-            i18n("Krita UI Tweaks"),
-            self.showOptions,
-            menu=True,
-        )
-
-        view = self._helper.getView()
-
-        self._pluginFactory = pluginFactory
-
-        self._showToast = True
-        self._defaultTool: str = "KritaShape/KisToolBrush"
-
-        if not self._pluginFactory._globalTool:
-            self._pluginFactory._globalTool = self._defaultTool
-
+        self._activeTool = "KritaShape/KisToolBrush"
         self._syncingTool = False
-        self._activeTool: str = self._defaultTool
-        self._toolActions: dict[str, QAction | None] = {
+        self._plugin = plugin
+        self._toolActions: dict[str, SimpleNamespace | None] = {
             "InteractionTool": None,
             "KarbonCalligraphyTool": None,
             "KisAssistantTool": None,
@@ -118,288 +91,137 @@ class Tools(Component):
             "ZoomTool": None,
         }
 
-        # NOTE ty will not typecheck if the actions are declared in the definition
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        qwin = self._helper.getQwin()
 
-        self._fitActions: dict[FIT_ACTION, QAction | None] = {}
-        self._fitActions["zoom_to_fit"] = None
-        self._fitActions["zoom_to_fit_height"] = None
-        self._fitActions["zoom_to_fit_width"] = None
-        self._fitActions["toggle_zoom_to_fit"] = None
+        eventType = event.type()
+        if (
+            eventType == QEvent.Type.Show
+            and isinstance(obj, QDialog)
+            and obj.windowTitle() == i18n("Configure Toolbars")
+        ):
+            box = obj.findChild(QDialogButtonBox)
+            if box:
 
-        self._scalingActions: dict[SCALING_ACTION, QAction | None] = {}
-        self._scalingActions["krita_ui_tweaks_scaling_mode_anchored"] = None
-        self._scalingActions["krita_ui_tweaks_scaling_mode_contained"] = None
-        self._scalingActions["krita_ui_tweaks_scaling_mode_expanded"] = None
+                def cb(_, obj=obj):
+                    QTimer.singleShot(200, self.onThemeChanged)
 
-        self._scalingToAction: dict[SCALING_MODE, SCALING_ACTION] = {}
-        self._scalingToAction["anchored"] = (
-            "krita_ui_tweaks_scaling_mode_anchored"
-        )
-        self._scalingToAction["contained"] = (
-            "krita_ui_tweaks_scaling_mode_contained"
-        )
-        self._scalingToAction["expanded"] = (
-            "krita_ui_tweaks_scaling_mode_expanded"
-        )
+                for btn in box.buttons():
+                    btn.clicked.connect(cb)
+            return False
 
-        self._actionToScaling: dict[SCALING_ACTION, SCALING_MODE] = {}
-        self._actionToScaling["krita_ui_tweaks_scaling_mode_anchored"] = (
-            "anchored"
-        )
-        self._actionToScaling["krita_ui_tweaks_scaling_mode_contained"] = (
-            "contained"
-        )
-        self._actionToScaling["krita_ui_tweaks_scaling_mode_expanded"] = (
-            "expanded"
-        )
+        if (
+            eventType == QEvent.Type.ActivationChange
+            and self._plugin._activeQwin != self._helper.getQwin()
+        ):
+            self._plugin._activeQwin = self._helper.getQwin()
+            QTimer.singleShot(10, self.onViewChanged)
 
-        self._globalScalingMode: SCALING_ACTION | bool = (
-            self._scalingToAction.get(
-                getOpt("resize", "default_scaling_mode"), False
-            )
-        )
+        return False
 
-        val = "dark" if self._helper.useDarkIcons() else "light"
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks_scaling_mode_anchored",
-            i18n("Scaling Mode Anchored"),
-            self._helper.noop,
-            checkable=True,
-            icon=QIcon(
-                self._helper.getIconPath(f"{val}_scaling-mode-anchored.png")
-            ),
+    def onViewChanged(self):
+        tool = self.getActiveTool()
+        action = (
+            self._toolActions[tool].action
+            if tool and tool in self._toolActions
+            else None
         )
+        if action:
+            action.trigger()
 
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks_scaling_mode_contained",
-            i18n("Scaling Mode Contained"),
-            self._helper.noop,
-            checkable=True,
-            icon=QIcon(
-                self._helper.getIconPath(f"{val}_scaling-mode-contained.png")
-            ),
-        )
-
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks_scaling_mode_expanded",
-            i18n("Scaling Mode Expanded"),
-            self._helper.noop,
-            checkable=True,
-            icon=QIcon(
-                self._helper.getIconPath(f"{val}_scaling-mode-expanded.png")
-            ),
-        )
-
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks_center_canvas",
-            i18n("Center Canvas"),
-            self.centerCanvas,
-            icon=QIcon(self._helper.getIconPath(f"{val}_center-canvas.png")),
-        )
-
-        # XXX
-        # need to poll for showrulers because changing
-        # the ruler setting in the docker does not emit
-        # notifier.configurationChanged signal
+    def onWindowInit(self):
         app = self._helper.getApp()
-        if app:
-            self._showRulers = app.readSetting("", "showrulers", "") == "true"
-            self._componentTimers.shortPoll.connect(self.onKritaConfigChanged)
+        win = self._helper.getWin()
+        qwin = self._helper.getQwin()
 
-        OptionSignals.configSaved.connect(self.onConfigSave)
+        if app is None or qwin is None or win is None:
+            return
+
+        if not self._helper.isActiveWin():
+            # cannot do app.action(name) without focus
+            # and cannot force the focus at this point
+            QTimer.singleShot(100, self.onWindowInit)
+            return
 
         qapp = QApplication.instance()
         if qapp:
             qapp.installEventFilter(self)
 
-    def showOptions(self):
-        showOptions(self._componentGroup["splitPane"])
-
-    def onKritaConfigChanged(self):
-        app = self._helper.getApp()
-        mdi = self._helper.getMdi()
-        rulers = self._showRulers
-        self._showRulers = app.readSetting("", "showrulers", "") == "true"
-        if mdi and rulers != self._showRulers:
-            for w in mdi.subWindowList():
-                for r in w.findChildren(QWidget):
-                    if r.metaObject().className() == "KoRuler":
-                        r.setVisible(self._showRulers)
-
-            splitPane = self._componentGroup["splitPane"]
-            if splitPane:
-                splitPane.updateRulerBackground(mdi.subWindowList())
-
-    def eventFilter(self, obj, event):
-        # NOTE
-        # not a big deal if this stops working
-        # just every time toolbars are configured
-        # highlights mysteriously vanish
-        if isinstance(obj, QDialog):
-            if event.type() == QEvent.Type.Show:
-                if obj.windowTitle() == Krita.krita_i18n("Configure Toolbars"):
-                    box = obj.findChild(QDialogButtonBox)
-                    if box:
-
-                        def cb(_, obj=obj):
-                            QTimer.singleShot(200, self.onThemeChanged)
-
-                        for btn in box.buttons():
-                            btn.clicked.connect(cb)
-        return False
-
-    def getActiveTool(self):
-        if getOpt("toggle", "global_tool"):
-            return self._pluginFactory._globalTool
-        return self._activeTool
-
-    def setActiveTool(self, name):
-        self._pluginFactory._globalTool = name
-        self._activeTool = name
-
-    def onConfigSave(self, context):
-        qwin = self._helper.getQwin()
-        if not qwin:
-            return
-
-        useTool = self.getActiveTool()
-
-        action = self._toolActions[useTool]
-        if not action:
-            return
-
-        if context.get("resize", "scaling_mode_per_view"):
-            self.viewActions()
-
-        name = action.objectName()
-        if getOpt("toggle", "toolbar_icons"):
-            for tb in qwin.findChildren(QToolButton):
-                ta = tb.defaultAction()
-                if ta and ta.objectName() in self._toolActions:
-                    ta.setCheckable(True)
-                    ta.setChecked(ta.objectName() == name)
-        else:
-            for tb in qwin.findChildren(QToolButton):
-                ta = tb.defaultAction()
-                if ta and ta.objectName() in self._toolActions:
-                    ta.setChecked(False)
-                    ta.setCheckable(False)
-
-    def onThemeChanged(self):
-        val = "dark" if self._helper.useDarkIcons() else "light"
-        icons = {
-            "krita_ui_tweaks_scaling_mode_anchored": f"{val}_scaling-mode-anchored.png",
-            "krita_ui_tweaks_scaling_mode_contained": f"{val}_scaling-mode-contained.png",
-            "krita_ui_tweaks_scaling_mode_expanded": f"{val}_scaling-mode-expanded.png",
-            "krita_ui_tweaks_center_canvas": f"{val}_center-canvas.png",
-        }
-        app = self._helper.getApp()
-        for name, path in icons.items():
-            action = app.action(name)
-            if action:
-                icon = QIcon(self._helper.getIconPath(path))
-                action.setIcon(icon)
-
-        qwin = self._helper.getQwin()
-        if qwin:
-            for tb in qwin.findChildren(QToolButton):
-                ta = tb.defaultAction()
-                if ta and ta.isChecked():
-                    ta.setChecked(False)
-                    ta.setChecked(True)
-
-    def onWindowShown(self):
-        super().onWindowShown()
-        app = self._helper.getApp()
-        qwin = self._helper.getQwin()
-        if not qwin:
-            return
-
-        if not self._helper.isActiveWin():
-            # hack because cannot do app.action(name) without focus
-            # and cannot force the focus at this point
-            QTimer.singleShot(100, self.onWindowShown)
-            return
-
-        splitPane = self._componentGroup["splitPane"]
-        splitPane.winScrolled.connect(self.onSubWindowScrolled)
-        splitPane.winResized.connect(self.onSubWindowResized)
-
-        self.initPrintSizeActions()
+        self.fixPrintSizeActions()
+        win.activeViewChanged.connect(self.onViewChanged)
 
         for d in app.dockers():
             if d.objectName() == "ToolBox":
                 for tb in d.findChildren(QToolButton):
                     tb.clicked.connect(
-                        lambda _, action=tb.objectName(): self.onToolAction(
-                            action, silent=True
+                        lambda _=None, action=tb.objectName(): self.onToolAction(
+                            action
                         )
                     )
                 break
 
+        activeTool = self.getActiveTool()
+
         for name in self._toolActions.keys():
             action = app.action(name)
-            self._toolActions[name] = action
-            _ = action.triggered.connect(  # pyright: ignore[reportUnknownMemberType]
-                typing.cast(
-                    PYQT_SLOT,
-                    lambda _, action=action: self.onToolAction(  # pyright: ignore[reportUnknownLambdaType]
-                        action
-                    ),
-                )
+            if not action:
+                continue
+
+            self._toolActions[name] = SimpleNamespace(
+                action=action,
+                callback=lambda _=None, action=action: self.onToolAction(
+                    action
+                ),
             )
 
-            if name == self.getActiveTool() and (
-                getOpt("toggle", "shared_tool")
-                or getOpt("toggle", "global_tool")
-            ):
+            action.triggered.connect(self._toolActions[name].callback)
+
+            if name == activeTool:
                 action.trigger()
 
-    def onViewChanged(self):
-        super().onViewChanged()
+    def onWindowDestroyed(self):
+        app = self._helper.getApp()
 
-        helper = self._helper
-        app = helper.getApp()
-        qwin = helper.getQwin()
-        view = helper.getView()
-        data = helper.getViewData(view)
-
-        if not (app and qwin and isinstance(data, dict)):
+        if app is None:
             return
 
-        self.viewActions()
+        try:
+            app.action("view_print_size").triggered.disconnect(
+                self._updatePrintSize
+            )
+        except:
+            pass
 
-        action = None
-        isSharedTool = getOpt("toggle", "shared_tool") or getOpt(
-            "toggle", "global_tool"
-        )
+        for name in self._toolActions.keys():
+            try:
+                self._toolActions[name].action.triggered.disconnect(
+                    self._toolActions[name].callback
+                )
+            except:
+                pass
 
-        if isSharedTool:
-            action = self._toolActions[self.getActiveTool()]
-        else:
-            name = data.get("viewTool", self._defaultTool)
-            action = self._toolActions.get(name)
+    def getActiveTool(self):
+        if getOpt("toggle", "global_tool"):
+            return self._plugin._globalTool
 
-        if action:
-            self._showToast = False
-            action.trigger()
-            self._showToast = True
+        if getOpt("toggle", "shared_tool"):
+            return self._activeTool
 
-    def onToolAction(self, action: QAction | str | None, silent: bool = False):
-        if isinstance(action, str):
-            if action not in self._toolActions:
-                return
-            action = self._toolActions[action]
+    def setActiveTool(self, name):
+        self._plugin._globalTool = name
+        self._activeTool = name
 
-        if not action or self._syncingTool:
-            return
-
+    def onToolAction(self, action: QAction | str | None):
         qwin = self._helper.getQwin()
-        if not qwin:
+        if qwin is None:
+            return
+
+        if isinstance(action, str):
+            actionData = self._toolActions.get(action, None)
+            if actionData:
+                action = actionData.action
+
+        if not action or not qwin or self._syncingTool:
             return
 
         self._syncingTool = True
@@ -407,48 +229,40 @@ class Tools(Component):
         name = action.objectName()
         msg = action.text()
         isTool = name in self._toolActions
-        checkableIcons = getOpt("toggle", "toolbar_icons")
-
-        splitPane = self._componentGroup.get("splitPane", None)
-        if not splitPane or not splitPane.isSyncing():
-            if self._showToast and not silent:
-                self._helper.showToast(f"{msg}")
-            if isTool:
-                self.setActiveTool(name)
 
         if isTool:
-            view = self._helper.getView()
-            data = self._helper.getViewData(view)
-            if isinstance(data, dict):
-                data["viewTool"] = name
-
-            if checkableIcons:
-                for tb in qwin.findChildren(QToolButton):
-                    ta = tb.defaultAction()
-                    if ta:
-                        objName = ta.objectName()
-                        if objName in self._toolActions:
-                            ta.setCheckable(True)
-                            ta.setChecked(objName == name)
-
-        if getOpt("toggle", "global_tool"):
-            self._pluginFactory.syncGlobalTool()
+            self.setActiveTool(name)
+            for tb in qwin.findChildren(QToolButton):
+                ta = tb.defaultAction()
+                if ta:
+                    objName = ta.objectName()
+                    if objName in self._toolActions:
+                        ta.setCheckable(True)
+                        ta.setChecked(objName == name)
 
         self._syncingTool = False
 
-    def initPrintSizeActions(self):
+    def _updatePrintSize(self):
+        qwin = self._helper.getQwin()
+        if qwin is None:
+            return
+
+        app = self._helper.getApp()
+        view = self._helper.getView()
+        data = self._helper.getViewData(view)
+        if isinstance(data, dict):
+            action = app.action("view_print_size")
+            data["printSize"] = action.isChecked() if action else False
+
+    def fixPrintSizeActions(self):
+        if self._helper.version() >= 5.3:
+            return
+
         app = self._helper.getApp()
         win = self._helper.getWin()
 
         if not win:
             return
-
-        def updatePrintSize():
-            view = self._helper.getView()
-            data = self._helper.getViewData(view)
-            if isinstance(data, dict):
-                action = app.action("view_print_size")
-                data["printSize"] = action.isChecked() if action else False
 
         def viewChanged():
             qwin = self._helper.getQwin()
@@ -479,239 +293,10 @@ class Tools(Component):
                             i18n("Pixel Size") in tooltip
                             or i18n("Print Size") in tooltip
                         ):
-                            _ = btn.clicked.connect(  # pyright: ignore[reportUnknownMemberType]
-                                updatePrintSize
-                            )
+                            btn.clicked.connect(self._updatePrintSize)
 
         action = app.action("view_print_size")
         if action:
-            _ = action.triggered.connect(  # pyright: ignore[reportUnknownMemberType]
-                updatePrintSize
-            )
+            action.triggered.connect(self._updatePrintSize)
+            win.activeViewChanged.connect(viewChanged)
 
-            _ = typing.cast(  # pyright: ignore[reportUnknownMemberType,reportUnnecessaryCast]
-                pyqtBoundSignal, win.activeViewChanged
-            ).connect(
-                viewChanged
-            )
-
-    def viewActions(self):
-        helper = self._helper
-        app = helper.getApp()
-        qwin = helper.getQwin()
-        view = helper.getView()
-        mdi = helper.getMdi()
-        win = mdi.activeSubWindow() if mdi else None
-        data = helper.getViewData(view)
-
-        if not (win and app and qwin and isinstance(data, dict)):
-            return
-
-        data["fitMode"] = data.get("fitMode", "zoom_to_fit")
-
-        data["scalingMode"] = data.get(
-            "scalingMode",
-            self._scalingToAction.get(
-                getOpt("resize", "default_scaling_mode"), False
-            ),
-        )
-
-        for actions in (self._fitActions, self._scalingActions):
-            dataKey = (
-                "fitMode" if actions == self._fitActions else "scalingMode"
-            )
-            for name in actions.keys():
-                a = app.action(name)
-                actions[name] = a
-                a.triggered.disconnect()
-                a.setCheckable(True)
-                if dataKey == "scalingMode":
-                    val = (
-                        data[dataKey]
-                        if getOpt("resize", "scaling_mode_per_view")
-                        else self._globalScalingMode
-                    )
-                    a.setChecked(name == val)
-                else:
-                    zoomToFit = data[dataKey] in (
-                        "zoom_to_fit",
-                        "toggle_zoom_to_fit",
-                    )
-                    testChecked = (
-                        ("zoom_to_fit", "toggle_zoom_to_fit")
-                        if zoomToFit
-                        else [data[dataKey]]
-                    )
-                    a.setChecked(name in testChecked)
-                a.triggered.connect(
-                    lambda _, action=a: self.triggerViewAction(action)
-                )
-
-    def triggerViewAction(self, action):
-        name = action.objectName()
-        helper = self._helper
-        view = helper.getView()
-        mdi = helper.getMdi()
-        win = mdi.activeSubWindow() if mdi else None
-        data = helper.getViewData(view)
-        splitPane = self._componentGroup["splitPane"]
-        isScaling = name in self._scalingActions
-        isFitting = name in self._fitActions
-        dataKey = "fitMode" if isFitting else "scalingMode"
-        actions = self._fitActions if isFitting else self._scalingActions
-
-        if not (
-            win and view and data and splitPane and isinstance(data, dict)
-        ):
-            return
-
-        zoomToFit = name in ("zoom_to_fit", "toggle_zoom_to_fit")
-
-        if not action.isChecked():
-            if isFitting:
-                if getOpt("resize", "restore_fit_mode"):
-                    prevPos = data.get("toggleSavePosition", None)
-                    if prevPos:
-                        helper.setZoomLevel(
-                            canvas=view.canvas(), zoom=prevPos.zoom
-                        )
-                        helper.scrollTo(
-                            win=win,
-                            x=-prevPos.bbox.x(),
-                            y=-prevPos.bbox.y(),
-                        )
-
-                if zoomToFit:
-                    self._fitActions["zoom_to_fit"].setChecked(False)
-                    self._fitActions["toggle_zoom_to_fit"].setChecked(False)
-
-            if isScaling:
-                data[dataKey] = False
-                self._globalScalingMode = None
-            else:
-                data[dataKey] = False
-            if self._showToast:
-                helper.showToast(f"{action.text()} {i18n('OFF')}")
-            return
-
-        if isScaling:
-            self._globalScalingMode = name
-            data[dataKey] = name
-            for key in actions.keys():
-                actions[key].setChecked(key in self._globalScalingMode)
-            if self._showToast:
-                helper.showToast(f"{action.text()} {i18n('ON')}")
-        else:
-            prevAction = data.get(dataKey, False)
-            data[dataKey] = name
-
-            testChecked = (
-                ("zoom_to_fit", "toggle_zoom_to_fit") if zoomToFit else [name]
-            )
-
-            for key in actions.keys():
-                actions[key].setChecked(key in testChecked)
-
-            if self._showToast:
-                helper.showToast(f"{action.text()} {i18n('ON')}")
-
-            if not prevAction:
-                data["toggleSavePosition"] = helper.canvasPosition(
-                    win=win, view=view
-                )
-
-            if zoomToFit:
-                helper.zoomToFit(win=win, view=view)
-            elif name == "zoom_to_fit_width":
-                helper.zoomToFitWidth(win=win, view=view)
-            elif name == "zoom_to_fit_height":
-                helper.zoomToFitHeight(win=win, view=view)
-
-    def onSubWindowScrolled(self, uid: int):
-        helper = self._helper
-        splitPane = self._componentGroup["splitPane"]
-
-        if helper.isScrolling() or helper.isZooming() or splitPane.isSyncing():
-            return
-
-        win, view, data = helper.getViewSubWindow(uid)
-        if not (win and view and isinstance(data, dict)):
-            return
-
-        lastResize = getattr(splitPane, "_lastResize", None)
-        if lastResize and time.monotonic() - lastResize > 0.5:
-            if data:
-                data["fitMode"] = False
-                data["toggleSavePosition"] = None
-
-                def cb(data=data, win=win, view=view):
-                    data["prevResizePosition"] = helper.canvasPosition(
-                        win=win, view=view
-                    )
-
-                wid = id(win)
-                self._helper.debounceCallback(
-                    f"updateResizePosition{wid}", cb, timeout_seconds=0.2
-                )
-                for key in self._fitActions.keys():
-                    self._fitActions[key].setChecked(False)
-
-    def onSubWindowResized(self, uid: int):
-        helper = self._helper
-        # TODO skip when moving splits around
-        if helper.isScrolling() or helper.isZooming():
-            return
-        splitPane = self._componentGroup["splitPane"]
-        splitPane._lastResize = time.monotonic()
-
-        win, view, data = helper.getViewSubWindow(uid)
-        if not (win and view and isinstance(data, dict)):
-            return
-
-        name = data.get("fitMode", "zoom_to_fit")
-        prevPos = data.get("prevResizePosition", None)
-
-        if name == "zoom_to_fit":
-            helper.zoomToFit(win=win, view=view)
-        elif name == "zoom_to_fit_width":
-            helper.zoomToFitWidth(win=win, view=view)
-        elif name == "zoom_to_fit_height":
-            helper.zoomToFitHeight(win=win, view=view)
-        else:
-            if splitPane.resizingEnabled():
-                name = (
-                    data["scalingMode"]
-                    if getOpt("resize", "scaling_mode_per_view")
-                    else self._globalScalingMode
-                )
-
-                if name in (
-                    "krita_ui_tweaks_scaling_mode_anchored",
-                    "krita_ui_tweaks_scaling_mode_contained",
-                    "krita_ui_tweaks_scaling_mode_expanded",
-                ):
-                    oldPos = data.get("dragOrigin", prevPos)
-                    newPos = helper.canvasPosition(win=win, view=view)
-                    helper.scaleTo(
-                        win=win,
-                        view=view,
-                        oldPos=oldPos,
-                        newPos=newPos,
-                        mode=self._actionToScaling.get(name),
-                        splitPane=splitPane,
-                    )
-
-        data["prevResizePosition"] = helper.canvasPosition(win=win, view=view)
-
-    def centerCanvas(self):
-        view = self._helper.getView()
-        mdi = self._helper.getMdi()
-        if not (view and mdi):
-            return
-        win = mdi.activeSubWindow()
-        if not win:
-            return
-        data = self._helper.getViewData(view)
-        if data and data.get("fitMode", False):
-            return
-        self._helper.centerCanvas(win=win, view=view)

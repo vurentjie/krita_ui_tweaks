@@ -1,1 +1,2 @@
-from .split_pane import SplitPane
+from .mdi_controller import MdiController
+

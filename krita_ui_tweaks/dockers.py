@@ -19,19 +19,24 @@ from .options import showOptions, getOpt, signals as OptionSignals
 from .component import Component, COMPONENT_GROUP
 from .i18n import i18n
 from .helper import Helper
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .plugin import Plugin
 
 
 class Dockers(Component):
+
     def __init__(
         self,
         window: Window,
+        plugin: "Plugin",
         pluginGroup: COMPONENT_GROUP | None = None,
         helper: Helper | None = None,
     ):
         super().__init__(window, pluginGroup=pluginGroup, helper=helper)
 
         app = self._helper.getApp()
-        assert app is not None
 
         self._dockingEnabled = (
             app.readSetting("krita_ui_tweaks", "dockingEnabled", "true")
@@ -53,7 +58,18 @@ class Dockers(Component):
                 "onDockMoved", lambda _, d=dock: self.onDockMoved(d)
             )
             dock.topLevelChanged.connect(dock.property("onDockMoved"))
-            if not self._dockingEnabled and dock.isFloating():
+
+            # Because since 5.3.0 when Krita first opens and dock titles are hidden dockers cannot be undocked
+            dock.setFeatures(
+                QDockWidget.DockWidgetFeature.DockWidgetMovable
+                | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            )
+
+            if (
+                self._optEnabled
+                and not self._dockingEnabled
+                and dock.isFloating()
+            ):
                 dock.setAllowedAreas(Qt.DockWidgetArea.NoDockWidgetArea)
 
     def onConfigSave(self):
@@ -74,6 +90,7 @@ class Dockers(Component):
     def onDockMoved(self, dock):
         if not getOpt("toggle", "toggle_docking"):
             return
+
         if dock.isFloating():
             dock.setAllowedAreas(
                 Qt.DockWidgetArea.AllDockWidgetAreas

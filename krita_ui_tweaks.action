@@ -28,11 +28,11 @@
         </Action>
         <Action name="krita_ui_tweaks_save_layout_as">
             <icon></icon>
-            <text>Save Split Layout As…</text>
+            <text>Save Layout As…</text>
         </Action>
         <Action name="krita_ui_tweaks_save_layout">
             <icon></icon>
-            <text>Save Layout</text>
+            <text>Save Current Layout</text>
         </Action>
         <Action name="krita_ui_tweaks_load_layout">
             <icon></icon>
@@ -42,21 +42,13 @@
             <icon></icon>
             <text>Toggle Layout Locked</text>
         </Action>
-        <Action name="krita_ui_tweaks_scaling_mode_anchored">
+        <Action name="krita_ui_tweaks_equalize_layout">
             <icon></icon>
-            <text>Scaling Mode Anchored</text>
+            <text>Equalize Layout</text>
         </Action>
-        <Action name="krita_ui_tweaks_scaling_mode_contained">
+        <Action name="krita_ui_tweaks_reset_layout">
             <icon></icon>
-            <text>Scaling Mode Contained</text>
-        </Action>
-        <Action name="krita_ui_tweaks_scaling_mode_expanded">
-            <icon></icon>
-            <text>Scaling Mode Expanded</text>
-        </Action>
-        <Action name="krita_ui_tweaks_center_canvas">
-            <icon></icon>
-            <text>Center Canvas</text>
+            <text>Reset Locked</text>
         </Action>
     </Actions>
 </ActionCollection>

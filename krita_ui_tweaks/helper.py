@@ -4,24 +4,21 @@ from .pyqt import (
     pyqtBoundSignal,
     sip,
     Qt,
+    QScrollBar,
     QAbstractScrollArea,
     QApplication,
     QColor,
     QIcon,
-    QLabel,
-    QLineEdit,
     QMainWindow,
     QMdiArea,
     QMdiSubWindow,
-    QMessageBox,
     QObject,
     QPalette,
     QPoint,
     QPointF,
     QRect,
     QRectF,
-    QScrollBar,
-    QStackedWidget,
+    QLineF,
     QTabBar,
     QTimer,
     QUuid,
@@ -45,11 +42,17 @@ import os
 import time
 import re
 
+from .i18n import i18n
+
 if TYPE_CHECKING:
+    from .plugin import Plugin
     from .component import Component
-    from .tools import SCALING_MODE
 
 T = TypeVar("T", bound=QObject)
+
+COMPONENT_GROUP = dict[
+    typing.Literal["tools", "splitPane", "dockers", "helper"], "Component|None"
+]
 
 
 @dataclass
@@ -57,9 +60,6 @@ class CanvasPosition:
     rect: QRect
     bbox: QRect
     viewport: QRect
-    zoom: float
-    minZoom: float | None = None
-    maxZoom: float | None = None
 
 
 @dataclass
@@ -68,49 +68,61 @@ class DocumentData:
     views: list[tuple[View, dict[Any, Any]]]
 
 
-COMPONENT_GROUP = dict[
-    typing.Literal["tools", "splitPane", "dockers", "helper"], "Component|None"
-]
-
-
 class Helper:
 
     def __init__(
-        self, qwin: QMainWindow, pluginGroup: COMPONENT_GROUP | None = None
+        self,
+        window,
+        plugin: "Plugin",
+        pluginGroup: COMPONENT_GROUP | None = None,
     ):
-        self._uid = count(1)
+        qwin = window.qwindow()
+
+        self._plugin = plugin
+        self._version = None
         self._componentGroup: COMPONENT_GROUP | None = pluginGroup
         self._qwin: QMainWindow = qwin
-        self._docData: dict[QUuid, DocumentData] = {}
         self._cached: dict[str, Any] = {}
-        self._isScrolling = False
-        self._isZooming = False
+        self._docData: dict[QUuid, DocumentData] = {}
+
         self._debounceTimer: QTimer = QTimer()
         self._debounceTimer.timeout.connect(self.runDebounceCallbacks)
         self._debounceCheckTime: float = time.monotonic()
         self._debounceCallbacks: dict[
             str, tuple[typing.Callable[..., Any], float, float]
         ] = {}
-        typing.cast(pyqtBoundSignal, self.getNotifier().viewClosed).connect(
-            lambda: QTimer.singleShot(10, self.refreshDocData)
-        )
 
-    def version(self) -> tuple[int, int]:
+        def cb():
+            self.debounceCallback(
+                "refreshDocData", self.refreshDocData, timeout_seconds=2
+            )
+
+        typing.cast(pyqtBoundSignal, self.getNotifier().viewClosed).connect(cb)
+
+    def version(self) -> float:
+        if self._version is not None:
+            return self._version
+
         version = self.getApp().version()
         num = re.search(r"^(\d+)\.(\d+)", version)
+
         if num:
-            return int(num.group(1)), int(num.group(2))
-        return (5, 2)
+            major = int(num.group(1))
+            minor = int(num.group(2))
+            self._version = float(f"{major}.{minor}")
+        else:
+            self._version = 0
 
-    def isNewApi(self):
-        major, minor = self.version()
-        return (major == 5 and minor >= 3) or major > 5
+        return self._version
 
-    def noop(self) -> None:
-        pass
+    def getScriptDir(self):
+        return os.path.dirname(os.path.abspath(__file__))
+
+    def getIconPath(self, name):
+        return os.path.join(self.getScriptDir(), "icons", name)
 
     def uid(self):
-        return next(self._uid)
+        return self._plugin.uid()
 
     def isAlive(self, obj: Any, cls: Type[T]) -> T | None:
         if isinstance(obj, cls) and not sip.isdeleted(typing.cast(Any, obj)):
@@ -155,24 +167,11 @@ class Helper:
             if self._debounceCallbacks:
                 self._debounceTimer.start(100)
 
-    def useDarkIcons(self) -> bool:
-        bg = self.paletteColor("Window")
-        return bg.value() > 100
-
     def getApp(self) -> Krita:
         return Krita.instance()
 
     def getNotifier(self) -> Notifier:
         return self.getApp().notifier()
-
-    def getAppDir(self):
-        return self.getApp().getAppDataLocation()
-
-    def getScriptDir(self):
-        return os.path.dirname(os.path.abspath(__file__))
-
-    def getIconPath(self, name):
-        return os.path.join(self.getScriptDir(), "icons", name)
 
     def getWin(self) -> Window | None:
         for w in self.getApp().windows():
@@ -183,101 +182,14 @@ class Helper:
         win = self.getApp().activeWindow()
         return win and win.qwindow() == self._qwin
 
-    def getDoc(self):
-        view = self.getView()
-        return self.isAlive(view.document(), Document) if view else None
-
-    def docsByFile(self) -> dict[str, Document]:
-        docs: dict[str, Document] = {}
-        for d in self.getApp().documents():
-            path = d.fileName()
-            if path and os.path.exists(path):
-                docs[path] = d
-        return docs
-
-    def viewsByFile(self) -> dict[str, list[View]]:
-        views: dict[str, list[View]] = {}
-        win = self.getWin()
-        if win:
-            for v in win.views():
-                path = v.document().fileName()
-                if path and os.path.exists(path):
-                    if path not in views:
-                        views[path] = []
-                    views[path].append(v)
-        return views
-
-    def compareDoc(self, a: Document | None, b: Document | None) -> bool:
-        if a and b:
-            return a.rootNode().uniqueId() == b.rootNode().uniqueId()
-        return False
-
-    def getView(self):
-        win = self.getWin()
-        return self.isAlive(win.activeView(), View) if win else None
-
-    def getDocData(
-        self, obj: View | Document | None = None
-    ) -> DocumentData | None:
-        if isinstance(obj, View):
-            obj = obj.document()
-        if isinstance(obj, Document):
-            uid = obj.rootNode().uniqueId()
-            if uid not in self._docData:
-                self._docData[uid] = DocumentData(doc={}, views=[])
-            return self._docData.get(uid, None)
-
-    def getViewData(self, view: View | None) -> dict[Any, Any] | None:
-        if view:
-            doc = view.document()
-            if not doc:
-                return
-            uid = doc.rootNode().uniqueId()
-            if uid not in self._docData:
-                self._docData[uid] = DocumentData(doc={}, views=[])
-            data = self._docData[uid]
-            for v in data.views:
-                if v[0] == view:
-                    return v[1]
-            v: tuple[View, dict[Any, Any]] = (view, {})
-            data.views.append(v)
-            return v[1]
-
-    def setViewData(self, view: View, key: Any, val: Any) -> Any:
-        data = self.getViewData(view)
-        if data is not None:
-            data[key] = val
-
-    def refreshDocData(self):
-        win = self.getWin()
-        keep: dict[QUuid, DocumentData] = {}
-        if win is not None:
-            for view in win.views():
-                doc = view.document()
-                if doc:
-                    uid = doc.rootNode().uniqueId()
-                    if uid in self._docData:
-                        curr = self._docData[uid]
-                        if uid not in keep:
-                            keep[uid] = DocumentData(doc=curr.doc, views=[])
-                        for v in curr.views:
-                            if v[0] == view:
-                                keep[uid].views.append(v)
-                                break
-        self._docData = keep
-
-    def getCanvas(self):
-        view = self.getView()
-        return view.canvas() if view else None
-
     def getQwin(self):
         win = self.getWin()
         return self.isAlive(win.qwindow(), QMainWindow) if win else None
 
     def focusQwin(self, qwin: QMainWindow | None = None):
-        if not qwin:
+        if qwin is None:
             qwin = self.getQwin()
-        if not qwin:
+        if qwin is None:
             return
         if qwin.isMinimized():
             qwin.showNormal()
@@ -299,40 +211,7 @@ class Helper:
         )
         return self._cached["mdi"]
 
-    def getViewSubWindow(
-        self, uid: int | None = None
-    ) -> tuple[QMdiSubWindow | None, View | None, dict[Any, Any] | None]:
-        subwin, view, data = None, None, None
-        if isinstance(uid, int):
-            win = self.getWin()
-            mdi = self.getMdi()
-            if mdi and win:
-
-                subwin = next(
-                    (
-                        w
-                        for w in mdi.subWindowList()
-                        if w.property("uiTweaksId") == uid
-                    ),
-                    None,
-                )
-
-                for v in win.views():
-                    d = self.getViewData(v)
-                    if d and d.get("uiTweaksId") == uid:
-                        view = v
-                        data = d
-
-        return (subwin, view, data)
-
-    def isChildOfSubWindow(self, child: QWidget, win: QMdiSubWindow) -> bool:
-        while child is not None:
-            if child is win:
-                return True
-            child = child.parent()
-        return False
-
-    def getTabBar(self):
+    def getDefaultTabBar(self):
         cached = self.isAlive(self._cached.get("tabs", None), QTabBar)
         if cached:
             return cached
@@ -344,13 +223,160 @@ class Helper:
                     self._cached["tabs"] = self.isAlive(c, QTabBar)
                     return self._cached["tabs"]
 
-    def refreshWidget(
-        self,
-        widget: QWidget | None = None,
-    ):
-        if widget:
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
+    def getSubWinById(self, uid: int | None) -> QMdiSubWindow | None:
+        if uid is None:
+            return
+        mdi = self.getMdi()
+        if mdi:
+            for sw in mdi.subWindowList():
+                if sw.property("uiTweaksId") == uid:
+                    return sw
+
+    def getSubWinByView(self, view: View | None) -> QMdiSubWindow | None:
+        if view is None:
+            return
+        return self.getSubWinById(self.getViewId(view))
+
+    def getDoc(self):
+        view = self.getView()
+        return self.isAlive(view.document(), Document) if view else None
+
+    def getDocData(self, doc: Document | None) -> DocumentData | None:
+        if isinstance(doc, Document):
+            uid = doc.rootNode().uniqueId()
+            if uid not in self._docData:
+                self._docData[uid] = DocumentData(doc={}, views=[])
+            return self._docData.get(uid, None)
+
+    def compareDoc(self, a: Document | None, b: Document | None) -> bool:
+        if a and b:
+            return a.rootNode().uniqueId() == b.rootNode().uniqueId()
+        return False
+
+    def getDocViews(
+        self, win: Window | None = None
+    ) -> dict[str, SimpleNamespace]:
+        docs: dict[str, SimpleNamespace] = {}
+        obj = self.getApp() if win is None else win
+        for view in obj.views():
+            doc = view.document()
+            uid = doc.rootNode().uniqueId().toString()
+            if uid in docs:
+                docs[uid].views.append(view)
+            else:
+                docs[uid] = SimpleNamespace(doc=doc, views=[view])
+        return docs
+
+    def getDocsByFile(
+        self, win: Window | None = None
+    ) -> dict[str, SimpleNamespace]:
+        obj = self.getApp() if win is None else win
+        viewCounts = self.getDocViews(obj)
+
+        docs: dict[str, SimpleNamespace] = {}
+        for i, (k, v) in enumerate(viewCounts.items()):
+            path = v.doc.fileName()
+            if path and os.path.exists(path):
+                if path in docs:
+                    if len(docs[path].views) < len(v.views):
+                        docs[path] = v
+                else:
+                    docs[path] = v
+
+        return docs
+
+    def getView(self) -> View | None:
+        win = self.getWin()
+        return self.isAlive(win.activeView(), View) if win else None
+
+    def getViewId(self, view) -> View | None:
+        data = self.getViewData(view)
+        if data:
+            return data.get("uiTweaksId")
+
+    def getViewById(self, uid: int | None) -> View | None:
+        if uid is None:
+            return
+        win = self.getWin()
+        if win:
+            for v in win.views():
+                if self.getViewId(v) == uid:
+                    return v
+
+    def getViewBySubWin(self, sw) -> View | None:
+        if isinstance(sw, QMdiSubWindow):
+            return self.getViewById(sw.property("uiTweaksId"))
+
+    def getViewData(self, view: View | None) -> dict[Any, Any] | None:
+        if not view:
+            return
+
+        data = self.getDocData(view.document())
+
+        if data is None:
+            return
+
+        for v in data.views:
+            if v[0] == view:
+                return v[1]
+
+        v: tuple[View, dict[Any, Any]] = (view, {})
+        data.views.append(v)
+        return v[1]
+
+    def setViewData(self, view: View | None, key: Any, val: Any):
+        data = self.getViewData(view)
+        if data is not None:
+            data[key] = val
+
+    def refreshDocData(self):
+        # TODO test this
+        win = self.getWin()
+        keep: dict[QUuid, DocumentData] = {}
+        if win is not None:
+            for view in win.views():
+                doc = view.document()
+                if doc:
+                    uid = doc.rootNode().uniqueId()
+                    if uid in self._docData:
+                        curr = self._docData[uid]
+                        if uid not in keep:
+                            keep[uid] = DocumentData(doc=curr.doc, views=[])
+                        for v in curr.views:
+                            if v[0] == view:
+                                keep[uid].views.append(v)
+                                break
+        self._docData = keep
+
+    def getWidgetByClass(self, parent, kind, cls):
+        if self.isAlive(parent, QWidget):
+            children = parent.findChildren(kind)
+            for c in children:
+                if (
+                    self.isAlive(c, QWidget)
+                    and c.metaObject().className() == cls
+                ):
+                    return c
+
+    def getWidgetsByClass(self, parent, kind, cls):
+        widgets = []
+        if self.isAlive(parent, QWidget):
+            children = parent.findChildren(kind)
+            for c in children:
+                if (
+                    self.isAlive(c, QWidget)
+                    and c.metaObject().className() == cls
+                ):
+                    widgets.append(c)
+        return widgets
+
+    def getDockerByName(self, name):
+        if not self.isAlive(self._cached.get(name, None), QWidget):
+            app = self.getApp()
+            self._cached[name] = next(
+                (d for d in app.dockers() if d.objectName() == name), None
+            )
+        return self.isAlive(self._cached.get(name, None), QWidget)
 
     def paletteColor(self, key: str, widget: QWidget | None = None) -> QColor:
         role = getattr(QPalette.ColorRole, key, None)
@@ -370,6 +396,10 @@ class Helper:
                 return QColor(r, g, b)
         except:
             return QColor(0, 0, 0, 0)
+
+    def useDarkIcons(self) -> bool:
+        bg = self.paletteColor("Window")
+        return bg.value() > 100
 
     def showToast(
         self, msg: str = "", icon: QIcon | None = None, ts: int = 2000
@@ -404,7 +434,7 @@ class Helper:
             _ = action.triggered.connect(callback)
         else:
             action = window.createAction(name, description, "")
-            action.script = None  # pyright: ignore[reportAttributeAccessIssue]
+            action.script = None
             _ = action.triggered.connect(callback)
             action.setCheckable(checkable)
 
@@ -415,150 +445,71 @@ class Helper:
             if os.path.exists(path):
                 icon = QIcon(path)
                 action.setIcon(icon)
+
         return typing.cast(QWidgetAction, action)
 
-    def isPrintSize(self, view: View) -> bool:
-        # NOTE This is set in tools.py
-        viewData = self.getViewData(view)
-        return (
-            viewData.get("printSize", False)
-            if isinstance(viewData, dict)
-            else False
+    def canvasScrollArea(
+        self, win: QMdiSubWindow | None = None
+    ) -> QAbstractScrollArea | None:
+        if not win:
+            mdi = self.getMdi()
+            win = mdi.activeSubWindow() if mdi else None
+        return self.getWidgetByClass(
+            win, QAbstractScrollArea, "KisCanvasController"
         )
 
-    def isScrolling(self) -> bool:
-        return self._isScrolling
-
-    def getScrollBars(
+    def canvasScrollBars(
         self, win: QMdiSubWindow | None = None
-    ) -> tuple[
-        QScrollBar | None, QScrollBar | None, QAbstractScrollArea | None
-    ]:
-        bars = []
-        if not win:
-            mdi = self.getMdi()
-            win = mdi.activeSubWindow() if mdi else None
-        if win:
-            scrollAreas = win.findChildren(QAbstractScrollArea)
-            for sa in scrollAreas:
-                if sa.objectName() == "" and isinstance(
-                    sa, QAbstractScrollArea
-                ):
-                    hbar = sa.horizontalScrollBar()
-                    vbar = sa.verticalScrollBar()
-                    return (hbar, vbar, sa)
-        return (None, None, None)
+    ) -> tuple[QScrollBar | None, QScrollBar | None]:
+        sa = self.canvasScrollArea(win)
+        return (
+            (sa.horizontalScrollBar(), sa.verticalScrollBar())
+            if sa is not None
+            else (None, None)
+        )
 
-    def scrollOffset(
+    def canvasScrollOffset(
         self, win: QMdiSubWindow | None = None
     ) -> tuple[int | None, int | None]:
-        if not win:
-            mdi = self.getMdi()
-            win = mdi.activeSubWindow() if mdi else None
-        if win:
-            scrollAreas = win.findChildren(QAbstractScrollArea)
-            for sa in scrollAreas:
-                if sa.objectName() == "" and type(sa) is QAbstractScrollArea:
-                    hbar = sa.horizontalScrollBar()
-                    vbar = sa.verticalScrollBar()
-                    return (
-                        hbar.value() if hbar else None,
-                        vbar.value() if vbar else None,
-                    )
+        sa = self.canvasScrollArea(win)
+        if sa is not None:
+            hbar = sa.horizontalScrollBar()
+            vbar = sa.verticalScrollBar()
+            return (
+                hbar.value() if hbar else None,
+                vbar.value() if vbar else None,
+            )
         return (None, None)
 
-    def scrollTo(
+    def canvasScrollTo(
         self,
         win: QMdiSubWindow | None = None,
         x: int | None = None,
         y: int | None = None,
     ):
-        if not win:
-            mdi = self.getMdi()
-            win = mdi.activeSubWindow() if mdi else None
-        if win:
-            self._isScrolling = True
-            scrollAreas = win.findChildren(QAbstractScrollArea)
-            for sa in scrollAreas:
-                if sa.objectName() == "" and type(sa) is QAbstractScrollArea:
-                    hbar = sa.horizontalScrollBar()
-                    vbar = sa.verticalScrollBar()
-                    if vbar and y is not None:
-                        vbar.setValue(y)
-                    if hbar and x is not None:
-                        hbar.setValue(x)
-            self._isScrolling = False
-
-    def isZooming(self) -> bool:
-        return self._isZooming
-
-    def getZoomLevel(self, canvas: Canvas | None = None, raw: bool = False):
-
-        app = self.getApp()
-        qwin = self.getQwin()
-        if not canvas:
-            canvas = self.getCanvas()
-            doc = self.getDoc()
-        else:
-            doc = canvas.view().document()
-
-        if not (app and qwin and canvas and doc):
-            return 1
-
-        if self.isNewApi():
-            val = canvas.zoomLevel()
-            if raw:
-                return val
-            return math.ceil(val * 1000) / 1000
-
-        view = canvas.view()
-        zoom = canvas.zoomLevel()
-        res = 72
-        dpi = doc.resolution()
-
-        if self.isPrintSize(view):
-            screen = qwin.screen()
-            mm_per_inch = 25.4
-            sw = screen.size().width()
-            spw = screen.physicalSize().width()
-            dpi = sw / spw * mm_per_inch
-            val = math.ceil((zoom * res / dpi) * 1000) / 1000
-            canvas.setZoomLevel(val)
-
-        val = zoom * res / dpi
-
-        if raw:
-            return val
-
-        # NOTE ceiling and truncating here
-        # keeps the value aligned with what
-        # Krita reports in the user interface
-        return math.ceil(val * 1000) / 1000
-
-    def setZoomLevel(
-        self, canvas: Canvas | None = None, zoom: float | None = None
-    ):
-        if zoom is None:
-            return
-        if not canvas:
-            canvas = self.getCanvas()
-        if canvas:
-            self._isZooming = True
-            canvas.setZoomLevel(zoom)
-            self._isZooming = False
+        sa = self.canvasScrollArea(win)
+        if sa is not None:
+            hbar = sa.horizontalScrollBar()
+            vbar = sa.verticalScrollBar()
+            if vbar and y is not None:
+                vbar.setValue(y)
+            if hbar and x is not None:
+                hbar.setValue(x)
 
     def canvasPosition(
-        self,
-        win: QMdiSubWindow,
-        view: View | None = None,
-        canvas: Canvas | None = None,
+        self, win: QMdiSubWindow | None = None, view: View | None = None
     ) -> CanvasPosition | None:
-        if canvas:
-            view = canvas.view()
-        elif view:
-            canvas = view.canvas()
-        if not (view and canvas):
+        if win is None:
+            mdi = self.getMdi()
+            win = mdi.activeSubWindow() if mdi else None
+
+        if view is None:
+            view = self.getViewBySubWin(win)
+
+        if view is None or win is None:
             return
+
+        canvas = view.canvas()
         doc = view.document()
         imgRect = QRectF(0, 0, doc.width(), doc.height())
         flakeToCanvas = view.flakeToCanvasTransform()
@@ -567,11 +518,12 @@ class Helper:
         flakeRect = imgToFlake.mapRect(imgRect)
         bbox = flakeToCanvas.mapRect(flakeRect)
         flakeRect = flakeRect.toRect()
-        scroll = self.scrollOffset(win)
+        scroll = self.canvasScrollOffset(win)
         sx = scroll[0] if isinstance(scroll[0], int) else 0
         sy = scroll[1] if isinstance(scroll[1], int) else 0
         viewRect = win.contentsRect()
         viewRect.moveTo(0, 0)
+
         return CanvasPosition(
             # the unrotated image
             rect=QRect(
@@ -582,7 +534,6 @@ class Helper:
             ),
             # the bounding box of the rotated img
             bbox=bbox.toRect(),
-            zoom=self.getZoomLevel(canvas, raw=True),
             viewport=viewRect,
         )
 
@@ -590,515 +541,21 @@ class Helper:
         self,
         win: QMdiSubWindow,
         view: View | None = None,
-        canvas: Canvas | None = None,
-        axis: typing.Literal["x", "y"] | None = None,
-        centerY: int | None = None,
-        centerX: int | None = None,
-        intersected: bool = False,
+        epsilon: int | None = None,
     ):
-        if not win:
-            return
-
         if win:
-            pos = self.canvasPosition(win=win, canvas=canvas, view=view)
+            pos = self.canvasPosition(win=win, view=view)
             if pos:
                 rect = pos.bbox
-                splitRect = pos.viewport
+                c = QPointF(pos.viewport.center())
 
-                if intersected:
-                    rect = splitRect.intersected(rect)
+                # consider it already centered
+                rc = QPointF(rect.center())
+                if epsilon and QLineF(rc, c).length() < epsilon:
+                    return
 
-                rectCenter = rect.center()
-                if centerY is None:
-                    centerY = rectCenter.y()
-
-                if centerX is None:
-                    centerX = rectCenter.x()
-
-                c = splitRect.center()
                 c = QPoint(int(c.x()), int(c.y()))
-                if axis == "x":
-                    rect.moveCenter(QPoint(c.x(), int(centerY)))
-                elif axis == "y":
-                    rect.moveCenter(QPoint(int(centerX), c.y()))
-                else:
-                    rect.moveCenter(c)
-                self.scrollTo(win=win, x=-int(rect.x()), y=-int(rect.y()))
-
-    def zoomToFit(
-        self,
-        win: QMdiSubWindow,
-        view: View | None = None,
-        canvas: Canvas | None = None,
-        zoomMax: float = math.inf,
-        axis: typing.Literal["x", "y"] | None = None,
-        keepScroll: bool = False,
-        bbox: bool = True,
-    ):
-        if not win:
-            return
-
-        if canvas:
-            view = canvas.view()
-        elif view:
-            canvas = view.canvas()
-
-        pos = self.canvasPosition(win=win, view=view, canvas=canvas)
-
-        if pos:
-            x, y = self.scrollOffset(win)
-            useRect = pos.bbox if bbox else pos.rect
-            splitRect = pos.viewport
-            _, _, cw, ch = useRect.getRect()
-            _, _, vw, vh = splitRect.getRect()
-            if vw == 0 or vh == 0:
-                return
-            sx = float(cw) / float(vw)
-            sy = float(ch) / float(vh)
-            if axis == "x":
-                s = sx
-            elif axis == "y":
-                s = sy
-            else:
-                s = max(sx, sy)
-            self.setZoomLevel(canvas, min(zoomMax, float(pos.zoom * (1 / s))))
-            if keepScroll:
-                if axis == "x":
-                    self.scrollTo(win, None, y)
-                elif axis == "y":
-                    self.scrollTo(win, x, None)
-                else:
-                    self.scrollTo(win, x, y)
-            else:
-                if axis == "x":
-                    self.centerCanvas(
-                        win=win,
-                        canvas=canvas,
-                        view=view,
-                        axis=axis,
-                        centerY=splitRect.center().y(),
-                    )
-                elif axis == "y":
-                    self.centerCanvas(
-                        win=win,
-                        canvas=canvas,
-                        view=view,
-                        axis=axis,
-                        centerX=splitRect.center().x(),
-                    )
-                else:
-                    self.centerCanvas(win=win, canvas=canvas, view=view)
-
-    def zoomToFitWidth(
-        self,
-        win: QMdiSubWindow,
-        view: View | None = None,
-        canvas: Canvas | None = None,
-    ):
-        self.zoomToFit(win=win, view=view, canvas=canvas, axis="x")
-
-    def zoomToFitHeight(
-        self,
-        win: QMdiSubWindow,
-        view: View | None = None,
-        canvas: Canvas | None = None,
-    ):
-        pos = self.canvasPosition(win=win, view=view)
-        self.zoomToFit(win=win, view=view, canvas=canvas, axis="y")
-
-    def scaleTo(
-        self,
-        win: QMdiSubWindow,
-        view: View,
-        oldPos: CanvasPosition,
-        newPos: CanvasPosition,
-        contain: bool = False,
-        mode: "SCALING_MODE | None" = None,
-        splitPane=None,
-    ):
-
-        from .split_pane.split_helpers import log as dbgLog
-        from .options import (
-            getOpt,
-        )
-
-        def getPos(pos: CanvasPosition | None = None, win=win, view=view):
-            if pos is None:
-                pos = self.canvasPosition(win=win, view=view)
-            assert pos is not None
-
-            r = QRectF(pos.bbox)
-            v = QRectF(pos.viewport)
-            rc = r.center()
-            vc = v.center()
-
-            return SimpleNamespace(
-                z=pos.zoom,
-                r=r,
-                v=v,
-                rc=rc,
-                vc=vc,
-                vw=v.width(),
-                vh=v.height(),
-                cx=r.x(),
-                cy=r.y(),
-                cw=r.width(),
-                ch=r.height(),
-                ocw=pos.rect.width(),  # the real width not the bbox
-                och=pos.rect.height(),  # the real height not the bbox
-            )
-
-        canvas = view.canvas()
-        pos = getPos(oldPos)
-        nw = newPos.viewport.width()
-        nh = newPos.viewport.height()
-        deltaX = nw - pos.vw
-        deltaY = nh - pos.vh
-        containDelta = 1.5
-
-        if 0 in (pos.vw, pos.vh, nw, nh):
-            return
-
-        if deltaX != 0 and deltaY != 0:
-            if nw <= nh:
-                deltaY = 0
-            else:
-                deltaX = 0
-
-        if getOpt("resize", "scaling_contained_only") and not pos.v.contains(
-            pos.r
-        ):
-            return
-
-        if getOpt("resize", "scaling_contained_partial") and not (
-            pos.vw >= pos.cw and pos.vh >= pos.ch
-        ):
-            return
-
-        if getOpt("resize", "scaling_contained_shorter") and not (
-            pos.vw >= pos.cw or pos.vh >= pos.ch
-        ):
-            return
-
-        if mode == "anchored":
-            if deltaX != 0:
-                scale = nw / pos.vw
-                self.setZoomLevel(canvas, scale * pos.z)
-                newPos = getPos()
-                sy = pos.rc.y() - (newPos.ch * 0.5)
-                sx = scale * pos.cx
-                self.scrollTo(win, int(-sx), int(-sy))
-                pass
-
-            if deltaY != 0:
-                scale = nh / pos.vh
-                self.setZoomLevel(canvas, scale * pos.z)
-                newPos = getPos()
-                sx = pos.rc.x() - (newPos.cw * 0.5)
-                sy = scale * pos.cy
-                self.scrollTo(win, int(-sx), int(-sy))
-                pass
-
-        elif mode in ("contained", "expanded"):
-            contain = mode == "contained"
-            if deltaX < 0:
-                containDelta = 1 / containDelta
-                containWidth = pos.vw * containDelta
-                intersect = pos.r.intersected(pos.v)
-                iw = intersect.width()
-
-                if containWidth > iw:
-                    sw = iw / pos.vw
-                    containWidth = iw * sw if sw > 0.5 else iw * (1 - sw)
-
-                containHeight = pos.ch * (containWidth / pos.cw)
-
-                if containHeight > pos.vh:
-                    containWidth = pos.cw * (pos.vh / pos.ch)
-
-                if nw <= containWidth:
-                    containWidth = nw
-
-                delta = abs(deltaX)
-                deltaMax = abs(containWidth - pos.vw)
-                scale = delta / deltaMax
-
-                containZoom = pos.z * (containWidth / pos.cw)
-                currZoom = pos.z + (scale * (containZoom - pos.z))
-                self.setZoomLevel(canvas, currZoom)
-
-                newPos = getPos()
-                originCenter = pos.rc
-                coversHeight = pos.cy <= 0 and pos.cy + pos.ch >= pos.vh
-                containCenter = QPointF(
-                    containWidth * 0.5,
-                    pos.vc.y() if coversHeight else pos.rc.y(),
+                rect.moveCenter(c)
+                self.canvasScrollTo(
+                    win=win, x=-int(rect.x()), y=-int(rect.y())
                 )
-                currCenter = originCenter + (
-                    scale * (containCenter - originCenter)
-                )
-
-                sy = currCenter.y() - (newPos.ch * 0.5)
-                sx = currCenter.x() - (newPos.cw * 0.5)
-                self.scrollTo(win, int(-sx), int(-sy))
-
-            if deltaX > 0:
-                containWidth = pos.vw * containDelta
-
-                if pos.cx + pos.cw > containWidth:
-                    containWidth = (pos.cx + pos.cw) * containDelta
-
-                if contain and containWidth < pos.cw:
-                    containWidth = pos.cw
-
-                containHeight = False
-                if contain:
-                    testHeight = pos.ch * (containWidth / pos.cw)
-                    containHeight = testHeight > pos.vh
-                    if containHeight:
-                        containWidth = max(pos.cw, pos.vw * containDelta)
-
-                delta = abs(deltaX)
-                deltaMax = abs(containWidth - pos.vw)
-                scale = delta / deltaMax
-
-                if scale >= 1:
-                    if containHeight or (contain and nh >= pos.vh):
-                        self.zoomToFit(win=win, view=view)
-                    else:
-                        self.zoomToFitWidth(win=win, view=view)
-                        if contain and getPos().nh >= pos.vh:
-                            self.zoomToFit(win=win, view=view)
-
-                    self.centerCanvas(win=win, view=view)
-                else:
-                    containZoom = pos.z * (
-                        (pos.vh / pos.ch)
-                        if containHeight
-                        else (containWidth / pos.cw)
-                    )
-                    currZoom = pos.z + (scale * (containZoom - pos.z))
-                    self.setZoomLevel(canvas, currZoom)
-
-                    newPos = getPos()
-                    originCenter = pos.rc
-                    containCenter = QPointF(containWidth * 0.5, pos.vc.y())
-                    currCenter = originCenter + (
-                        scale * (containCenter - originCenter)
-                    )
-
-                    sy = currCenter.y() - (newPos.ch * 0.5)
-                    sx = currCenter.x() - (newPos.cw * 0.5)
-                    self.scrollTo(win, int(-sx), int(-sy))
-
-            if deltaY < 0:
-                containDelta = 1 / containDelta
-                containHeight = pos.vh * containDelta
-                intersect = pos.r.intersected(pos.v)
-                ih = intersect.height()
-
-                if containHeight > ih:
-                    sh = ih / pos.vh
-                    containHeight = ih * sh if sh > 0.5 else ih * (1 - sh)
-
-                containWidth = pos.cw * (containHeight / pos.ch)
-
-                if containWidth > pos.vw:
-                    containHeight = pos.ch * (pos.vw / pos.cw)
-
-                if nh <= containHeight:
-                    containHeight = nh
-
-                delta = abs(deltaY)
-                deltaMax = abs(containHeight - pos.vh)
-                scale = delta / deltaMax
-
-                containZoom = pos.z * (containHeight / pos.ch)
-                currZoom = pos.z + (scale * (containZoom - pos.z))
-                self.setZoomLevel(canvas, currZoom)
-
-                newPos = getPos()
-                originCenter = pos.rc
-                coversWidth = pos.cx <= 0 and pos.cx + pos.cw >= pos.vw
-                containCenter = QPointF(
-                    pos.vc.x() if coversWidth else pos.rc.x(),
-                    containHeight * 0.5,
-                )
-                currCenter = originCenter + (
-                    scale * (containCenter - originCenter)
-                )
-
-                sx = currCenter.x() - (newPos.cw * 0.5)
-                sy = currCenter.y() - (newPos.ch * 0.5)
-                self.scrollTo(win, int(-sx), int(-sy))
-
-            if deltaY > 0:
-                containHeight = pos.vh * containDelta
-
-                if pos.cy + pos.ch > containHeight:
-                    containHeight = (pos.cy + pos.ch) * containDelta
-
-                if contain and containHeight < pos.ch:
-                    containHeight = pos.ch
-
-                containWidth = False
-                if contain:
-                    testWidth = pos.cw * (containHeight / pos.ch)
-                    containWidth = testWidth > pos.vw
-                    if containWidth:
-                        containHeight = max(pos.ch, pos.vh * containDelta)
-
-                delta = abs(deltaY)
-                deltaMax = abs(containHeight - pos.vh)
-                scale = delta / deltaMax
-
-                if scale >= 1:
-                    if containWidth or (contain and nw >= pos.vw):
-                        self.zoomToFit(win=win, view=view)
-                    else:
-                        self.zoomToFitHeight(win=win, view=view)
-                        if contain and getPos().nw >= pos.vw:
-                            self.zoomToFit(win=win, view=view)
-
-                    self.centerCanvas(win=win, view=view)
-                else:
-                    containZoom = pos.z * (
-                        (pos.vw / pos.cw)
-                        if containWidth
-                        else (containHeight / pos.ch)
-                    )
-                    currZoom = pos.z + (scale * (containZoom - pos.z))
-                    self.setZoomLevel(canvas, currZoom)
-
-                    newPos = getPos()
-                    originCenter = pos.rc
-                    containCenter = QPointF(pos.vc.x(), containHeight * 0.5)
-                    currCenter = originCenter + (
-                        scale * (containCenter - originCenter)
-                    )
-
-                    sx = currCenter.x() - (newPos.cw * 0.5)
-                    sy = currCenter.y() - (newPos.ch * 0.5)
-                    self.scrollTo(win, int(-sx), int(-sy))
-
-    def getDockerByName(self, name):
-        if not self.isAlive(self._cached.get(name, None), QWidget):
-            app = self.getApp()
-            docker = next(
-                (d for d in app.dockers() if d.objectName() == name), None
-            )
-            if docker:
-                self._cached[name] = docker
-
-        return self.isAlive(self._cached.get(name, None), QWidget)
-
-    # Layer utils derived from:
-    # https://krita-artists.org/t/setactivenode-does-not-change-active-node/47753/3
-
-    def layerModels(self):
-        layers = self.getDockerByName("KisLayerBox")
-        if layers:
-            view = layers.findChild(QTreeView, "listLayers")
-            return view, view.model(), view.selectionModel()
-
-    def layerToIndex(self, node, model):
-        path = list()
-        while node and (node.index() >= 0):
-            path.insert(0, node.index())
-            node = node.parentNode()
-
-        index = QModelIndex()
-        for i in path:
-            last_row = model.rowCount(index) - 1
-            index = model.index(last_row - i, 0, index)
-        return index
-
-    def indexToLayer(self, index, document):
-        try:
-            if not index.isValid():
-                return
-
-            model = index.model()
-            path = list()
-            while index.isValid():
-                last_row = model.rowCount(index.parent()) - 1
-                path.insert(0, last_row - index.row())
-                index = index.parent()
-
-            node = None
-            children = document.topLevelNodes()
-            for i in path:
-                if i >= len(children):
-                    return None
-                node = children[i]
-                children = node.childNodes()
-            return node
-        except:
-            return None
-
-    def uidToLayer(self, uid, document):
-        root = document.rootNode()
-        nodes = root.findChildNodes("", True)
-        for n in nodes:
-            if n.uniqueId() == uid:
-                return n
-
-    def getLayerState(self, view, currentOnly=False):
-        doc = view.document()
-        layerView, layerModel, layerSelection = self.layerModels()
-
-        selected = (
-            [layerSelection.currentIndex()]
-            if currentOnly
-            else layerSelection.selectedIndexes()
-        )
-
-        activated = None
-        ids = []
-
-        for i in selected:
-            active = i.data(Qt.ItemDataRole.UserRole + 1)
-            layer = self.indexToLayer(i, doc)
-            if layer:
-                uid = layer.uniqueId()
-                if active:
-                    activated = uid
-                ids.append(uid)
-
-        if activated:
-            ids.remove(activated)
-            ids.append(activated)
-        return ids
-
-    def setLayerState(self, view, state):
-        if not state:
-            return
-
-        doc = view.document()
-        layerView, layerModel, layerSelection = self.layerModels()
-        wasSelected = False
-        curr = state[-1]
-        if curr:
-            layer = self.uidToLayer(curr, doc)
-            if layer:
-                currIndex = self.layerToIndex(layer, layerModel)
-                layerView.setCurrentIndex(currIndex)
-
-        for i in state:
-            layer = self.uidToLayer(i, doc)
-            if layer:
-                idx = self.layerToIndex(layer, layerModel)
-                if idx:
-                    if wasSelected:
-                        layerSelection.select(
-                            idx,
-                            QItemSelectionModel.SelectionFlag.Select
-                            | QItemSelectionModel.SelectionFlag.Rows,
-                        )
-                    else:
-                        wasSelected = True
-                        layerSelection.select(
-                            idx,
-                            QItemSelectionModel.SelectionFlag.ClearAndSelect
-                            | QItemSelectionModel.SelectionFlag.Rows,
-                        )

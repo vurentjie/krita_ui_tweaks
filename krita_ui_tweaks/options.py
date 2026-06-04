@@ -47,7 +47,7 @@ import json
 import typing
 import time
 
-VERSION = "1.1.6"
+VERSION = "2.0"
 
 
 @dataclass
@@ -115,7 +115,9 @@ class ColorButton(QWidget):
             for k, v in enumerate(self._customColors):
                 dlg.setCustomColor(k, QColor(v))
 
-            dlg.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, False)
+            dlg.setOption(
+                QColorDialog.ColorDialogOption.ShowAlphaChannel, False
+            )
             dlg.adjustSize()
             button_rect = self.rect()
             global_pos = self.mapToGlobal(button_rect.topRight())
@@ -216,7 +218,7 @@ class SettingsDialog(QDialog):
             self.setGeometry(pos)
 
         self._controller = controller
-        self._helper = self._controller.helper()
+        self._helper = self._controller.helper()  # ty: ignore
         self.setupLayout()
 
         if isinstance(tabIndex, int):
@@ -233,7 +235,6 @@ class SettingsDialog(QDialog):
             tabDragging=i18n("Tab Dragging"),
             splitPanes=i18n("Split Panes"),
             fitMode=i18n("Fit To View"),
-            scalingMode=i18n("Scaling mode"),
             tools=i18n("Tools"),
             dockers=i18n("Dockers"),
             colors=i18n("Colors"),
@@ -251,9 +252,17 @@ class SettingsDialog(QDialog):
             )
 
         self._tabBehaviour: FormItems = {
+            "tab_krita_style": ComboItem(
+                input=QComboBox(),
+                label=QLabel(i18n("Tab Style")),
+                singleLine=True,
+                options=defaults["tab_behaviour"]["tab_krita_style"].options,
+                section=sections.tabAppearance,
+                spaceBelow=10,
+            ),
             "tab_max_chars": NumberItem(
                 input=QSpinBox(),
-                label=QLabel(i18n("Max characters to show")),
+                label=QLabel(i18n("Max filename characters to show")),
                 clamp=defaults["tab_behaviour"]["tab_max_chars"].clamp,
                 section=sections.tabAppearance,
             ),
@@ -263,71 +272,24 @@ class SettingsDialog(QDialog):
                 clamp=defaults["tab_behaviour"]["tab_height"].clamp,
                 section=sections.tabAppearance,
             ),
-            "tab_font_size": NumberItem(
-                input=QSpinBox(),
-                label=QLabel(i18n("Tab font size")),
-                clamp=defaults["tab_behaviour"]["tab_font_size"].clamp,
-                section=sections.tabAppearance,
-            ),
-            "tab_font_bold": ToggleItem(
-                input=QCheckBox(i18n("Tab font bold")),
-                section=sections.tabAppearance,
-            ),
             "tab_hide_filesize": ToggleItem(
                 input=QCheckBox(i18n("Hide the file size")),
                 section=sections.tabAppearance,
             ),
-            "tab_ellipsis": ToggleItem(
+            "tab_expands": ToggleItem(
                 input=QCheckBox(
-                    i18n("Show ellipsis (…) when tab text is truncated")
+                    i18n("Tabs expand to occupy full width of tab bar")
                 ),
                 section=sections.tabAppearance,
             ),
             "tab_hide_menu_btn": ToggleItem(
                 input=QCheckBox(
-                    i18n("Hide the menu button in the tab toolbar (3 dots)")
+                    i18n("Hide the menu (dots) button in the tab toolbar.")
                 ),
                 section=sections.tabAppearance,
                 extra=QLabel(
                     i18n(
-                        "<b>Requires restart. The menu can still be accessed by right-clicking tabs.</b>"
-                    )
-                ),
-            ),
-            "tab_krita_style": ToggleItem(
-                input=QCheckBox(i18n("Use Krita's default style for tabs")),
-                section=sections.tabAppearance,
-            ),
-            "tab_drag_middle_btn": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Splits can be created by dragging with the middle button"
-                    )
-                ),
-                section=sections.tabDragging,
-            ),
-            "tab_drag_left_btn": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Splits can be created by dragging with the left button"
-                    )
-                ),
-                section=sections.tabDragging,
-                extra=QLabel(
-                    i18n(
-                        "<b>For left button: drag tabs vertically to initiate splitting</b>"
-                    )
-                ),
-                spaceBelow=10,
-            ),
-            "tab_drag_deadzone": NumberItem(
-                input=QSpinBox(),
-                label=QLabel(i18n("Drag deadzone")),
-                clamp=defaults["tab_behaviour"]["tab_drag_deadzone"].clamp,
-                section=sections.tabDragging,
-                extra=QLabel(
-                    i18n(
-                        "<b>Amount of pixels to move for tab dragging to start.<br>Only applicable for left button.</b>"
+                        "<b>Options can be still accessed by right-clicking the tab bar or tabs.</b>"
                     )
                 ),
             ),
@@ -369,15 +331,6 @@ class SettingsDialog(QDialog):
                 ),
                 section=sections.tools,
             ),
-            "hide_floating_message": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Permanently hide the floating message that appears at the top-left of the canvas."
-                    ),
-                ),
-                section=sections.tools,
-                extra=QLabel(i18n("<b>Requires restart.</b>")),
-            ),
             "toggle_docking": ToggleItem(
                 input=QCheckBox(i18n("Toggle docking on and off")),
                 section=sections.dockers,
@@ -391,77 +344,12 @@ class SettingsDialog(QDialog):
             ),
         }
 
-        self._resize: FormItems = {
-            "split_handle_size": NumberItem(
-                input=QSpinBox(),
-                label=QLabel(i18n("Split handle size")),
-                clamp=defaults["resize"]["split_handle_size"].clamp,
-                section="",
-                separator=True,
-                extra=QLabel(i18n("<b>Requires restart</b>")),
-            ),
-            "restore_fit_mode": ToggleItem(
-                input=QCheckBox(),
-                label=QLabel(
-                    i18n(
-                        "Restore position when toggling <i>'Fit to View'</i>, <i>'Fit to Width'</i> or <i>'Fit to Height'</i>"
-                    ),
-                ),
-                section=sections.fitMode,
-                spaceBelow=10,
-            ),
-            "scaling_mode_per_view": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Scaling mode is enabled per view instead of globally"
-                    )
-                ),
-                section=sections.scalingMode,
-            ),
-            "default_scaling_mode": ComboItem(
-                input=QComboBox(),
-                label=QLabel(i18n("Default scaling mode")),
-                singleLine=True,
-                options=defaults["resize"]["default_scaling_mode"].options,
-                section=sections.scalingMode,
-                extra=QLabel(
-                    i18n(
-                        "<b>Default scaling mode will be set when Krita starts up.</b>"
-                    )
-                ),
-                spaceBelow=10,
-            ),
-            "scaling_contained_only": ToggleItem(
-                subtitle=QLabel(i18n("<b>Only apply scaling when:</b>")),
-                input=QCheckBox(i18n("Canvas is contained in the viewport")),
-                section=sections.scalingMode,
-            ),
-            "scaling_contained_partial": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Canvas is smaller than the viewport (but partially out of view)"
-                    )
-                ),
-                section=sections.scalingMode,
-            ),
-            "scaling_contained_shorter": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Canvas is either shorter or narrower than the viewport"
-                    )
-                ),
-                section=sections.scalingMode,
-            ),
-        }
-
         colorLabels: dict[str, str] = {
-            "bar": i18n("Tab bar background *"),
             "tab": i18n("Tab background *"),
             "tabSelected": i18n("Tab selected background"),
             "tabActive": i18n("Tab active background"),
             "tabSeparator": i18n("Tab separator *"),
             "tabClose": i18n("Close button background when hovered"),
-            "splitHandle": i18n("Split drag handle"),
             "dropZone": i18n("Drop zone"),
             "dragTab": i18n("Drag tab indicator"),
         }
@@ -513,14 +401,12 @@ class SettingsDialog(QDialog):
 
         self.tabs = QTabWidget()
         self.optionsTab = self._setupOptionsTab()
-        self.resizeTab = self._setupResizeTab()
         self.translateTab = self._setupTranslateTab()
         self.behaviourTab = self._setupBehaviourTab()
         self.colorsTab = self._setupColorsTab()
         self.aboutTab = self._setupAboutTab()
 
         self.tabs.addTab(self.optionsTab, i18n("Options"))
-        self.tabs.addTab(self.resizeTab, i18n("Resizing"))
         self.tabs.addTab(self.behaviourTab, i18n("Tabs"))
         self.tabs.addTab(self.colorsTab, i18n("Colors"))
         self.tabs.addTab(self.translateTab, i18n("Translate"))
@@ -800,9 +686,6 @@ class SettingsDialog(QDialog):
     def _setupOptionsTab(self):
         return self._renderTabForm("toggle", self._toggle)
 
-    def _setupResizeTab(self):
-        return self._renderTabForm("resize", self._resize)
-
     def _setupColorsTab(self):
         return self._renderTabForm("colors", self._colors)
 
@@ -855,12 +738,6 @@ class SettingsDialog(QDialog):
         for k, v in self._toggle.items():
             val = checkVal("toggle", k, v)
             config["toggle"][k] = val
-            if k == "restore_layout" and val:
-                Krita.instance().writeSetting("", "sessionOnStartup", "0")
-
-        for k, v in self._resize.items():
-            val = checkVal("resize", k, v)
-            config["resize"][k] = val
             if k == "restore_layout" and val:
                 Krita.instance().writeSetting("", "sessionOnStartup", "0")
 
@@ -934,14 +811,15 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             "tab_hide_menu_btn": ConfigVal(default=False),
             "tab_max_chars": ConfigVal(default=30, clamp=(10, 100)),
             "tab_height": ConfigVal(default=30, clamp=(20, 50)),
-            "tab_font_size": ConfigVal(default=12, clamp=(8, 20)),
-            "tab_font_bold": ConfigVal(default=True),
             "tab_hide_filesize": ConfigVal(default=False),
-            "tab_ellipsis": ConfigVal(default=True),
-            "tab_krita_style": ConfigVal(default=True),
-            "tab_drag_middle_btn": ConfigVal(default=True),
-            "tab_drag_left_btn": ConfigVal(default=True),
-            "tab_drag_deadzone": ConfigVal(default=10, clamp=(10, 50)),
+            "tab_expands": ConfigVal(default=False),
+            "tab_krita_style": ConfigVal(
+                default=True,
+                options={
+                    True: i18n("Krita Fusion"),
+                    False: i18n("Flat Style"),
+                },
+            ),
         },
         "translated": {
             "Open in window…": ConfigVal(default="Open in window…"),
@@ -988,25 +866,7 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             "toolbar_icons": ConfigVal(default=True),
             "shared_tool": ConfigVal(default=True),
             "global_tool": ConfigVal(default=False),
-            "hide_floating_message": ConfigVal(default=False),
             "toggle_docking": ConfigVal(default=True),
-        },
-        "resize": {
-            "scaling_mode_per_view": ConfigVal(default=False),
-            "default_scaling_mode": ConfigVal(
-                default="none",
-                options={
-                    "none": i18n("None"),
-                    "anchored": i18n("Scaling Mode Anchored"),
-                    "contained": i18n("Scaling Mode Contained"),
-                    "expanded": i18n("Scaling Mode Expanded"),
-                },
-            ),
-            "split_handle_size": ConfigVal(default=8, clamp=(4, 12)),
-            "restore_fit_mode": ConfigVal(default=True),
-            "scaling_contained_only": ConfigVal(default=False),
-            "scaling_contained_partial": ConfigVal(default=False),
-            "scaling_contained_shorter": ConfigVal(default=False),
         },
         "colors": {
             "bar": ConfigVal(default=""),

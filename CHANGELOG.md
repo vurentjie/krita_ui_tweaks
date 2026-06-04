@@ -161,7 +161,8 @@ _Initial release._
 
 ### Fixed:
 
-- Drag and drop files into Krita: Fix edge case dropping onto empty split areas, and opening dropped images in the correct split pane. 
+- Drag and drop files into Krita: Fix edge case dropping onto empty split areas,
+  and opening dropped images in the correct split pane.
 - Qt6 compatibility
 
 ## v1.1.2 - 2026-10-02
@@ -174,7 +175,7 @@ _Initial release._
 
 ### Added:
 
-- Tab menu option: new option to open a tab in another window. 
+- Tab menu option: new option to open a tab in another window.
 - Added new option: `Do not change the active tool when switching windows`.
   Disabled by default.
 
@@ -184,7 +185,8 @@ _Initial release._
 
 - Fix issue causing options menu to stop working
 - Fix MacOS tab style
-- Fix crash when applying stylesheet that affects the custom QTabBar [#9](https://github.com/vurentjie/krita_ui_tweaks/issues/9)
+- Fix crash when applying stylesheet that affects the custom QTabBar
+  [#9](https://github.com/vurentjie/krita_ui_tweaks/issues/9)
 - Only drag resize split handles when the mouse position coincides
 - Fixes (hacks) for the beta versions
 
@@ -201,10 +203,14 @@ _Initial release._
 - Fix bug refreshing on theme change
 - Fix for https://bugs.kde.org/show_bug.cgi?id=518465
 
-
 ## v1.1.6 - 2026-05-05
 
 ### Fixed:
 
 - Fix bug for undefined reference caused by typo
 
+## v2.0 - 2026-06-04
+
+### Changed:
+
+- The plugin has been refactored.

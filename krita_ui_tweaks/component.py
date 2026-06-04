@@ -18,7 +18,6 @@ from .helper import Helper
 import typing
 from typing import Any
 
-
 i18n = Krita.krita_i18n
 
 
@@ -42,8 +41,8 @@ class ComponentFilters:
 
 @dataclass
 class ComponentFlags:
-    homeScreen: bool | None
     viewMode: QMdiArea.ViewMode | None
+    windowInit: bool
 
 
 class ComponentTimers(QObject):
@@ -69,7 +68,8 @@ class ComponentTimers(QObject):
 componentTimers = ComponentTimers()
 
 COMPONENT_GROUP = dict[
-    typing.Literal["tools", "splitPane", "dockers", "helper"], "Component|None"
+    typing.Literal["tools", "controller", "dockers", "helper", "bugfix"],
+    "Component|None",
 ]
 
 
@@ -81,7 +81,6 @@ class Component(QObject):
         helper: Helper | None = None,
     ):
         super().__init__()
-        self._init = False
         self._qwin: QMainWindow | None = window.qwindow()
         self._componentGroup = pluginGroup
 
@@ -90,40 +89,32 @@ class Component(QObject):
 
         self._helper: Helper = helper
 
-        self._componentFlags = ComponentFlags(homeScreen=None, viewMode=None)
+        self._componentFlags = ComponentFlags(viewMode=None, windowInit=False)
         self._componentFilters = ComponentFilters(
             windowShow=None,
         )
         self._componentTimers = componentTimers
 
-        notifier = self._helper.getNotifier()
-
-        typing.cast(pyqtBoundSignal, notifier.imageClosed).connect(
-            self._checkIsHomeScreen
-        )
-
-        typing.cast(
-            pyqtBoundSignal,
-            notifier.imageCreated,
-        ).connect(self._checkIsHomeScreen)
-
+        self._qwin.destroyed.connect(self.onWindowDestroyed)
+        
         if self._qwin.isVisible():
-            QTimer.singleShot(0, self.onWindowShown)
+            QTimer.singleShot(0, self.onWindowInit)
         else:
             self._componentFilters.windowShow = WindowShown(
-                self._qwin, self.onWindowShown
+                self._qwin, self.onWindowInit
             )
             self._qwin.installEventFilter(self._componentFilters.windowShow)
 
     def helper(self):
         return self._helper
-
-    def onWindowShown(self):
-        if self._init:
-            return
-        self._init = True
-        filters = self._componentFilters
         
+    def onWindowInit(self):
+        if self._componentFlags.windowInit:
+            return
+
+        self._componentFlags.windowInit = True 
+
+        filters = self._componentFilters
         if self._qwin and filters.windowShow:
             self._qwin.removeEventFilter(filters.windowShow)
             filters.windowShow = None
@@ -132,6 +123,13 @@ class Component(QObject):
         timers = self._componentTimers
 
         if win:
+
+            notifier = self._helper.getNotifier()
+
+            typing.cast(
+                pyqtBoundSignal, notifier.configurationChanged
+            ).connect(self.onKritaConfigChanged)
+
             mdi = self._helper.getMdi()
             if mdi:
                 self._componentTimers.shortPoll.connect(self._checkViewMode)
@@ -144,7 +142,11 @@ class Component(QObject):
                 self.onThemeChanged
             )
 
-            self._checkIsHomeScreen()
+    def onWindowDestroyed(self):
+        pass
+
+    def onKritaConfigChanged(self):
+        pass
 
     def onThemeChanged(self):
         pass
@@ -164,21 +166,4 @@ class Component(QObject):
                 flags.viewMode = viewMode
                 self.onViewModeChanged()
 
-    def onHomeScreenToggled(self, _: bool = False):
-        pass
-
-    def _checkIsHomeScreen(self, _: Any = None):
-        flags = self._componentFlags
-        old_state = flags.homeScreen
-        flags.homeScreen = len(self._helper.getApp().documents()) == 0
-        if old_state != flags.homeScreen:
-            QTimer.singleShot(
-                0,
-                lambda: self.onHomeScreenToggled(
-                    typing.cast(bool, flags.homeScreen)
-                ),
-            )
-
-    def isHomeScreenShowing(self):
-        return self._componentFlags.homeScreen
 
