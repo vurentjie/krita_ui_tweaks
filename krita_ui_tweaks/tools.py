@@ -404,6 +404,7 @@ class Tools(Component):
 
         self._syncingTool = True
 
+        activeTool = self.getActiveTool()
         name = action.objectName()
         msg = action.text()
         isTool = name in self._toolActions
@@ -422,14 +423,19 @@ class Tools(Component):
             if isinstance(data, dict):
                 data["viewTool"] = name
 
-            if checkableIcons:
-                for tb in qwin.findChildren(QToolButton):
-                    ta = tb.defaultAction()
-                    if ta:
-                        objName = ta.objectName()
-                        if objName in self._toolActions:
-                            ta.setCheckable(True)
-                            ta.setChecked(objName == name)
+            if checkableIcons and name != activeTool:
+                def restore(qwin=qwin):
+                    for tb in qwin.findChildren(QToolButton):
+                        ta = tb.defaultAction()
+                        if ta:
+                            objName = ta.objectName()
+                            if objName in self._toolActions:
+                                ta.setCheckable(True)
+                                ta.setChecked(objName == self.getActiveTool())
+                                
+                self._helper.debounceCallback(
+                    "toolbarButtons", restore, timeout_seconds=0.5
+                )
 
         if getOpt("toggle", "global_tool"):
             self._pluginFactory.syncGlobalTool()

@@ -208,3 +208,10 @@ _Initial release._
 
 - Fix bug for undefined reference caused by typo
 
+
+## v1.1.7 - 2026-06-04
+
+### Fixed:
+
+- Some performance fixes 
+
