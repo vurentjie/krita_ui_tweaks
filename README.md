@@ -32,7 +32,7 @@ Feel free to try both versions to see which one works better for you.
 
   Download link: [v1.1.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.7.zip)
 
-- ### v2.x
+- ### v2.x (beta)
   v2 is slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain.
 
   Krita 5.3.2 and later are supported - 5.3.0 and 5.3.1 had a few issues.
