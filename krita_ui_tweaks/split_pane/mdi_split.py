@@ -130,6 +130,10 @@ class MdiSplit(QWidget):
     # - Then the split pane ui covers all the other windows
     # - At the bottom and hidden are the other subwindows (ignored until they become current)
     def refreshLayout(self, dbg=False):
+        # FIXME adding this check for now
+        if not self._helper.isAlive(self, MdiSplit):
+            return
+            
         self.raise_()
 
         if self.isSplitState():
