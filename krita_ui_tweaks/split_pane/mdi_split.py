@@ -609,7 +609,7 @@ class MdiSplit(QWidget):
             view = self._helper.getViewBySubWin(sw)
             if win is not None and view is not None:
                 newView = self._controller.openView(
-                    view.document(), activePane, True
+                    view.document(), activePane
                 )
 
         elif activePane and tabPane:
@@ -702,10 +702,10 @@ class MdiSplit(QWidget):
         if rootSplit is not None:
             rootSplit.refreshSplitSizes()
 
+        def delayActions(
+            rootSplit=rootSplit, movedSplit=movedSplit, newView=newView
+        ):
 
-
-        def delayActions(rootSplit=rootSplit, movedSplit=movedSplit, newView=newView):
-            
             if movedSplit:
                 # FIXME checks because of QTimer delay
                 # FIXME the pane from where the tab came from
