@@ -14,7 +14,40 @@ Various tweaks for Krita's interface:
 Krita is a free and open source digital painting program. More info here:
 [https://krita.org](https://krita.org)
 
-There's a thread related to this plugin on [krita-artists.org](https://krita-artists.org/t/krita-split-panes-and-other-tweaks/157491)
+There's a thread related to this plugin on [krita-artists.org](https://krita-artists.org/t/krita-split-panes-and-other-tweaks/157491). You can leave any feedback there if needed.
+
+
+## Downloads
+
+
+
+
+I am supporting two similar versions of this plugin. 
+
+Feel free to try both versions to see which one works better for you.
+
+
+- #### v1.x
+  v1 is original plugin code that started off as a series of experiments but over time got patched to worked better.
+
+  Download link: [v1.1.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.7.zip)
+
+- ### v2.x
+  v2 is slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain.
+
+  Krita 5.3.2 and later are supported - 5.3.0 and 5.3.1 had a few issues.
+
+  The plugin should also work for older versions, i.e. Krita 5.2.
+
+  Download link: [v2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
+
+---
+
+> For folks who are familiar with building Krita from source, I have implemented the splitpanes feature directly into Krita. 
+> 
+> The code for this is available on [invent.kde.org here.](https://invent.kde.org/vurentjie/krita/-/tree/splitpanes)
+
+---
 
 ### Basic interactions:
 
@@ -44,17 +77,6 @@ There's a thread related to this plugin on [krita-artists.org](https://krita-art
     </td>
   </tr>
 </table>
-
-
-## Downloads
-
-Latest version: [v1.1.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.7.zip)
-
-Development version: [main.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/main.zip)
-
-Download v2.0 beta version: [v2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
-***Note: v2 is meant to fix issues for Krita 5.3 (5.3.2 or later).***
-
 
 ### Configuration
 
