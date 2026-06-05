@@ -96,7 +96,7 @@ class Component(QObject):
         self._componentTimers = componentTimers
 
         self._qwin.destroyed.connect(self.onWindowDestroyed)
-        
+
         if self._qwin.isVisible():
             QTimer.singleShot(0, self.onWindowInit)
         else:
@@ -107,12 +107,35 @@ class Component(QObject):
 
     def helper(self):
         return self._helper
-        
+
+    # https://bugs.kde.org/show_bug.cgi?id=518465
+    def _trackLayer(self):
+        view = self._helper.getView()
+        doc = self._helper.getDoc()
+        data = self._helper.getDocData(doc)
+        if view and doc and data:
+            state = self._helper.getLayerState(view, True)
+            if state:
+                data.doc["trackLayer"] = state
+
+    # https://bugs.kde.org/show_bug.cgi?id=518465
+    def _restoreLayer(self):
+        view = self._helper.getView()
+        doc = self._helper.getDoc()
+        data = self._helper.getDocData(doc)
+        if view and doc and data:
+            trackState = data.doc.get("trackLayer", None)
+            state = self._helper.getLayerState(view)
+            if not state and trackState:
+                self._helper.setLayerState(view, trackState)
+
+            self._trackLayer()
+
     def onWindowInit(self):
         if self._componentFlags.windowInit:
             return
 
-        self._componentFlags.windowInit = True 
+        self._componentFlags.windowInit = True
 
         filters = self._componentFilters
         if self._qwin and filters.windowShow:
@@ -123,6 +146,18 @@ class Component(QObject):
         timers = self._componentTimers
 
         if win:
+
+            # https://bugs.kde.org/show_bug.cgi?id=518465
+            try:
+                if self._helper.version() >= 5.3:
+                    _, _, layerSelectionModel = self._helper.layerModels()
+                    if layerSelectionModel:
+                        layerSelectionModel.currentChanged.connect(
+                            self._trackLayer
+                        )
+                        win.activeViewChanged.connect(self._restoreLayer)
+            except:
+                pass
 
             notifier = self._helper.getNotifier()
 
@@ -165,5 +200,4 @@ class Component(QObject):
             if viewMode != flags.viewMode:
                 flags.viewMode = viewMode
                 self.onViewModeChanged()
-
 

@@ -133,7 +133,7 @@ class MdiSplit(QWidget):
         # FIXME adding this check for now
         if not self._helper.isAlive(self, MdiSplit):
             return
-            
+
         self.raise_()
 
         if self.isSplitState():
@@ -602,14 +602,21 @@ class MdiSplit(QWidget):
         self._secondSplit.show()
 
         activePane = createdSplit.pane()
+        newView = None
 
         if duplicate:
             win = self._helper.getWin()
             view = self._helper.getViewBySubWin(sw)
             if win is not None and view is not None:
-                self._controller.openView(view.document(), activePane)
+                newView = self._controller.openView(
+                    view.document(), activePane, True
+                )
 
         elif activePane and tabPane:
+
+            transferSubWin = tabPane.subWindowAt(tabIndex)
+            if transferSubWin:
+                newView = self._helper.getViewBySubWin(transferSubWin)
 
             tabPane.transferTab(tabIndex, activePane)
 
@@ -685,6 +692,7 @@ class MdiSplit(QWidget):
 
             QTimer.singleShot(0, cb)
         else:
+
             def cb(restoreHandleOffsets=restoreHandleOffsets):
                 for off in restoreHandleOffsets:
                     off[0].moveTo(off[1])
@@ -694,33 +702,36 @@ class MdiSplit(QWidget):
         if rootSplit is not None:
             rootSplit.refreshSplitSizes()
 
-        if movedSplit:
 
-            # FIXME checks because of QTimer delay
-            # FIXME the pane from where the tab came from
-            # plus its sibling split if resized
-            # plus the new split
-            # plus the new splits sibling !!
-            def recenterCanvases(p: MdiSplitPane):
-                sw = p.currentSubWindow()
-                view = self._helper.getViewBySubWin(sw)
-                if view is not None:
-                    self._helper.centerCanvas(sw, view, epsilon=10)
-                pass
 
-            QTimer.singleShot(
-                0,
-                lambda movedSplit=movedSplit, recenterCanvases=recenterCanvases: movedSplit.eachPane(
-                    recenterCanvases
-                ),
-            )
+        def delayActions(rootSplit=rootSplit, movedSplit=movedSplit, newView=newView):
+            
+            if movedSplit:
+                # FIXME checks because of QTimer delay
+                # FIXME the pane from where the tab came from
+                # plus its sibling split if resized
+                # plus the new split
+                # plus the new splits sibling !!
+                def recenterCanvases(p: MdiSplitPane):
+                    sw = p.currentSubWindow()
+                    view = self._helper.getViewBySubWin(sw)
+                    if view is not None:
+                        self._helper.centerCanvas(sw, view, epsilon=10)
+                    pass
 
-        def updateTabBars(p: MdiSplitPane):
-            tabs = p.tabs()
-            if tabs is not None:
-                tabs.slotConfigChanged()
+                movedSplit.eachPane(recenterCanvases)
 
-        rootSplit.eachPane(updateTabBars)
+            def updateTabBars(p: MdiSplitPane):
+                tabs = p.tabs()
+                if tabs is not None:
+                    tabs.slotConfigChanged()
+
+            rootSplit.eachPane(updateTabBars)
+
+            if newView:
+                self._helper.getWin().showView(newView)
+
+        QTimer.singleShot(0, delayActions)
 
         return createdSplit
 
