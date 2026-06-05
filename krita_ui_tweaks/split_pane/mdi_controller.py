@@ -189,6 +189,7 @@ class MdiController(Component):
 
         self._rootSplit: MdiSplit | None = None
         self._activeSplitPane: MdiSplitPane | None = None
+        self._dirtyPanes: list[MdiSplitPane] = []
 
         self._layoutLocked = False
         self._currentLayoutFile = ""
@@ -672,6 +673,16 @@ class MdiController(Component):
         if mdi is not None:
             mdi.setActiveSubWindow(sw)
 
+    def redrawDirtyPanes(self):
+        for p in self._dirtyPanes:
+            pane = self._helper.isAlive(p, MdiSplitPane)
+            if pane:
+                tabs = pane.tabs()
+                if tabs is not None:
+                    tabs.attachStyleSheet()
+                pane.updateFrameBorder()
+        self._dirtyPanes = []
+
     def setActiveSplitPane(
         self,
         pane: MdiSplitPane | None,
@@ -686,21 +697,20 @@ class MdiController(Component):
 
         if oldPane is not None:
             oldPane.setProperty("active", None)
-            if redraw:
-                tabs = oldPane.tabs()
-                if tabs is not None:
-                    tabs.attachStyleSheet()
-                oldPane.updateFrameBorder()
+            if redraw and oldPane not in self._dirtyPanes:
+                self._dirtyPanes.append(oldPane)
 
         if newPane is not None:
             root = self.rootSplit()
             if root is not None and root.isSplitState():
                 newPane.setProperty("active", True)
             newPane.activateCurrentSubWindow(focusSubWindow)
-            if redraw:
-                tabs = newPane.tabs()
-                if tabs is not None:
-                    tabs.attachStyleSheet()
+            if redraw and newPane not in self._dirtyPanes:
+                self._dirtyPanes.append(newPane)
+
+        self._helper.debounceCallback(
+            "setActiveSplitPane", self.redrawDirtyPanes, timeout_seconds=0.5
+        )
 
         self._activeSplitPane = newPane
         self.activePaneChanged.emit()
