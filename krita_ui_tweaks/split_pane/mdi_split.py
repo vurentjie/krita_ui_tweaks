@@ -603,9 +603,7 @@ class MdiSplit(QWidget):
             win = self._helper.getWin()
             view = self._helper.getViewBySubWin(sw)
             if win is not None and view is not None:
-                def deferOpen(view=view, activePane=activePane):
-                    self._controller.openView(view.document(), activePane)
-                QTimer.singleShot(10, deferOpen)
+                self._controller.openView(view.document(), activePane)
 
         elif activePane and tabPane:
 
