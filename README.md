@@ -19,25 +19,19 @@ There's a thread related to this plugin on [krita-artists.org](https://krita-art
 
 ## Downloads
 
-
-
-
 I am supporting two similar versions of this plugin. 
 
 Feel free to try both versions to see which one works better for you.
 
+<ins>Note about Krita 5.3:</ins> Krita 5.3.0 and 5.3.1 had crash issues with this plugin. Please use Krita 5.3.2 or greater. Alternatively, use Krita 5.2.
 
 - #### v1.x
-  v1 is original plugin code that started off as a series of experiments but over time got patched to work better.
+  The original plugin code that started off as a series of experiments but over time got patched to work better.
 
   Download link: [v1.1.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.7.zip)
 
-- ### v2.x (beta)
-  v2 is slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain.
-
-  Krita 5.3.2 and later are supported - 5.3.0 and 5.3.1 had a few issues.
-
-  The plugin should also work for older versions, i.e. Krita 5.2.
+- ### v2.x
+  A slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain.
 
   Download link: [v2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
 
