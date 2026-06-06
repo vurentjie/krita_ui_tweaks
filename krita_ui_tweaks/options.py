@@ -225,6 +225,7 @@ class SettingsDialog(QDialog):
             self.tabs.setCurrentIndex(tabIndex)
 
     def setupLayout(self):
+        version = self._helper.version()
         self._config: CONFIG_DEFAULTS_TYPE = readConfig()
 
         val = "dark" if self._helper.useDarkIcons() else "light"
@@ -314,7 +315,7 @@ class SettingsDialog(QDialog):
             "toolbar_icons": ToggleItem(
                 input=QCheckBox(i18n("Highlight active tool in toolbars")),
                 section=sections.tools,
-            ),
+            ) if version < 5.3 else None,
             "shared_tool": ToggleItem(
                 input=QCheckBox(
                     i18n(
@@ -322,7 +323,7 @@ class SettingsDialog(QDialog):
                     )
                 ),
                 section=sections.tools,
-            ),
+            ) if version < 5.3 else None,
             "global_tool": ToggleItem(
                 input=QCheckBox(
                     i18n(
@@ -330,7 +331,7 @@ class SettingsDialog(QDialog):
                     )
                 ),
                 section=sections.tools,
-            ),
+            ) if version < 5.3 else None,
             "toggle_docking": ToggleItem(
                 input=QCheckBox(i18n("Toggle docking on and off")),
                 section=sections.dockers,
@@ -663,20 +664,21 @@ class SettingsDialog(QDialog):
         form = QFormLayout(tab)
         section = ""
         for index, (key, item) in enumerate(formItems.items()):
-            if item.section != section:
-                section = item.section
-                if index > 0 and (item.separator or len(section) > 0):
-                    spacer(form, 3)
-                    line(form)
-                    spacer(form, 3)
-                if item.section:
-                    label = QLabel(section)
-                    font = label.font()
-                    font.setBold(True)
-                    label.setFont(font)
-                    form.addRow(label)
+            if item is not None:
+                if item.section != section:
+                    section = item.section
+                    if index > 0 and (item.separator or len(section) > 0):
+                        spacer(form, 3)
+                        line(form)
+                        spacer(form, 3)
+                    if item.section:
+                        label = QLabel(section)
+                        font = label.font()
+                        font.setBold(True)
+                        label.setFont(font)
+                        form.addRow(label)
 
-            self._renderFormItem(form, (configKey, key), item)
+                self._renderFormItem(form, (configKey, key), item)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

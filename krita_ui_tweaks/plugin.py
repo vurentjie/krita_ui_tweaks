@@ -60,12 +60,13 @@ class Plugin(Extension):
             window=window, plugin=self, pluginGroup=group
         )
 
-        group["tools"]: ToolManager = ToolManager(
-            window=window,
-            plugin=self,
-            pluginGroup=group,
-            helper=group["helper"],
-        )
+        if group["helper"].version() < 5.3:
+            group["tools"]: ToolManager = ToolManager(
+                window=window,
+                plugin=self,
+                pluginGroup=group,
+                helper=group["helper"],
+            )
 
         group["controller"]: MdiController = MdiController(
             window=window,

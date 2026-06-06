@@ -52,6 +52,7 @@ class ToolManager(Component):
         self._activeTool = "KritaShape/KisToolBrush"
         self._syncingTool = False
         self._plugin = plugin
+        self._cachedToolButtons = {}
         self._toolActions: dict[str, SimpleNamespace | None] = {
             "InteractionTool": None,
             "KarbonCalligraphyTool": None,
@@ -233,19 +234,29 @@ class ToolManager(Component):
         if isTool:
             activeTool = self.getActiveTool()
             self.setActiveTool(name)
-            if activeTool != name:
-                def restore(qwin=qwin):
-                    for tb in qwin.findChildren(QToolButton):
-                        ta = tb.defaultAction()
-                        if ta:
-                            objName = ta.objectName()
-                            if objName in self._toolActions:
-                                ta.setCheckable(True)
-                                ta.setChecked(objName == self._activeTool)
-                            
-                self._helper.debounceCallback(
-                    "toolbarButtons", restore, timeout_seconds=0.5
-                )
+            
+            for _, (key, actions) in enumerate(self._cachedToolButtons.items()):
+                for ta in actions:
+                    if self._helper.isAlive(ta, QAction):
+                        ta.setChecked(key == self.getActiveTool())
+            
+
+            def restore(qwin=qwin):
+                for tb in qwin.findChildren(QToolButton):
+                    ta = tb.defaultAction()
+                    if ta:
+                        objName = ta.objectName()
+                        if objName in self._toolActions:
+                            if objName not in self._cachedToolButtons:
+                                self._cachedToolButtons[objName] = []
+                            if ta not in self._cachedToolButtons[objName]:
+                                self._cachedToolButtons[objName].append(ta)
+                            ta.setCheckable(True)
+                            ta.setChecked(objName == self.getActiveTool())
+                        
+            self._helper.debounceCallback(
+                "toolbarButtons", restore, timeout_seconds=0.2
+            )
 
         self._syncingTool = False
 
