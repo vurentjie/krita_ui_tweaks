@@ -215,3 +215,9 @@ _Initial release._
 
 - Some performance fixes 
 
+## v1.1.8 - 2026-06-06
+
+### Changed:
+
+- Some performance fixes
+

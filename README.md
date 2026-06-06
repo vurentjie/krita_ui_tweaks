@@ -3,7 +3,7 @@
 Various tweaks for Krita's interface:
   - _Split panes_: create multiple split tabbed panes and arrange documents side by side 
   - _Shared tool_: keep the same tool while switching documents
-  - _Toolbar highlighter_: highlight the active tool in the toolbars (not just the toolbox docker)   
+  - _Toolbar highlighter_: highlight the active tool in the toolbars (not just the toolbox docker)
   - _Toggle Docking_: enable or disable docking when dragging floating dockers to dockable regions
   - _Tab Options_: Configure the tab appearance (colors, height, max chars, style, etc)
   - _Save and Restore Layouts_: Menu options and shortcuts to save and restore

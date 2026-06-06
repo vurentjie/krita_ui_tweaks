@@ -56,12 +56,15 @@ class Plugin(Extension):
         group["helper"]: Helper = Helper(
             qwin=window.qwindow(), pluginGroup=group
         )
-        group["tools"]: Tools = Tools(
-            window,
-            pluginGroup=group,
-            helper=group["helper"],
-            pluginFactory=self,
-        )
+        
+        if True or not group["helper"].isNewApi():
+            group["tools"]: Tools = Tools(
+                window,
+                pluginGroup=group,
+                helper=group["helper"],
+                pluginFactory=self,
+            )
+            
         group["splitPane"]: SplitPane = SplitPane(
             window,
             pluginGroup=group,
