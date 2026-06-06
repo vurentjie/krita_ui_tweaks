@@ -28,7 +28,7 @@ Feel free to try both versions to see which one works better for you.
 - #### v1.x
   The original plugin code that started off as a series of experiments but over time got patched to work better.
 
-  Download link: [v1.1.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.7.zip)
+  Download link: [v1.1.8.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.8.zip)
 
 - ### v2.x (beta)
   A slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain.
