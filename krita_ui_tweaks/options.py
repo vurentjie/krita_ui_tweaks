@@ -315,7 +315,7 @@ class SettingsDialog(QDialog):
             "toolbar_icons": ToggleItem(
                 input=QCheckBox(i18n("Highlight active tool in toolbars")),
                 section=sections.tools,
-            ) if version < 5.3 else None,
+            ), # if version < 5.3 else None,
             "shared_tool": ToggleItem(
                 input=QCheckBox(
                     i18n(
@@ -323,7 +323,7 @@ class SettingsDialog(QDialog):
                     )
                 ),
                 section=sections.tools,
-            ) if version < 5.3 else None,
+            ), # if version < 5.3 else None,
             "global_tool": ToggleItem(
                 input=QCheckBox(
                     i18n(
@@ -331,7 +331,7 @@ class SettingsDialog(QDialog):
                     )
                 ),
                 section=sections.tools,
-            ) if version < 5.3 else None,
+            ), # if version < 5.3 else None,
             "toggle_docking": ToggleItem(
                 input=QCheckBox(i18n("Toggle docking on and off")),
                 section=sections.dockers,
