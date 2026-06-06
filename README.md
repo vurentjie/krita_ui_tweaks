@@ -30,8 +30,9 @@ Feel free to try both versions to see which one works better for you.
 
   Download link: [v1.1.7.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/tags/v1.1.7.zip)
 
-- ### v2.x
-  A slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain.
+- ### v2.x (beta)
+  A slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain. 
+  It is missing a few features that are available in v1 (e.g shared tool, toolbar highlighter).
 
   Download link: [v2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
 
