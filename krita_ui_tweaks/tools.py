@@ -425,12 +425,8 @@ class Tools(Component):
                 data["viewTool"] = name
 
             if checkableIcons:
-                for _, (key, actions) in enumerate(self._cachedToolButtons.items()):
-                    for ta in actions:
-                        if self._helper.isAlive(ta, QAction):
-                            ta.setChecked(key == self.getActiveTool())
-
-                def restore(qwin=qwin):
+                
+                if not self._cachedToolButtons or name not in self._cachedToolButtons:
                     for tb in qwin.findChildren(QToolButton):
                         ta = tb.defaultAction()
                         if ta:
@@ -442,10 +438,13 @@ class Tools(Component):
                                     self._cachedToolButtons[objName].append(ta)
                                 ta.setCheckable(True)
                                 ta.setChecked(objName == self.getActiveTool())
-                            
-                self._helper.debounceCallback(
-                    "toolbarButtons", restore, timeout_seconds=0.2
-                )
+
+                for _, (key, actions) in enumerate(
+                    self._cachedToolButtons.items()
+                ):
+                    for ta in actions:
+                        if self._helper.isAlive(ta, QAction):
+                            ta.setChecked(key == self.getActiveTool())
 
 
         if getOpt("toggle", "global_tool"):
