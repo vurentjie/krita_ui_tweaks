@@ -28,12 +28,12 @@ If on Krita 5.3 please use Krita 5.3.2 or greater. Alternatively, use Krita 5.2.
 - #### v1
   The original plugin code that started off as a series of experiments but over time got patched to work better.
 
-  Download link: [v1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v1.zip)
+  Download link: [krita_ui_tweaks-1.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v1.zip)
 
 - ### v2 (beta)
   A slightly paired down rewrite to address a few issues with Krita 5.3 and make it easier to maintain.
 
-  Download link: [v2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
+  Download link: [krita_ui_tweaks-2.zip](https://github.com/vurentjie/krita_ui_tweaks/archive/refs/heads/v2.zip) 
 
 ---
 
