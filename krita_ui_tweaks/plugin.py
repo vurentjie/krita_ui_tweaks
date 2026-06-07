@@ -60,7 +60,7 @@ class Plugin(Extension):
             window=window, plugin=self, pluginGroup=group
         )
 
-        # if True or group["helper"].version() < 5.3:
+        # if group["helper"].version() < 5.3:
         group["tools"]: ToolManager = ToolManager(
             window=window,
             plugin=self,

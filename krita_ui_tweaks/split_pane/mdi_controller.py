@@ -1393,21 +1393,7 @@ class MdiController(Component):
             context["callbacks"] = SimpleNamespace(
                 resize=[], views=[], activate=[]
             )
-
-            qwin.setUpdatesEnabled(False)
-            oldSubWins = mdi.subWindowList()
-
-            if not rootSplit.restoreState(layout, context):
-                return False
-
-            firstMostPane = rootSplit.firstMostPane()
-            tabs = firstMostPane.tabs()
-            if tabs is None:
-                return False
-
-            tabs.setVisible(False)
-            callbacks = context.get("callbacks", None)
-
+            
             msg = MdiMessageBox(
                 central,
                 text=i18n("Loading…"),
@@ -1421,6 +1407,23 @@ class MdiController(Component):
             rect.moveBottom(central.rect().bottom() - 20)
             msg.setGeometry(rect)
             msg.raise_()
+
+
+            qwin.setUpdatesEnabled(False)
+            oldSubWins = mdi.subWindowList()
+
+            if not rootSplit.restoreState(layout, context):
+                msg.deleteLater()
+                return False
+
+            firstMostPane = rootSplit.firstMostPane()
+            tabs = firstMostPane.tabs()
+            if tabs is None:
+                msg.deleteLater()
+                return False
+
+            tabs.setVisible(False)
+            callbacks = context.get("callbacks", None)
 
             def runCallbacks(
                 needsUpdate=False,

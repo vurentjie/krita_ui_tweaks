@@ -234,15 +234,8 @@ class ToolManager(Component):
         if isTool:
             activeTool = self.getActiveTool()
             self.setActiveTool(name)
-
-            for _, (key, actions) in enumerate(
-                self._cachedToolButtons.items()
-            ):
-                for ta in actions:
-                    if self._helper.isAlive(ta, QAction):
-                        ta.setChecked(key == self.getActiveTool())
-
-            def restore(qwin=qwin):
+            
+            if not self._cachedToolButtons or name not in self._cachedToolButtons:
                 for tb in qwin.findChildren(QToolButton):
                     ta = tb.defaultAction()
                     if ta:
@@ -255,9 +248,12 @@ class ToolManager(Component):
                             ta.setCheckable(True)
                             ta.setChecked(objName == self.getActiveTool())
 
-            self._helper.debounceCallback(
-                "toolbarButtons", restore, timeout_seconds=0.5
-            )
+            for _, (key, actions) in enumerate(
+                self._cachedToolButtons.items()
+            ):
+                for ta in actions:
+                    if self._helper.isAlive(ta, QAction):
+                        ta.setChecked(key == self.getActiveTool())
 
         self._syncingTool = False
 
