@@ -267,17 +267,15 @@ class Tools(Component):
         if not qwin:
             return
 
-        useTool = self.getActiveTool()
-
-        action = self._toolActions[useTool]
-        if not action:
-            return
-
         if context.get("resize", "scaling_mode_per_view"):
             self.viewActions()
 
-        name = action.objectName()
         if getOpt("toggle", "toolbar_icons"):
+            useTool = self.getActiveTool()
+            toolAction = self._toolActions.get(useTool, None)
+            if not toolAction:
+                return
+            name = toolAction.objectName()
             for tb in qwin.findChildren(QToolButton):
                 ta = tb.defaultAction()
                 if ta and ta.objectName() in self._toolActions:
