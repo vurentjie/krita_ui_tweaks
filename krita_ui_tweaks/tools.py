@@ -28,7 +28,7 @@ import json
 import os
 import time
 
-from .options import getOpt
+from .options import showOptions, getOpt, signals as OptionSignals
 from .component import Component, COMPONENT_GROUP
 
 from .helper import Helper
@@ -91,6 +91,8 @@ class ToolManager(Component):
             "ToolReferenceImages": None,
             "ZoomTool": None,
         }
+        
+        OptionSignals.configSaved.connect(self.onConfigSave)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         qwin = self._helper.getQwin()
@@ -122,13 +124,9 @@ class ToolManager(Component):
 
     def onViewChanged(self):
         tool = self.getActiveTool()
-        action = (
-            self._toolActions[tool].action
-            if tool and tool in self._toolActions
-            else None
-        )
-        if action:
-            action.trigger()
+        toolAction = self._toolActions.get(tool, None)
+        if toolAction:
+            toolAction.action.trigger()
 
     def onWindowInit(self):
         app = self._helper.getApp()
@@ -200,6 +198,30 @@ class ToolManager(Component):
                 )
             except:
                 pass
+                
+    def onConfigSave(self, context):
+        qwin = self._helper.getQwin()
+        if not qwin:
+            return
+
+        if getOpt("toggle", "toolbar_icons"):
+            useTool = self.getActiveTool()
+            toolAction = self._toolActions.get(useTool, None)
+            if not toolAction:
+                return
+
+            name = toolAction.action.objectName()
+            for tb in qwin.findChildren(QToolButton):
+                ta = tb.defaultAction()
+                if ta and ta.objectName() in self._toolActions:
+                    ta.setCheckable(True)
+                    ta.setChecked(ta.objectName() == name)
+        else:
+            for tb in qwin.findChildren(QToolButton):
+                ta = tb.defaultAction()
+                if ta and ta.objectName() in self._toolActions:
+                    ta.setChecked(False)
+                    ta.setCheckable(False)
 
     def getActiveTool(self):
         if getOpt("toggle", "global_tool"):
@@ -230,30 +252,30 @@ class ToolManager(Component):
         name = action.objectName()
         msg = action.text()
         isTool = name in self._toolActions
-
+        
         if isTool:
-            activeTool = self.getActiveTool()
             self.setActiveTool(name)
             
-            if not self._cachedToolButtons or name not in self._cachedToolButtons:
-                for tb in qwin.findChildren(QToolButton):
-                    ta = tb.defaultAction()
-                    if ta:
-                        objName = ta.objectName()
-                        if objName in self._toolActions:
-                            if objName not in self._cachedToolButtons:
-                                self._cachedToolButtons[objName] = []
-                            if ta not in self._cachedToolButtons[objName]:
-                                self._cachedToolButtons[objName].append(ta)
-                            ta.setCheckable(True)
-                            ta.setChecked(objName == self.getActiveTool())
+            if getOpt("toggle", "toolbar_icons"):
+                if not self._cachedToolButtons or name not in self._cachedToolButtons:
+                    for tb in qwin.findChildren(QToolButton):
+                        ta = tb.defaultAction()
+                        if ta:
+                            objName = ta.objectName()
+                            if objName in self._toolActions:
+                                if objName not in self._cachedToolButtons:
+                                    self._cachedToolButtons[objName] = []
+                                if ta not in self._cachedToolButtons[objName]:
+                                    self._cachedToolButtons[objName].append(ta)
+                                ta.setCheckable(True)
+                                ta.setChecked(objName == self.getActiveTool())
 
-            for _, (key, actions) in enumerate(
-                self._cachedToolButtons.items()
-            ):
-                for ta in actions:
-                    if self._helper.isAlive(ta, QAction):
-                        ta.setChecked(key == self.getActiveTool())
+                for _, (key, actions) in enumerate(
+                    self._cachedToolButtons.items()
+                ):
+                    for ta in actions:
+                        if self._helper.isAlive(ta, QAction):
+                            ta.setChecked(key == self.getActiveTool())
 
         self._syncingTool = False
 
