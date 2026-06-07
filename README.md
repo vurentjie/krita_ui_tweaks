@@ -23,7 +23,7 @@ I am supporting two similar versions of this plugin.
 
 Feel free to try both versions to see which one works better for you.
 
-<ins>Note about Krita 5.3:</ins> Krita 5.3.0 and 5.3.1 had crash issues with this plugin. Please use Krita 5.3.2 or greater. Alternatively, use Krita 5.2.
+If on Krita 5.3 please use Krita 5.3.2 or greater. Alternatively, use Krita 5.2.
 
 - #### v1
   The original plugin code that started off as a series of experiments but over time got patched to work better.
