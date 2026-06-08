@@ -423,7 +423,6 @@ class Tools(Component):
                 data["viewTool"] = name
 
             if checkableIcons:
-                
                 if not self._cachedToolButtons or name not in self._cachedToolButtons:
                     for tb in qwin.findChildren(QToolButton):
                         ta = tb.defaultAction()
@@ -435,14 +434,17 @@ class Tools(Component):
                                 if ta not in self._cachedToolButtons[objName]:
                                     self._cachedToolButtons[objName].append(ta)
                                 ta.setCheckable(True)
-                                ta.setChecked(objName == self.getActiveTool())
 
                 for _, (key, actions) in enumerate(
                     self._cachedToolButtons.items()
                 ):
+                    isActiveTool = key == self.getActiveTool()
                     for ta in actions:
                         if self._helper.isAlive(ta, QAction):
-                            ta.setChecked(key == self.getActiveTool())
+                            if isActiveTool:
+                                ta.setChecked(True)
+                            elif ta.isChecked():
+                                ta.setChecked(False)
 
 
         if getOpt("toggle", "global_tool"):
