@@ -91,7 +91,7 @@ class ToolManager(Component):
             "ToolReferenceImages": None,
             "ZoomTool": None,
         }
-        
+
         OptionSignals.configSaved.connect(self.onConfigSave)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
@@ -198,7 +198,7 @@ class ToolManager(Component):
                 )
             except:
                 pass
-                
+
     def onConfigSave(self, context):
         qwin = self._helper.getQwin()
         if not qwin:
@@ -252,12 +252,15 @@ class ToolManager(Component):
         name = action.objectName()
         msg = action.text()
         isTool = name in self._toolActions
-        
+
         if isTool:
             self.setActiveTool(name)
-            
+
             if getOpt("toggle", "toolbar_icons"):
-                if not self._cachedToolButtons or name not in self._cachedToolButtons:
+                if (
+                    not self._cachedToolButtons
+                    or name not in self._cachedToolButtons
+                ):
                     for tb in qwin.findChildren(QToolButton):
                         ta = tb.defaultAction()
                         if ta:
@@ -268,14 +271,17 @@ class ToolManager(Component):
                                 if ta not in self._cachedToolButtons[objName]:
                                     self._cachedToolButtons[objName].append(ta)
                                 ta.setCheckable(True)
-                                ta.setChecked(objName == self.getActiveTool())
 
                 for _, (key, actions) in enumerate(
                     self._cachedToolButtons.items()
                 ):
+                    isActiveTool = key == self.getActiveTool()
                     for ta in actions:
                         if self._helper.isAlive(ta, QAction):
-                            ta.setChecked(key == self.getActiveTool())
+                            if isActiveTool:
+                                ta.setChecked(True)
+                            elif ta.isChecked():
+                                ta.setChecked(False)
 
         self._syncingTool = False
 
