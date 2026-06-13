@@ -316,7 +316,7 @@ class MdiController(Component):
         qwin = self._helper.getQwin()
         split = self.rootSplit()
         eventType = event.type()
-
+        
         if (
             not self._handledPrefDialog
             and split
@@ -458,9 +458,9 @@ class MdiController(Component):
             return False
 
         if (
-            split is not None
+            eventType == QEvent.Type.Resize
+            and split is not None
             and obj == mdi.viewport()
-            and eventType == QEvent.Type.Resize
         ):
             split.setGeometry(mdi.viewport().rect())
             return False
@@ -1393,7 +1393,7 @@ class MdiController(Component):
             context["callbacks"] = SimpleNamespace(
                 resize=[], views=[], activate=[]
             )
-            
+
             msg = MdiMessageBox(
                 central,
                 text=i18n("Loading…"),
@@ -1407,7 +1407,6 @@ class MdiController(Component):
             rect.moveBottom(central.rect().bottom() - 20)
             msg.setGeometry(rect)
             msg.raise_()
-
 
             qwin.setUpdatesEnabled(False)
             oldSubWins = mdi.subWindowList()
