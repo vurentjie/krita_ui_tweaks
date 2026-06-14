@@ -234,6 +234,9 @@ class MdiSplitPane(QWidget):
         sw = self._helper.isAlive(sw, QMdiSubWindow)
         if sw is None:
             return
+            
+        if sw not in self._subWindows:
+            return
 
         mdi = self._helper.getMdi()
         bar = self.topBar()

@@ -559,14 +559,7 @@ class MdiController(Component):
 
         if sw is not None:
             uid = sw.property("uiTweaksId")
-
-            # only handle windows already added
-            if uid:
-                view = self._helper.getViewById(uid)
-                rootSplit = self.rootSplit()
-                if view is not None and rootSplit is not None:
-                    self.syncSubWindow(sw, False)
-            else:
+            if not uid:
                 activePane = self.activeSplitPane()
                 if activePane:
                     activePane.resizeSubWindow(sw)

@@ -129,8 +129,7 @@ class MdiSplit(QWidget):
     # - At the top the current subwindows for each split
     # - Then the split pane ui covers all the other windows
     # - At the bottom and hidden are the other subwindows (ignored until they become current)
-    def refreshLayout(self, dbg=False):
-        # FIXME adding this check for now
+    def refreshLayout(self):
         if not self._helper.isAlive(self, MdiSplit):
             return
 
@@ -687,7 +686,10 @@ class MdiSplit(QWidget):
                 rootOrient=rootOrient,
             ):
                 for off in restoreHandleOffsets:
-                    if self._helper.isAlive(off[0], MdiSplitHandle) and off[0].orientation() != rootOrient:
+                    if (
+                        self._helper.isAlive(off[0], MdiSplitHandle)
+                        and off[0].orientation() != rootOrient
+                    ):
                         off[0].moveTo(off[1])
 
             QTimer.singleShot(0, cb)
