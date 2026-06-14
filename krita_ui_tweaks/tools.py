@@ -229,10 +229,20 @@ class ToolManager(Component):
 
         if getOpt("toggle", "shared_tool"):
             return self._activeTool
+            
+        view = self._helper.getView()
+        if view:
+            data = self._helper.getViewData(view)
+            if isinstance(data, dict):
+                return data.get("activeTool", "KritaShape/KisToolBrush")
 
     def setActiveTool(self, name):
         self._plugin._globalTool = name
         self._activeTool = name
+        
+        view = self._helper.getView()
+        if view:
+            self._helper.setViewData(view, "activeTool", name)
 
     def onToolAction(self, action: QAction | str | None):
         qwin = self._helper.getQwin()
