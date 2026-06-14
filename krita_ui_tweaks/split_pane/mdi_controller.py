@@ -558,11 +558,9 @@ class MdiController(Component):
             return
 
         if sw is not None:
-            uid = sw.property("uiTweaksId")
-            if not uid:
-                activePane = self.activeSplitPane()
-                if activePane:
-                    activePane.resizeSubWindow(sw)
+            activePane = self.activeSplitPane()
+            if activePane:
+                activePane.resizeSubWindow(sw, forceResize = True)
 
             if rootSplit is not None:
                 rootSplit.refreshLayout()

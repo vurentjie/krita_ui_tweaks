@@ -124,9 +124,14 @@ class ToolManager(Component):
 
     def onViewChanged(self):
         tool = self.getActiveTool()
-        toolAction = self._toolActions.get(tool, None)
-        if toolAction:
-            toolAction.action.trigger()
+        def cb(tool=tool):
+            toolAction = self._toolActions.get(tool, None)
+            if toolAction:
+                toolAction.action.trigger()
+                
+        self._helper.debounceCallback(
+            "toolViewChanged", cb, timeout_seconds=0.2
+        )
 
     def onWindowInit(self):
         app = self._helper.getApp()

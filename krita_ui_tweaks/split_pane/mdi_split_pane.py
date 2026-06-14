@@ -229,13 +229,13 @@ class MdiSplitPane(QWidget):
         return allClosed
 
     def resizeSubWindow(
-        self, sw: QMdiSubWindow | None = None, refreshLayout: bool = True
+        self, sw: QMdiSubWindow | None = None, refreshLayout: bool = True, forceResize: bool = False
     ):
         sw = self._helper.isAlive(sw, QMdiSubWindow)
         if sw is None:
             return
             
-        if sw not in self._subWindows:
+        if not forceResize and sw not in self._subWindows:
             return
 
         mdi = self._helper.getMdi()
