@@ -28,7 +28,6 @@ from .helper import Helper, CanvasPosition
 import time
 import typing
 
-
 FIT_ACTION = typing.Literal[
     "zoom_to_fit",
     "zoom_to_fit_height",
@@ -361,32 +360,37 @@ class Tools(Component):
     def onViewChanged(self):
         super().onViewChanged()
 
-        helper = self._helper
-        app = helper.getApp()
-        qwin = helper.getQwin()
-        view = helper.getView()
-        data = helper.getViewData(view)
+        def cb():
+            helper = self._helper
+            app = helper.getApp()
+            qwin = helper.getQwin()
+            view = helper.getView()
+            data = helper.getViewData(view)
 
-        if not (app and qwin and isinstance(data, dict)):
-            return
+            if not (app and qwin and isinstance(data, dict)):
+                return
 
-        self.viewActions()
+            self.viewActions()
 
-        action = None
-        isSharedTool = getOpt("toggle", "shared_tool") or getOpt(
-            "toggle", "global_tool"
+            action = None
+            isSharedTool = getOpt("toggle", "shared_tool") or getOpt(
+                "toggle", "global_tool"
+            )
+
+            if isSharedTool:
+                action = self._toolActions[self.getActiveTool()]
+            else:
+                name = data.get("viewTool", self._defaultTool)
+                action = self._toolActions.get(name)
+
+            if action:
+                self._showToast = False
+                action.trigger()
+                self._showToast = True
+
+        self._helper.debounceCallback(
+            f"toolViewChanged", cb, timeout_seconds=0.2
         )
-
-        if isSharedTool:
-            action = self._toolActions[self.getActiveTool()]
-        else:
-            name = data.get("viewTool", self._defaultTool)
-            action = self._toolActions.get(name)
-
-        if action:
-            self._showToast = False
-            action.trigger()
-            self._showToast = True
 
     def onToolAction(self, action: QAction | str | None, silent: bool = False):
         if isinstance(action, str):
@@ -423,7 +427,10 @@ class Tools(Component):
                 data["viewTool"] = name
 
             if checkableIcons:
-                if not self._cachedToolButtons or name not in self._cachedToolButtons:
+                if (
+                    not self._cachedToolButtons
+                    or name not in self._cachedToolButtons
+                ):
                     for tb in qwin.findChildren(QToolButton):
                         ta = tb.defaultAction()
                         if ta:
@@ -445,7 +452,6 @@ class Tools(Component):
                                 ta.setChecked(True)
                             elif ta.isChecked():
                                 ta.setChecked(False)
-
 
         if getOpt("toggle", "global_tool"):
             self._pluginFactory.syncGlobalTool()
