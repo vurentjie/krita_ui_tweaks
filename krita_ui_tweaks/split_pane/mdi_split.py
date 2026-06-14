@@ -687,7 +687,7 @@ class MdiSplit(QWidget):
                 rootOrient=rootOrient,
             ):
                 for off in restoreHandleOffsets:
-                    if off[0].orientation() != rootOrient:
+                    if self._helper.isAlive(off[0], MdiSplitHandle) and off[0].orientation() != rootOrient:
                         off[0].moveTo(off[1])
 
             QTimer.singleShot(0, cb)
@@ -695,7 +695,8 @@ class MdiSplit(QWidget):
 
             def cb(restoreHandleOffsets=restoreHandleOffsets):
                 for off in restoreHandleOffsets:
-                    off[0].moveTo(off[1])
+                    if self._helper.isAlive(off[0], MdiSplitHandle):
+                        off[0].moveTo(off[1])
 
             QTimer.singleShot(0, cb)
 
