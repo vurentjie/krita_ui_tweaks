@@ -174,8 +174,12 @@ class Helper:
         return self.getApp().notifier()
 
     def getWin(self) -> Window | None:
+        cached = self.isAlive(self._cached.get("kritaWindow", None), Window)
+        if cached:
+            return cached
         for w in self.getApp().windows():
             if w.qwindow() == self._qwin:
+                self._cached["kritaWindow"] = w
                 return w
 
     def isActiveWin(self):

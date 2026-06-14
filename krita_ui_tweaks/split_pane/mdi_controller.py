@@ -542,9 +542,10 @@ class MdiController(Component):
                 mdi = self._helper.getMdi()
                 if mdi is not None:
                     sw = self._restoreSubWin
-                    if reset:
+                    alive = self._helper.isAlive(sw, QMdiSubWindow)
+                    if reset or not alive:
                         self._restoreSubWin = None
-                    if sw is not None:
+                    if alive:
                         mdi.setActiveSubWindow(sw)
                         pane = self.activeSplitPane()
                         if pane is not None:
@@ -1581,13 +1582,13 @@ class MdiController(Component):
         self.openView(view.document())
         self._helper.focusQwin()
 
-    def profile(self, msg="Profile"):
+    def profile(self, msg="Profile", start=None):
         import time
 
         if not hasattr(self, "_profile_time"):
             self._profile_time = time.perf_counter()
             self._profiled = []
 
-        elapsed_time = time.perf_counter() - self._profile_time
+        elapsed_time = time.perf_counter() - (start if start is not None else self._profile_time)
         self._profiled.append(f"[{elapsed_time:.4f}s] {msg}")
 

@@ -49,6 +49,7 @@ class ToolManager(Component):
     ):
         super().__init__(window, pluginGroup=pluginGroup, helper=helper)
 
+        self._viewChanging = False
         self._activeTool = "KritaShape/KisToolBrush"
         self._syncingTool = False
         self._plugin = plugin
@@ -95,7 +96,8 @@ class ToolManager(Component):
         OptionSignals.configSaved.connect(self.onConfigSave)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        qwin = self._helper.getQwin()
+        if self._viewChanging:
+            return False
 
         eventType = event.type()
         if (
@@ -118,17 +120,21 @@ class ToolManager(Component):
             and self._plugin._activeQwin != self._helper.getQwin()
         ):
             self._plugin._activeQwin = self._helper.getQwin()
-            QTimer.singleShot(10, self.onViewChanged)
+            self._helper.debounceCallback(
+                "activationChange", self.onViewChanged, timeout_seconds=0.2
+            )
 
         return False
 
     def onViewChanged(self):
-        tool = self.getActiveTool()
-        def cb(tool=tool):
+        self._viewChanging = True
+        def cb():
+            self._viewChanging = False
+            tool = self.getActiveTool()
             toolAction = self._toolActions.get(tool, None)
             if toolAction:
                 toolAction.action.trigger()
-                
+
         self._helper.debounceCallback(
             "toolViewChanged", cb, timeout_seconds=0.2
         )
@@ -234,7 +240,7 @@ class ToolManager(Component):
 
         if getOpt("toggle", "shared_tool"):
             return self._activeTool
-            
+
         view = self._helper.getView()
         if view:
             data = self._helper.getViewData(view)
@@ -244,7 +250,7 @@ class ToolManager(Component):
     def setActiveTool(self, name):
         self._plugin._globalTool = name
         self._activeTool = name
-        
+
         view = self._helper.getView()
         if view:
             self._helper.setViewData(view, "activeTool", name)
