@@ -128,9 +128,10 @@ class Tools(Component):
             self._fitActions["toggle_zoom_to_fit"] = None
 
         self._scalingActions: dict[SCALING_ACTION, QAction | None] = {}
-        self._scalingActions["krita_ui_tweaks_scaling_mode_anchored"] = None
-        self._scalingActions["krita_ui_tweaks_scaling_mode_contained"] = None
-        self._scalingActions["krita_ui_tweaks_scaling_mode_expanded"] = None
+        # TODO remove and cleanup
+        # self._scalingActions["krita_ui_tweaks_scaling_mode_anchored"] = None
+        # self._scalingActions["krita_ui_tweaks_scaling_mode_contained"] = None
+        # self._scalingActions["krita_ui_tweaks_scaling_mode_expanded"] = None
 
         self._scalingToAction: dict[SCALING_MODE, SCALING_ACTION] = {}
         self._scalingToAction["anchored"] = (
@@ -161,38 +162,38 @@ class Tools(Component):
         )
 
         val = "dark" if self._helper.useDarkIcons() else "light"
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks_scaling_mode_anchored",
-            i18n("Scaling Mode Anchored"),
-            self._helper.noop,
-            checkable=True,
-            icon=QIcon(
-                self._helper.getIconPath(f"{val}_scaling-mode-anchored.png")
-            ),
-        )
-
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks_scaling_mode_contained",
-            i18n("Scaling Mode Contained"),
-            self._helper.noop,
-            checkable=True,
-            icon=QIcon(
-                self._helper.getIconPath(f"{val}_scaling-mode-contained.png")
-            ),
-        )
-
-        _ = self._helper.newAction(
-            window,
-            "krita_ui_tweaks_scaling_mode_expanded",
-            i18n("Scaling Mode Expanded"),
-            self._helper.noop,
-            checkable=True,
-            icon=QIcon(
-                self._helper.getIconPath(f"{val}_scaling-mode-expanded.png")
-            ),
-        )
+        # _ = self._helper.newAction(
+        #     window,
+        #     "krita_ui_tweaks_scaling_mode_anchored",
+        #     i18n("Scaling Mode Anchored"),
+        #     self._helper.noop,
+        #     checkable=True,
+        #     icon=QIcon(
+        #         self._helper.getIconPath(f"{val}_scaling-mode-anchored.png")
+        #     ),
+        # )
+        # 
+        # _ = self._helper.newAction(
+        #     window,
+        #     "krita_ui_tweaks_scaling_mode_contained",
+        #     i18n("Scaling Mode Contained"),
+        #     self._helper.noop,
+        #     checkable=True,
+        #     icon=QIcon(
+        #         self._helper.getIconPath(f"{val}_scaling-mode-contained.png")
+        #     ),
+        # )
+        # 
+        # _ = self._helper.newAction(
+        #     window,
+        #     "krita_ui_tweaks_scaling_mode_expanded",
+        #     i18n("Scaling Mode Expanded"),
+        #     self._helper.noop,
+        #     checkable=True,
+        #     icon=QIcon(
+        #         self._helper.getIconPath(f"{val}_scaling-mode-expanded.png")
+        #     ),
+        # )
 
         _ = self._helper.newAction(
             window,
@@ -693,7 +694,7 @@ class Tools(Component):
 
         name = data.get("fitMode", "zoom_to_fit")
         prevPos = data.get("prevResizePosition", None)
-        
+
         if self._fitActions.get(name, None):
             if name == "zoom_to_fit":
                 helper.zoomToFit(win=win, view=view)
@@ -709,11 +710,7 @@ class Tools(Component):
                     else self._globalScalingMode
                 )
 
-                if name in (
-                    "krita_ui_tweaks_scaling_mode_anchored",
-                    "krita_ui_tweaks_scaling_mode_contained",
-                    "krita_ui_tweaks_scaling_mode_expanded",
-                ):
+                if self._scalingActions.get(name, None):
                     oldPos = data.get("dragOrigin", prevPos)
                     newPos = helper.canvasPosition(win=win, view=view)
                     helper.scaleTo(

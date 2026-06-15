@@ -223,7 +223,7 @@ class SettingsDialog(QDialog):
             self.tabs.setCurrentIndex(tabIndex)
 
     def setupLayout(self):
-        isNewApi = False #self._helper.isNewApi()
+        isNewApi = self._helper.isNewApi()
         self._config: CONFIG_DEFAULTS_TYPE = readConfig()
 
         val = "dark" if self._helper.useDarkIcons() else "light"
@@ -353,7 +353,7 @@ class SettingsDialog(QDialog):
             "toolbar_icons": ToggleItem(
                 input=QCheckBox(i18n("Highlight active tool in toolbars")),
                 section=sections.tools,
-            ) if not isNewApi else None,
+            ),
             "shared_tool": ToggleItem(
                 input=QCheckBox(
                     i18n(
@@ -361,7 +361,7 @@ class SettingsDialog(QDialog):
                     )
                 ),
                 section=sections.tools,
-            ) if not isNewApi else None,
+            ),
             "global_tool": ToggleItem(
                 input=QCheckBox(
                     i18n(
@@ -369,15 +369,6 @@ class SettingsDialog(QDialog):
                     )
                 ),
                 section=sections.tools,
-            ) if not isNewApi else None,
-            "hide_floating_message": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Permanently hide the floating message that appears at the top-left of the canvas."
-                    ),
-                ),
-                section=sections.tools,
-                extra=QLabel(i18n("<b>Requires restart.</b>")),
             ),
             "toggle_docking": ToggleItem(
                 input=QCheckBox(i18n("Toggle docking on and off")),
@@ -410,49 +401,49 @@ class SettingsDialog(QDialog):
                 ),
                 section=sections.fitMode,
                 spaceBelow=10,
-            ),
-            "scaling_mode_per_view": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Scaling mode is enabled per view instead of globally"
-                    )
-                ),
-                section=sections.scalingMode,
-            ),
-            "default_scaling_mode": ComboItem(
-                input=QComboBox(),
-                label=QLabel(i18n("Default scaling mode")),
-                singleLine=True,
-                options=defaults["resize"]["default_scaling_mode"].options,
-                section=sections.scalingMode,
-                extra=QLabel(
-                    i18n(
-                        "<b>Default scaling mode will be set when Krita starts up.</b>"
-                    )
-                ),
-                spaceBelow=10,
-            ),
-            "scaling_contained_only": ToggleItem(
-                subtitle=QLabel(i18n("<b>Only apply scaling when:</b>")),
-                input=QCheckBox(i18n("Canvas is contained in the viewport")),
-                section=sections.scalingMode,
-            ),
-            "scaling_contained_partial": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Canvas is smaller than the viewport (but partially out of view)"
-                    )
-                ),
-                section=sections.scalingMode,
-            ),
-            "scaling_contained_shorter": ToggleItem(
-                input=QCheckBox(
-                    i18n(
-                        "Canvas is either shorter or narrower than the viewport"
-                    )
-                ),
-                section=sections.scalingMode,
-            ),
+            ) if not isNewApi else None,
+            # "scaling_mode_per_view": ToggleItem(
+            #     input=QCheckBox(
+            #         i18n(
+            #             "Scaling mode is enabled per view instead of globally"
+            #         )
+            #     ),
+            #     section=sections.scalingMode,
+            # ),
+            # "default_scaling_mode": ComboItem(
+            #     input=QComboBox(),
+            #     label=QLabel(i18n("Default scaling mode")),
+            #     singleLine=True,
+            #     options=defaults["resize"]["default_scaling_mode"].options,
+            #     section=sections.scalingMode,
+            #     extra=QLabel(
+            #         i18n(
+            #             "<b>Default scaling mode will be set when Krita starts up.</b>"
+            #         )
+            #     ),
+            #     spaceBelow=10,
+            # ),
+            # "scaling_contained_only": ToggleItem(
+            #     subtitle=QLabel(i18n("<b>Only apply scaling when:</b>")),
+            #     input=QCheckBox(i18n("Canvas is contained in the viewport")),
+            #     section=sections.scalingMode,
+            # ),
+            # "scaling_contained_partial": ToggleItem(
+            #     input=QCheckBox(
+            #         i18n(
+            #             "Canvas is smaller than the viewport (but partially out of view)"
+            #         )
+            #     ),
+            #     section=sections.scalingMode,
+            # ),
+            # "scaling_contained_shorter": ToggleItem(
+            #     input=QCheckBox(
+            #         i18n(
+            #             "Canvas is either shorter or narrower than the viewport"
+            #         )
+            #     ),
+            #     section=sections.scalingMode,
+            # ),
         }
 
         colorLabels: dict[str, str] = {
@@ -849,37 +840,42 @@ class SettingsDialog(QDialog):
             return new
 
         for k, v in self._translated.items():
-            config["translated"][k] = checkVal("translated", k, v)
+            if v is not None:
+                config["translated"][k] = checkVal("translated", k, v)
 
         for k, v in self._tabBehaviour.items():
-            config["tab_behaviour"][k] = checkVal("tab_behaviour", k, v)
+            if v is not None:
+                config["tab_behaviour"][k] = checkVal("tab_behaviour", k, v)
 
         for k, v in self._toggle.items():
-            val = checkVal("toggle", k, v)
-            config["toggle"][k] = val
-            if k == "restore_layout" and val:
-                Krita.instance().writeSetting("", "sessionOnStartup", "0")
+            if v is not None:
+                val = checkVal("toggle", k, v)
+                config["toggle"][k] = val
+                if k == "restore_layout" and val:
+                    Krita.instance().writeSetting("", "sessionOnStartup", "0")
 
         for k, v in self._resize.items():
-            val = checkVal("resize", k, v)
-            config["resize"][k] = val
-            if k == "restore_layout" and val:
-                Krita.instance().writeSetting("", "sessionOnStartup", "0")
+            if v is not None:
+                val = checkVal("resize", k, v)
+                config["resize"][k] = val
+                if k == "restore_layout" and val:
+                    Krita.instance().writeSetting("", "sessionOnStartup", "0")
 
         schemeColors = self._controller.colors()
         colorsChanged = False
         configColors = self._config.get("colors", {})
 
         for k, v in self._colors.items():
-            color = self._getFormValue(v)
-            currColor = configColors.get(k, "")
-            resetColor = getattr(schemeColors, k, None)
-            newColor = "" if color == resetColor else color
-            if newColor != currColor:
-                updated["colors"] = updated.get("colors", {})
-                updated["colors"][k] = True
-                colorsChanged = True
-            config["colors"][k] = newColor
+            if v is not None:
+                color = self._getFormValue(v)
+                currColor = configColors.get(k, "")
+                resetColor = getattr(schemeColors, k, None)
+                newColor = "" if color == resetColor else color
+                if newColor != currColor:
+                    updated["colors"] = updated.get("colors", {})
+                    updated["colors"][k] = True
+                    colorsChanged = True
+                config["colors"][k] = newColor
 
         writeConfig(config)
         _global_config = config
@@ -990,7 +986,6 @@ def defaultConfig() -> CONFIG_DEFAULTS_TYPE:
             "toolbar_icons": ConfigVal(default=True),
             "shared_tool": ConfigVal(default=True),
             "global_tool": ConfigVal(default=False),
-            "hide_floating_message": ConfigVal(default=False),
             "toggle_docking": ConfigVal(default=True),
         },
         "resize": {

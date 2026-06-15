@@ -747,23 +747,10 @@ class SplitPane(Component):
                 setattr(colors, f.name, override)
         self._adjustedColors = colors
 
-        hideFloatingMessage = ""
-        if getOpt("toggle", "hide_floating_message"):
-            hideFloatingMessage = """
-                QMdiArea KisFloatingMessage {
-                    opacity: 0;
-                    min-width: 0;
-                    max-width: 0;
-                    min-height: 0;
-                    max-height: 0;
-                }
-            """
-
         style = f"""
                 QMainWindow::separator:vertical {{
                     background: transparent;
                 }}
-                {hideFloatingMessage}
                 QMenu[class="splitPaneMenu"] {{
                     padding-top: 10px;
                     padding-bottom: 10px;
