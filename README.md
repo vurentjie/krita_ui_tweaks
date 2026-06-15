@@ -25,6 +25,8 @@ Feel free to try both versions to see which one works better for you.
 
 If on Krita 5.3 please use Krita 5.3.2 or greater. Alternatively, use Krita 5.2.
 
+If on MacOS download v1.
+
 - #### v1
   The original plugin code that started off as a series of experiments but over time got patched to work better.
 
