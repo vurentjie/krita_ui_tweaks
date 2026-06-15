@@ -11,6 +11,8 @@ from .component import Component, COMPONENT_GROUP
 from datetime import datetime
 from itertools import count
 
+import sys
+
 
 class Plugin(Extension):
     def __init__(self, parent: QObject):
@@ -37,6 +39,18 @@ class Plugin(Extension):
         return self._components
 
     def createActions(self, window: Window | None):
+        if sys.platform == "darwin":
+
+            def cb():
+                QMessageBox.warning(
+                    None,
+                    i18n("Unsupported platform"),
+                    "Sorry, MacOS is currently not supported for this version.",
+                )
+
+            QTimer.singleShot(100, cb)
+            return
+
         if not window:
             return
 
