@@ -45,7 +45,7 @@ class Plugin(Extension):
                 QMessageBox.warning(
                     None,
                     i18n("Unsupported platform"),
-                    "Sorry, MacOS is currently not supported for this version.",
+                    "Krita UI Tweaks Plugin:\n\nSorry, MacOS is currently not supported for this version.\n\nPlease download v1 instead.",
                 )
 
             QTimer.singleShot(100, cb)
