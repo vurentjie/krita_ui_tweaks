@@ -121,10 +121,11 @@ class Tools(Component):
         # NOTE ty will not typecheck if the actions are declared in the definition
 
         self._fitActions: dict[FIT_ACTION, QAction | None] = {}
-        self._fitActions["zoom_to_fit"] = None
-        self._fitActions["zoom_to_fit_height"] = None
-        self._fitActions["zoom_to_fit_width"] = None
-        self._fitActions["toggle_zoom_to_fit"] = None
+        if not self._helper.isNewApi():
+            self._fitActions["zoom_to_fit"] = None
+            self._fitActions["zoom_to_fit_height"] = None
+            self._fitActions["zoom_to_fit_width"] = None
+            self._fitActions["toggle_zoom_to_fit"] = None
 
         self._scalingActions: dict[SCALING_ACTION, QAction | None] = {}
         self._scalingActions["krita_ui_tweaks_scaling_mode_anchored"] = None
@@ -692,14 +693,15 @@ class Tools(Component):
 
         name = data.get("fitMode", "zoom_to_fit")
         prevPos = data.get("prevResizePosition", None)
-
-        if name == "zoom_to_fit":
-            helper.zoomToFit(win=win, view=view)
-        elif name == "zoom_to_fit_width":
-            helper.zoomToFitWidth(win=win, view=view)
-        elif name == "zoom_to_fit_height":
-            helper.zoomToFitHeight(win=win, view=view)
-        else:
+        
+        if self._fitActions.get(name, None):
+            if name == "zoom_to_fit":
+                helper.zoomToFit(win=win, view=view)
+            elif name == "zoom_to_fit_width":
+                helper.zoomToFitWidth(win=win, view=view)
+            elif name == "zoom_to_fit_height":
+                helper.zoomToFitHeight(win=win, view=view)
+        elif "scalingMode" in data:
             if splitPane.resizingEnabled():
                 name = (
                     data["scalingMode"]
