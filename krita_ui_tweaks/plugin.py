@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: CC0-1.0
 
 from krita import Krita, Extension, Window
-from .pyqt import QObject, QMessageBox, QDockWidget
+from .pyqt import QObject, QMessageBox, QDockWidget, QTimer
 from .helper import Helper
 from .split_pane import MdiController
 from .tools import ToolManager
