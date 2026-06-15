@@ -47,6 +47,7 @@ import re
 import json
 import os
 import time
+import sys
 
 from ..options import (
     getOpt,
@@ -314,7 +315,7 @@ class MdiController(Component):
         
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         
-        if self._pauseEventFilter:
+        if sys.platform != 'darwin' and self._pauseEventFilter:
             return False
             
         mdi = self._helper.getMdi()
