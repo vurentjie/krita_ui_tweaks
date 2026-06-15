@@ -187,6 +187,7 @@ class MdiController(Component):
         self._plugin = plugin
         self._quit = False
 
+        self._pauseEventFilter = False
         self._rootSplit: MdiSplit | None = None
         self._activeSplitPane: MdiSplitPane | None = None
         self._dirtyPanes: list[MdiSplitPane] = []
@@ -310,8 +311,12 @@ class MdiController(Component):
         OptionSignals.configSaved.connect(self.onConfigSave)
 
         QTimer.singleShot(100, self.restoreSessionLayout)
-
+        
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        
+        if self._pauseEventFilter:
+            return False
+            
         mdi = self._helper.getMdi()
         qwin = self._helper.getQwin()
         split = self.rootSplit()
@@ -495,6 +500,8 @@ class MdiController(Component):
         self.toggleSplitter()
 
     def onViewChanged(self):
+        paused = self._pauseEventFilter
+        self._pauseEventFilter = True
         super().onViewChanged()
         helper = self._helper
         mdi = helper.getMdi()
@@ -522,8 +529,12 @@ class MdiController(Component):
 
                 if isEnabled:
                     self.toggleSplitter()
+                    
+        self._pauseEventFilter = paused
 
     def onSubWindowActivated(self, sw):
+        paused = self._pauseEventFilter
+        self._pauseEventFilter = True
         mdi = self._helper.getMdi()
         rootSplit = self.rootSplit()
         subWins = mdi.subWindowList() if mdi is not None else None
@@ -556,9 +567,8 @@ class MdiController(Component):
             self._helper.debounceCallback(
                 "resetWin", restore, timeout_seconds=0.5
             )
-            return
 
-        if sw is not None:
+        elif sw is not None:
             activePane = self.activeSplitPane()
             if activePane:
                 activePane.resizeSubWindow(sw, forceResize = True)
@@ -568,6 +578,8 @@ class MdiController(Component):
         else:
             self.toggleSplitter()
 
+        self._pauseEventFilter = paused
+        
     def toggleSplitter(self):
 
         helper = self._helper
@@ -736,7 +748,10 @@ class MdiController(Component):
             if pane is not None:
                 self.setActiveSplitPane(pane, False, False)
 
+            paused = self._pauseEventFilter
+            self._pauseEventFilter = True
             view = win.addView(doc)
+            self._pauseEventFilter = paused
             path = doc.fileName()
             if path and os.path.exists(path):
                 self._recentFiles[path] = datetime.now()
