@@ -33,7 +33,7 @@ import math
 import json
 import os
 import time
-
+import sys
 
 from .mdi_tab_bar import MdiTabBar
 from .mdi_split_menu import MdiMenuButton
@@ -229,12 +229,15 @@ class MdiSplitPane(QWidget):
         return allClosed
 
     def resizeSubWindow(
-        self, sw: QMdiSubWindow | None = None, refreshLayout: bool = True, forceResize: bool = False
+        self,
+        sw: QMdiSubWindow | None = None,
+        refreshLayout: bool = True,
+        forceResize: bool = False,
     ):
         sw = self._helper.isAlive(sw, QMdiSubWindow)
         if sw is None:
             return
-            
+
         if not forceResize and sw not in self._subWindows:
             return
 
@@ -637,6 +640,18 @@ class MdiSplitPane(QWidget):
                 ):
                     split.close()
                 break
+                
+        # XXX weird bug on macos
+        if sys.platform == "darwin":
+            mdi = self._helper.getMdi()
+            if mdi:
+                subwins = mdi.subWindowList()
+                for sw in subwins:
+                    flags = sw.windowFlags()
+                    flags |= Qt.WindowType.FramelessWindowHint
+                    flags &= ~Qt.WindowType.WindowStaysOnTopHint
+                    flags &= ~Qt.WindowType.WindowStaysOnBottomHint
+                    sw.setWindowFlags(flags)
 
     def slotTabCloseRequested(self, index: int):
         if not self._guardClosingTab:
