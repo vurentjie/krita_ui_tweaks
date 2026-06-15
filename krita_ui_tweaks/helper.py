@@ -41,6 +41,7 @@ import math
 import os
 import time
 import re
+import sys
 
 from .i18n import i18n
 
@@ -174,9 +175,13 @@ class Helper:
         return self.getApp().notifier()
 
     def getWin(self) -> Window | None:
-        cached = self.isAlive(self._cached.get("kritaWindow", None), Window)
-        if cached:
-            return cached
+        # XXX can cause crash on macos
+        if sys.platform != "darwin":
+            cached = self.isAlive(
+                self._cached.get("kritaWindow", None), Window
+            )
+            if cached:
+                return cached
         for w in self.getApp().windows():
             if w.qwindow() == self._qwin:
                 self._cached["kritaWindow"] = w
@@ -563,7 +568,7 @@ class Helper:
                 self.canvasScrollTo(
                     win=win, x=-int(rect.x()), y=-int(rect.y())
                 )
-                
+
     # Layer utils derived from:
     # https://krita-artists.org/t/setactivenode-does-not-change-active-node/47753/3
 
