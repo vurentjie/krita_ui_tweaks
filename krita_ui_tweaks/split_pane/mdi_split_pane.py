@@ -647,11 +647,12 @@ class MdiSplitPane(QWidget):
             if mdi:
                 subwins = mdi.subWindowList()
                 for sw in subwins:
-                    flags = sw.windowFlags()
-                    flags |= Qt.WindowType.FramelessWindowHint
-                    flags &= ~Qt.WindowType.WindowStaysOnTopHint
-                    flags &= ~Qt.WindowType.WindowStaysOnBottomHint
-                    sw.setWindowFlags(flags)
+                    if sw != obj and self._helper.isAlive(sw, QMdiSubWindow):
+                        flags = sw.windowFlags()
+                        flags |= Qt.WindowType.FramelessWindowHint
+                        flags &= ~Qt.WindowType.WindowStaysOnTopHint
+                        flags &= ~Qt.WindowType.WindowStaysOnBottomHint
+                        sw.setWindowFlags(flags)
 
     def slotTabCloseRequested(self, index: int):
         if not self._guardClosingTab:
