@@ -260,7 +260,7 @@ class SplitHandle(QWidget):
             if self._dragTimer is None:
                 self._dragTimer = QTimer()
                 self._dragTimer.timeout.connect(self.handleMove)
-                self._dragTimer.start(10)
+                self._dragTimer.start(100)
 
             self._dragCurrPos = toPoint(getEventGlobalPos(event))
             event.accept()
