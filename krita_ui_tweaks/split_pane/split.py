@@ -646,7 +646,7 @@ class Split(QObject):
                         )
                         view = helper.isAlive(self.getActiveTabView(), View)
                         if win and view:
-                            self._helper.centerCanvas(win=win, view=view)
+                            self._helper.centerCanvas(win=win, view=view, epsilon=10)
 
                     if refreshIcons:
                         self._toolbar.updateMenuBtn()

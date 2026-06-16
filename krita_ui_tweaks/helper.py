@@ -20,6 +20,7 @@ from .pyqt import (
     QPointF,
     QRect,
     QRectF,
+    QLineF,
     QScrollBar,
     QStackedWidget,
     QTabBar,
@@ -599,6 +600,7 @@ class Helper:
         centerY: int | None = None,
         centerX: int | None = None,
         intersected: bool = False,
+        epsilon: int | None = None,
     ):
         if not win:
             return
@@ -607,6 +609,13 @@ class Helper:
             pos = self.canvasPosition(win=win, canvas=canvas, view=view)
             if pos:
                 rect = pos.bbox
+                
+                if epsilon:
+                    c = QPointF(pos.viewport.center())
+                    rc = QPointF(rect.center())
+                    if QLineF(rc, c).length() < epsilon:
+                        return
+
                 splitRect = pos.viewport
 
                 if intersected:
@@ -628,6 +637,7 @@ class Helper:
                 else:
                     rect.moveCenter(c)
                 self.scrollTo(win=win, x=-int(rect.x()), y=-int(rect.y()))
+
 
     def zoomToFit(
         self,

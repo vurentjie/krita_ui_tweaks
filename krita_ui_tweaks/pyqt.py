@@ -57,6 +57,7 @@ QPoint = QtCore.QPoint
 QPointF = QtCore.QPointF
 QRect = QtCore.QRect
 QRectF = QtCore.QRectF
+QLineF = QtCore.QLineF
 QSettings = QtCore.QSettings
 QSize = QtCore.QSize
 QStandardPaths = QtCore.QStandardPaths
