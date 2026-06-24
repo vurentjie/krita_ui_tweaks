@@ -434,6 +434,7 @@ class MdiSplitPane(QWidget):
             self._controller.setActiveSplitPane(targetPane)
 
             def cb(sw=sw):
+                self._controller.setActiveSubWindow(sw)
                 view = self._helper.getViewBySubWin(sw)
                 if view is not None:
                     self._helper.centerCanvas(sw, view, epsilon=10)
