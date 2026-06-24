@@ -310,7 +310,7 @@ class MdiController(Component):
 
         OptionSignals.configSaved.connect(self.onConfigSave)
 
-        QTimer.singleShot(100, self.restoreSessionLayout)
+        QTimer.singleShot(500, self.restoreSessionLayout)
         
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         
@@ -630,7 +630,7 @@ class MdiController(Component):
                 try:
                     layout = self._plugin._sessionRestore
                     self._plugin._sessionRestore = None
-                    self.restoreSplitState(layout)
+                    QTimer.singleShot(500, lambda layout=layout: self.restoreSplitState(layout, True))
                 except:
                     self._plugin._sessionRestore = None
                     pass
@@ -895,15 +895,20 @@ class MdiController(Component):
                 if not files:
                     return
 
-                docs = self._helper.getDocsByFile()
-                self._plugin._sessionRestore = layout
-
-                if files[0] in docs:
-                    self.openView(docs[files[0]].doc)
+                
+                rootSplit = self.rootSplit()
+                if rootSplit is None:
+                    docs = self._helper.getDocsByFile()
+                    self._plugin._sessionRestore = layout
+                    if files[0] in docs:
+                        layout["cleanupView"] = self.openView(docs[files[0]].doc)
+                    else:
+                        doc = app.openDocument(files[0])
+                        if doc:
+                            layout["cleanupView"] = self.openView(doc)
                 else:
-                    doc = app.openDocument(files[0])
-                    if doc:
-                        self.openView(doc)
+                    self.restoreSplitState(layout, True)
+
 
         except Exception as e:
             self._plugin._sessionRestore = False
@@ -1364,7 +1369,7 @@ class MdiController(Component):
                 i18n(f"An unexpected error occurred.\n\n{e}"),
             )
 
-    def restoreSplitState(self, state: dict[Any, Any]) -> bool:
+    def restoreSplitState(self, state: dict[Any, Any], keepExisting: False) -> bool:
         rootSplit = self.rootSplit()
 
         if rootSplit is None:
@@ -1391,6 +1396,7 @@ class MdiController(Component):
 
         try:
             context = {}
+            cleanupView = state.get("cleanupView", None)
             layout = state.get("layout", {})
             locked = state.get("locked", False)
             version = state.get("version", None)
@@ -1430,6 +1436,14 @@ class MdiController(Component):
 
             tabs.setVisible(False)
             callbacks = context.get("callbacks", None)
+            
+            def hideMsg(msg=msg):
+                if self._helper.isAlive(msg, QWidget):
+                    msg.deleteLater()
+            
+            self._helper.debounceCallback(
+                "hideLoadingMessage", hideMsg, timeout_seconds=2.5
+            )
 
             def runCallbacks(
                 needsUpdate=False,
@@ -1441,14 +1455,22 @@ class MdiController(Component):
                 mdi=mdi,
                 rootSplit=rootSplit,
                 msg=msg,
+                hideMsg=hideMsg,
+                keepExisting=keepExisting,
+                cleanupView=cleanupView,
             ):
+                
+                self._helper.debounceCallback(
+                    "hideLoadingMessage", hideMsg, timeout_seconds=2.5
+                )
+
                 if not self._helper.isAlive(qwin, QMainWindow):
                     return
 
                 if not self._helper.isAlive(rootSplit, MdiSplit):
                     qwin.setUpdatesEnabled(True)
                     return
-
+                    
                 if needsUpdate:
                     qwin.setUpdatesEnabled(True)
                     QTimer.singleShot(0, runCallbacks)
@@ -1468,8 +1490,16 @@ class MdiController(Component):
                     self.setLayoutLocked(locked)
 
                     qwin.setUpdatesEnabled(False)
-                    for sw in oldSubWins:
-                        sw.close()
+                    
+                    if not keepExisting:
+                        for sw in oldSubWins:
+                            sw.close()
+                            
+                    if self._helper.isAlive(cleanupView, View):
+                        sw = self._helper.getSubWinByView(cleanupView)
+                        if sw:
+                            sw.close()
+
 
                     if not version:
                         self.slotEqualizeLayout()
@@ -1486,7 +1516,7 @@ class MdiController(Component):
                         cb()
 
                     qwin.setUpdatesEnabled(True)
-                    msg.deleteLater()
+                    hideMsg()
 
             QTimer.singleShot(0, runCallbacks)
 
